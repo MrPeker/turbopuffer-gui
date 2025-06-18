@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm run build:main:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run build:*)",
+      "mcp__Context7__get-library-docs",
+      "Bash(mv:*)",
+      "Bash(npm run lint)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}
