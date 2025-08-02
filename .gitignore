@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# Downloaded spectrum-css repo
+spectrum-css/
