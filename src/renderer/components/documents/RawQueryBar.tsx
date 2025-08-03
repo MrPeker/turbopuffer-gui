@@ -23,14 +23,15 @@ import { useSettings } from '@/renderer/contexts/SettingsContext';
 
 interface RawQueryBarProps {
   namespaceId: string;
+  initialQuery?: string;
 }
 
-export const RawQueryBar: React.FC<RawQueryBarProps> = ({ namespaceId }) => {
+export const RawQueryBar: React.FC<RawQueryBarProps> = ({ namespaceId, initialQuery }) => {
   const { activeConnection } = useConnection();
   const { toast } = useToast();
   const { setRawQueryResults, clearDocuments, attributes } = useDocumentsStore();
   const { settings } = useSettings();
-  const [query, setQuery] = useState('{\n  "rank_by": ["id", "asc"],\n  "top_k": 100,\n  "include_attributes": true\n}');
+  const [query, setQuery] = useState(initialQuery || '{\n  "rank_by": ["id", "asc"],\n  "top_k": 1000,\n  "include_attributes": true\n}');
   const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);

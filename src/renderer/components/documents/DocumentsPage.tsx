@@ -27,6 +27,7 @@ import { DocumentViewer } from "./DocumentViewer";
 import { DocumentUploadDialog } from "./DocumentUploadDialog";
 import { FilterBar } from "./FilterBar/FilterBar";
 import { RawQueryBar } from "./RawQueryBar";
+import { convertFiltersToRawQuery } from "@/renderer/utils/filterConversion";
 
 export const DocumentsPage: React.FC = () => {
   const { namespaceId } = useParams<{ namespaceId: string }>();
@@ -53,6 +54,10 @@ export const DocumentsPage: React.FC = () => {
     resetInitialization,
     lastQueryResult,
   } = useDocumentsStore();
+  
+  // Subscribe to store state for filter dependencies
+  const activeFilters = useDocumentsStore(state => state.activeFilters);
+  const searchText = useDocumentsStore(state => state.searchText);
 
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
     null
@@ -60,6 +65,7 @@ export const DocumentsPage: React.FC = () => {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [pageSize, setPageSize] = useState(1000);
   const [isRawQueryMode, setIsRawQueryMode] = useState(false);
+  const [initialRawQuery, setInitialRawQuery] = useState<string | undefined>(undefined);
 
   // Auto-select namespace if URL has namespaceId but no namespace is selected
   useEffect(() => {
@@ -81,7 +87,7 @@ export const DocumentsPage: React.FC = () => {
     autoSelectNamespace();
   }, [namespaceId, selectedConnection, selectedNamespace, loadNamespaceById, toast]);
 
-  // Single effect to handle initialization and loading
+// Single effect to handle initialization and loading
   useEffect(() => {
     const initializeAndLoad = async () => {
       if (namespaceId && selectedConnection) {
@@ -101,13 +107,14 @@ export const DocumentsPage: React.FC = () => {
 
         if (initialized) {
           // Load documents with current page size
-          loadDocuments(false, false, pageSize);
+          // Always load when refreshing
+          loadDocuments(isRefreshing, false, pageSize);
         }
       }
     };
 
     initializeAndLoad();
-  }, [namespaceId, selectedConnection, pageSize]); // Include pageSize in deps
+  }, [namespaceId, selectedConnection, pageSize, isRefreshing]);
 
   const handleRefresh = () => {
     refresh();
@@ -223,7 +230,21 @@ export const DocumentsPage: React.FC = () => {
             <Button
               variant={isRawQueryMode ? "default" : "outline"}
               size="sm"
-              onClick={() => setIsRawQueryMode(!isRawQueryMode)}
+              onClick={() => {
+                if (!isRawQueryMode) {
+                  // Switching to raw mode - generate query from current filters
+                  const rawQuery = convertFiltersToRawQuery(
+                    useDocumentsStore.getState().activeFilters,
+                    useDocumentsStore.getState().searchText,
+                    useDocumentsStore.getState().attributes
+                  );
+                  setInitialRawQuery(rawQuery);
+                } else {
+                  // Switching back to filter mode - clear initial query
+                  setInitialRawQuery(undefined);
+                }
+                setIsRawQueryMode(!isRawQueryMode);
+              }}
               className="gap-2"
             >
               <Code className="h-4 w-4" />
@@ -272,7 +293,7 @@ export const DocumentsPage: React.FC = () => {
 
       {/* Filter Bar or Raw Query Bar */}
       {isRawQueryMode ? (
-        <RawQueryBar namespaceId={namespaceId || ''} />
+        <RawQueryBar namespaceId={namespaceId || ''} initialQuery={initialRawQuery} />
       ) : (
         <FilterBar 
           className="sticky top-0 z-10" 

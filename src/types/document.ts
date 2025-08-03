@@ -36,7 +36,9 @@ export type FilterOp =
   | 'In' | 'NotIn'
   | 'Lt' | 'Lte' | 'Gt' | 'Gte'
   | 'Glob' | 'NotGlob' | 'IGlob' | 'NotIGlob'
-  | 'ContainsAllTokens';
+  | 'ContainsAllTokens'
+  | 'Contains' | 'ContainsAny'
+  | 'Regex';
 
 export type AggregateFunction = ['Count', string];
 

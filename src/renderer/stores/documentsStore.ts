@@ -15,7 +15,7 @@ import { attributeDiscoveryService } from "../services/attributeDiscoveryService
 import { namespaceService } from "../services/namespaceService";
 import { generateFilterDescription } from "../utils/filterDescriptions";
 
-interface SimpleFilter {
+export interface SimpleFilter {
   id: string;
   attribute: string;
   operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches";
@@ -795,14 +795,14 @@ export const useDocumentsStore = create<DocumentsState>()(
                       // For arrays, use "Contains" to check if array contains the value
                       // If value is an array, use the first element (for single-value contains)
                       const containsValue = Array.isArray(filter.value) ? filter.value[0] : filter.value;
-                      const arrayFilter = [filter.attribute, "Contains", containsValue];
-                      console.log("🔍 Adding ARRAY filter (Contains):", arrayFilter);
-                      filters.push(arrayFilter);
+                      const arrayFilter = [filter.attribute, "ContainsAny", containsValue];
+                      console.log("🔍 Adding ARRAY filter (ContainsAny):", arrayFilter);
+                      filters.push(arrayFilter as TurbopufferFilter);
                     } else {
                       // For non-arrays, use standard equality
                       const nonArrayFilter = [filter.attribute, "Eq", filter.value];
                       console.log("🔍 Adding NON-ARRAY filter (Eq):", nonArrayFilter);
-                      filters.push(nonArrayFilter);
+                      filters.push(nonArrayFilter as TurbopufferFilter);
                     }
                     break;
                   }
@@ -812,14 +812,10 @@ export const useDocumentsStore = create<DocumentsState>()(
                     const isArrayField = fieldInfo?.type && typeof fieldInfo.type === 'string' && (fieldInfo.type.startsWith('[]') || fieldInfo.type === 'array');
                     
                     if (isArrayField) {
-                      // For arrays, use "NotContains" to check if array does not contain the value
+                      // For arrays, use "Not", [filter.attribute, "Contains" to check if array does not contain the value
                       // If value is an array, use the first element
                       const notContainsValue = Array.isArray(filter.value) ? filter.value[0] : filter.value;
-                      filters.push([
-                        filter.attribute,
-                        "NotContains",
-                        notContainsValue
-                      ]);
+                      filters.push(["Not", [filter.attribute, "ContainsAny", notContainsValue]] as TurbopufferFilter);
                     } else {
                       // For non-arrays, use standard not equality
                       filters.push([filter.attribute, "NotEq", filter.value]);
@@ -838,7 +834,7 @@ export const useDocumentsStore = create<DocumentsState>()(
                       const containsValue = Array.isArray(filter.value) ? filter.value[0] : filter.value;
                       filters.push([
                         filter.attribute,
-                        "Contains",
+                        "ContainsAny",
                         containsValue
                       ]);
                     } else {
