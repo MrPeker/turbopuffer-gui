@@ -270,6 +270,7 @@ export function NamespacesPage() {
         />
         
 <RecentNamespaces intendedDestination={intendedDestination} />
+        
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <form onSubmit={handleSearchSubmit} className="relative">
