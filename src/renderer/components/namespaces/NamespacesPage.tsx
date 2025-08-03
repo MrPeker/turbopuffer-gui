@@ -8,6 +8,7 @@ import { NamespaceList } from './NamespaceList';
 import { NamespaceTreeView } from './NamespaceTreeView';
 import { CreateNamespaceDialog } from './CreateNamespaceDialog';
 import { PageHeader } from '../layout/PageHeader';
+import { RecentNamespaces } from './RecentNamespaces';
 import type { Namespace } from '../../../types/namespace';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -267,7 +268,8 @@ export function NamespacesPage() {
             </>
           }
         />
-
+        
+<RecentNamespaces intendedDestination={intendedDestination} />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <form onSubmit={handleSearchSubmit} className="relative">

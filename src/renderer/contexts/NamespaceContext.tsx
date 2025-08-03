@@ -9,14 +9,20 @@ interface NamespaceContextType {
   selectNamespace: (namespace: Namespace | null) => void;
   clearNamespace: () => void;
   loadNamespaceById: (namespaceId: string) => Promise<Namespace | null>;
+  recentNamespaces: Namespace[];
+  addRecentNamespace: (namespace: Namespace) => void;
+  clearRecentNamespaces: () => void;
 }
 
 const NamespaceContext = createContext<NamespaceContextType | undefined>(undefined);
 
 const NAMESPACE_STORAGE_KEY = 'selectedNamespace';
+const RECENT_NAMESPACES_STORAGE_KEY = 'recentNamespaces';
+const MAX_RECENT_NAMESPACES = 3;
 
 export function NamespaceProvider({ children }: { children: ReactNode }) {
   const [selectedNamespace, setSelectedNamespace] = useState<Namespace | null>(null);
+  const [recentNamespaces, setRecentNamespaces] = useState<Namespace[]>([]);
   const { activeConnection } = useConnection();
 
   // Load namespace from localStorage on mount
@@ -41,6 +47,31 @@ export function NamespaceProvider({ children }: { children: ReactNode }) {
     }
   }, [activeConnection]);
 
+  // Load recent namespaces from localStorage on mount and when connection changes
+  useEffect(() => {
+    const loadRecentNamespaces = () => {
+      try {
+        const storedData = localStorage.getItem(RECENT_NAMESPACES_STORAGE_KEY);
+        if (storedData) {
+          const stored = JSON.parse(storedData);
+          // Only restore if we have the same connection
+          if (stored.connectionId === activeConnection?.id && stored.namespaces) {
+            setRecentNamespaces(stored.namespaces);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load recent namespaces:', error);
+        setRecentNamespaces([]);
+      }
+    };
+
+    if (activeConnection) {
+      loadRecentNamespaces();
+    } else {
+      setRecentNamespaces([]);
+    }
+  }, [activeConnection]);
+
   // Clear namespace when connection changes
   useEffect(() => {
     if (!activeConnection) {
@@ -48,6 +79,30 @@ export function NamespaceProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(NAMESPACE_STORAGE_KEY);
     }
   }, [activeConnection]);
+
+  const addRecentNamespace = useCallback((namespace: Namespace) => {
+    if (!activeConnection) return;
+    
+    setRecentNamespaces(prev => {
+      // Remove duplicates and limit to MAX_RECENT_NAMESPACES
+      const filtered = prev.filter(ns => ns.id !== namespace.id);
+      const updated = [namespace, ...filtered].slice(0, MAX_RECENT_NAMESPACES);
+      
+      // Persist to localStorage
+      localStorage.setItem(RECENT_NAMESPACES_STORAGE_KEY, JSON.stringify({
+        namespaces: updated,
+        connectionId: activeConnection.id,
+        timestamp: new Date().toISOString()
+      }));
+      
+      return updated;
+    });
+  }, [activeConnection]);
+
+  const clearRecentNamespaces = useCallback(() => {
+    setRecentNamespaces([]);
+    localStorage.removeItem(RECENT_NAMESPACES_STORAGE_KEY);
+  }, []);
 
   const selectNamespace = useCallback((namespace: Namespace | null) => {
     setSelectedNamespace(namespace);
@@ -59,10 +114,13 @@ export function NamespaceProvider({ children }: { children: ReactNode }) {
         connectionId: activeConnection.id,
         timestamp: new Date().toISOString()
       }));
+      
+      // Add to recent namespaces
+      addRecentNamespace(namespace);
     } else {
       localStorage.removeItem(NAMESPACE_STORAGE_KEY);
     }
-  }, [activeConnection]);
+  }, [activeConnection, addRecentNamespace]);
 
   const clearNamespace = useCallback(() => {
     setSelectedNamespace(null);
@@ -106,6 +164,9 @@ export function NamespaceProvider({ children }: { children: ReactNode }) {
         selectNamespace,
         clearNamespace,
         loadNamespaceById,
+        recentNamespaces,
+        addRecentNamespace,
+        clearRecentNamespaces,
       }}
     >
       {children}
