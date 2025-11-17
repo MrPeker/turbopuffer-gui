@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { FilterBuilder } from "./FilterBuilder";
 import { FilterChip } from "./FilterChip";
 import { VectorSearchInput } from "../VectorSearchInput";
+import { BM25ConfigPanel } from "../BM25ConfigPanel";
 
 
 interface FilterBarProps {
@@ -78,6 +79,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     vectorQuery,
     vectorField,
     setVectorQuery,
+    bm25Fields,
+    bm25Operator,
+    setBM25Config,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -391,31 +395,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
           </Button>
         </div>
 
-        {/* BM25 Field Selector */}
-        {searchMode === 'bm25' && (
-          <Select
-            value={searchField || "id"}
-            onValueChange={(value) => {
-              setSearchField(value);
-              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-            }}
-            disabled={isLoading}
-          >
-            <SelectTrigger className="h-7 w-[120px] text-xs">
-              <SelectValue placeholder="Field..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="id">ID</SelectItem>
-              {attributes
-                .filter(attr => attr.type === 'string')
-                .map((attr) => (
-                  <SelectItem key={attr.name} value={attr.name}>
-                    {attr.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        )}
 
         <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
 
@@ -617,6 +596,32 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         </DropdownMenu>
 
       </div>
+
+      {/* BM25 Configuration Panel */}
+      {searchMode === 'bm25' && (
+        <div className="px-3 pb-2">
+          <BM25ConfigPanel
+            availableFields={attributes
+              .filter(attr => attr.type === 'string')
+              .map(attr => attr.name)}
+            selectedFields={bm25Fields}
+            onFieldsChange={(fields) => {
+              setBM25Config(fields, bm25Operator);
+              if (searchText.trim() && fields.length > 0) {
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+              }
+            }}
+            operator={bm25Operator}
+            onOperatorChange={(op) => {
+              setBM25Config(bm25Fields, op);
+              if (searchText.trim() && bm25Fields.length > 0) {
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+              }
+            }}
+            disabled={isLoading}
+          />
+        </div>
+      )}
 
       {/* Vector Search Input */}
       {searchMode === 'vector' && (

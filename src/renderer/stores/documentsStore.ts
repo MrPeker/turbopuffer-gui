@@ -82,6 +82,8 @@ interface DocumentsState {
   searchField: string | null;
   vectorQuery: number[] | null;
   vectorField: string | null;
+  bm25Fields: { field: string; weight: number }[];
+  bm25Operator: 'sum' | 'max' | 'product';
 
   // Cache
   attributesCache: Map<
@@ -122,6 +124,7 @@ interface DocumentsState {
   setSearchMode: (mode: 'pattern' | 'bm25' | 'vector') => void;
   setSearchField: (field: string | null) => void;
   setVectorQuery: (vector: number[] | null, field: string) => void;
+  setBM25Config: (fields: { field: string; weight: number }[], operator: 'sum' | 'max' | 'product') => void;
 
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
@@ -207,6 +210,8 @@ export const useDocumentsStore = create<DocumentsState>()(
         searchField: null,
         vectorQuery: null,
         vectorField: null,
+        bm25Fields: [],
+        bm25Operator: 'sum',
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -248,6 +253,8 @@ export const useDocumentsStore = create<DocumentsState>()(
               state.searchField = null;
               state.vectorQuery = null;
               state.vectorField = null;
+              state.bm25Fields = [];
+              state.bm25Operator = 'sum';
               state.error = null;
               // Reset client initialization state when changing namespace
               state.isClientInitialized = false;
@@ -595,6 +602,16 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.vectorQuery = vector;
             state.vectorField = field;
             // Reset pagination when vector query changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setBM25Config: (fields, operator) =>
+          set((state) => {
+            state.bm25Fields = fields;
+            state.bm25Operator = operator;
+            // Reset pagination when BM25 config changes
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
@@ -1211,8 +1228,24 @@ loadDocuments: async (
               let rankBy: any;
               if (state.searchMode === 'bm25' && state.searchText.trim()) {
                 // BM25 full-text search mode
-                const searchField = state.searchField || 'id';
-                rankBy = [searchField, "BM25", state.searchText.trim()];
+                if (state.bm25Fields.length > 1) {
+                  // Multi-field BM25 with operator
+                  const fieldRanks = state.bm25Fields.map(f => {
+                    const rank = [f.field, "BM25", state.searchText.trim()];
+                    return f.weight !== 1.0 ? [f.weight, rank] : rank;
+                  });
+
+                  const op = state.bm25Operator.charAt(0).toUpperCase() + state.bm25Operator.slice(1);
+                  rankBy = [op, ...fieldRanks];
+                } else if (state.bm25Fields.length === 1) {
+                  // Single field BM25 from config
+                  const field = state.bm25Fields[0].field;
+                  rankBy = [field, "BM25", state.searchText.trim()];
+                } else {
+                  // Fallback to simple single field
+                  const searchField = state.searchField || 'id';
+                  rankBy = [searchField, "BM25", state.searchText.trim()];
+                }
               } else if (state.searchMode === 'vector' && state.vectorQuery && state.vectorQuery.length > 0) {
                 // Vector search mode (ANN)
                 const vectorField = state.vectorField || 'vector';
