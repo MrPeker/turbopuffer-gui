@@ -78,8 +78,10 @@ interface DocumentsState {
   isQueryMode: boolean;
   sortAttribute: string | null;
   sortDirection: 'asc' | 'desc';
-  searchMode: 'pattern' | 'bm25';
+  searchMode: 'pattern' | 'bm25' | 'vector';
   searchField: string | null;
+  vectorQuery: number[] | null;
+  vectorField: string | null;
 
   // Cache
   attributesCache: Map<
@@ -117,8 +119,9 @@ interface DocumentsState {
   setVisibleColumns: (columns: Set<string>) => void;
   toggleColumn: (column: string) => void;
   setSortAttribute: (attribute: string | null, direction: 'asc' | 'desc') => void;
-  setSearchMode: (mode: 'pattern' | 'bm25') => void;
+  setSearchMode: (mode: 'pattern' | 'bm25' | 'vector') => void;
   setSearchField: (field: string | null) => void;
+  setVectorQuery: (vector: number[] | null, field: string) => void;
 
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
@@ -202,6 +205,8 @@ export const useDocumentsStore = create<DocumentsState>()(
         sortDirection: 'asc',
         searchMode: 'pattern',
         searchField: null,
+        vectorQuery: null,
+        vectorField: null,
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -241,6 +246,8 @@ export const useDocumentsStore = create<DocumentsState>()(
               state.sortDirection = 'asc';
               state.searchMode = 'pattern';
               state.searchField = null;
+              state.vectorQuery = null;
+              state.vectorField = null;
               state.error = null;
               // Reset client initialization state when changing namespace
               state.isClientInitialized = false;
@@ -578,6 +585,16 @@ export const useDocumentsStore = create<DocumentsState>()(
           set((state) => {
             state.searchField = field;
             // Reset pagination when search field changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setVectorQuery: (vector, field) =>
+          set((state) => {
+            state.vectorQuery = vector;
+            state.vectorField = field;
+            // Reset pagination when vector query changes
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
@@ -1196,6 +1213,10 @@ loadDocuments: async (
                 // BM25 full-text search mode
                 const searchField = state.searchField || 'id';
                 rankBy = [searchField, "BM25", state.searchText.trim()];
+              } else if (state.searchMode === 'vector' && state.vectorQuery && state.vectorQuery.length > 0) {
+                // Vector search mode (ANN)
+                const vectorField = state.vectorField || 'vector';
+                rankBy = [vectorField, "ANN", state.vectorQuery];
               } else {
                 // Standard sorting mode
                 rankBy = [state.sortAttribute || "id", state.sortDirection];

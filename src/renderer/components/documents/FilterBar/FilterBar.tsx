@@ -35,6 +35,7 @@ import { useDocumentsStore } from "@/renderer/stores/documentsStore";
 import { cn } from "@/lib/utils";
 import { FilterBuilder } from "./FilterBuilder";
 import { FilterChip } from "./FilterChip";
+import { VectorSearchInput } from "../VectorSearchInput";
 
 
 interface FilterBarProps {
@@ -74,6 +75,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     searchField,
     setSearchMode,
     setSearchField,
+    vectorQuery,
+    vectorField,
+    setVectorQuery,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -373,6 +377,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
           >
             BM25
           </Button>
+          <Button
+            variant={searchMode === 'vector' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-6 px-2 text-[10px]"
+            onClick={() => {
+              setSearchMode('vector');
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
+            disabled={isLoading}
+          >
+            Vector
+          </Button>
         </div>
 
         {/* BM25 Field Selector */}
@@ -601,6 +617,26 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         </DropdownMenu>
 
       </div>
+
+      {/* Vector Search Input */}
+      {searchMode === 'vector' && (
+        <div className="px-3 pb-2">
+          <VectorSearchInput
+            onVectorChange={(vector, field) => {
+              setVectorQuery(vector, field);
+              if (vector && vector.length > 0) {
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }
+            }}
+            vectorFields={attributes
+              .filter(attr => attr.name.toLowerCase().includes('vector') || attr.name.toLowerCase().includes('embedding'))
+              .map(attr => attr.name)
+              .concat(['vector']) // Add default 'vector' field
+            }
+            disabled={isLoading}
+          />
+        </div>
+      )}
 
       {/* Enhanced Filter Builder */}
       {isFilterPopoverOpen && (
