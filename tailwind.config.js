@@ -59,33 +59,31 @@ module.exports = {
   				accent: 'hsl(var(--sidebar-accent))',
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
   				border: 'hsl(var(--sidebar-border))',
-  				ring: 'hsl(var(--sidebar-ring))',
-  				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-  				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))'
+  				ring: 'hsl(var(--sidebar-ring))'
+  			},
+  			tp: {
+  				bg: 'hsl(var(--tp-bg))',
+  				surface: 'hsl(var(--tp-surface))',
+  				'surface-alt': 'hsl(var(--tp-surface-alt))',
+  				'border-subtle': 'hsl(var(--tp-border-subtle))',
+  				'border-strong': 'hsl(var(--tp-border-strong))',
+  				text: 'hsl(var(--tp-text))',
+  				'text-muted': 'hsl(var(--tp-text-muted))',
+  				'text-faint': 'hsl(var(--tp-text-faint))',
+  				accent: 'hsl(var(--tp-accent))',
+  				'accent-soft': 'hsl(var(--tp-accent-soft))',
+  				success: 'hsl(var(--tp-success))',
+  				warning: 'hsl(var(--tp-warning))',
+  				danger: 'hsl(var(--tp-danger))'
   			}
   		},
   		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			lg: '2px',
+  			md: '2px',
+  			sm: '2px',
+  			none: '0px'
   		},
   		keyframes: {
-  			'accordion-down': {
-  				from: {
-  					height: '0'
-  				},
-  				to: {
-  					height: 'var(--radix-accordion-content-height)'
-  				}
-  			},
-  			'accordion-up': {
-  				from: {
-  					height: 'var(--radix-accordion-content-height)'
-  				},
-  				to: {
-  					height: '0'
-  				}
-  			},
   			'accordion-down': {
   				from: {
   					height: '0'
@@ -105,9 +103,10 @@ module.exports = {
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out',
-  			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out'
+  		},
+  		letterSpacing: {
+  			'terminal': '-0.01em'
   		}
   	}
   },
