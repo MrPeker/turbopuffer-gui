@@ -1,11 +1,11 @@
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { useConnection } from '../../contexts/ConnectionContext';
-import { useNamespace } from '../../contexts/NamespaceContext';
 import { useDocumentsStore } from '../../stores/documentsStore';
 
 export function StatusBar() {
+  const { namespaceId } = useParams<{ namespaceId?: string }>();
   const { activeConnection } = useConnection();
-  const { selectedNamespace } = useNamespace();
   const totalCount = useDocumentsStore((state) => state.totalCount);
   const isLoading = useDocumentsStore((state) => state.isLoading);
 
@@ -32,11 +32,11 @@ export function StatusBar() {
         )}
 
         {/* Namespace */}
-        {selectedNamespace && (
+        {namespaceId && (
           <>
             <span className="text-tp-border-strong">│</span>
             <span className="text-tp-text-faint">ns:</span>
-            <span className="text-tp-text">{selectedNamespace.id}</span>
+            <span className="text-tp-text">{namespaceId}</span>
           </>
         )}
 

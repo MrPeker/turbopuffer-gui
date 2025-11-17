@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useConnection } from '../../contexts/ConnectionContext';
-import { useNamespace } from '../../contexts/NamespaceContext';
 import type { SimpleFilter } from '../../stores/documentsStore';
 import { Button } from '../../../components/ui/button';
 import { Clock, Search } from 'lucide-react';
@@ -20,13 +20,13 @@ interface NamespaceQueryHistoryProps {
 }
 
 export function NamespaceQueryHistory({ className, onApplyFilters }: NamespaceQueryHistoryProps) {
+  const { namespaceId } = useParams<{ namespaceId?: string }>();
   const { activeConnection } = useConnection();
-  const { selectedNamespace } = useNamespace();
   const [recentQueries, setRecentQueries] = useState<RecentFilterEntry[]>([]);
 
   useEffect(() => {
     const loadRecentQueries = async () => {
-      if (!activeConnection || !selectedNamespace) {
+      if (!activeConnection || !namespaceId) {
         setRecentQueries([]);
         return;
       }
@@ -34,7 +34,7 @@ export function NamespaceQueryHistory({ className, onApplyFilters }: NamespaceQu
       try {
         const history = await window.electronAPI.loadQueryHistory(
           activeConnection.id,
-          selectedNamespace.id
+          namespaceId
         );
         setRecentQueries(history.recent || []);
       } catch (error) {
@@ -44,7 +44,7 @@ export function NamespaceQueryHistory({ className, onApplyFilters }: NamespaceQu
     };
 
     loadRecentQueries();
-  }, [activeConnection, selectedNamespace]);
+  }, [activeConnection, namespaceId]);
 
   const handleApplyQuery = (entry: RecentFilterEntry) => {
     if (onApplyFilters) {
@@ -52,7 +52,7 @@ export function NamespaceQueryHistory({ className, onApplyFilters }: NamespaceQu
     }
   };
 
-  if (recentQueries.length === 0 || !selectedNamespace) {
+  if (recentQueries.length === 0 || !namespaceId) {
     return null;
   }
 

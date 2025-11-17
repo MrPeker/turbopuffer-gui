@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useConnections } from '../../contexts/ConnectionContext';
-import { useNamespace } from '../../contexts/NamespaceContext';
 import { useNavigate, useParams } from 'react-router-dom';
-import { namespaceService } from '../../services/namespaceService';
-import { turbopufferService } from '../../services/turbopufferService';
+import { useNamespacesStore } from '../../stores/namespacesStore';
 import { NamespaceList } from './NamespaceList';
 import { NamespaceTreeView } from './NamespaceTreeView';
 import { CreateNamespaceDialog } from './CreateNamespaceDialog';
@@ -13,11 +11,11 @@ import type { Namespace } from '../../../types/namespace';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info , 
-  Search, 
-  RefreshCw, 
-  Plus, 
-  Database, 
+import { Info ,
+  Search,
+  RefreshCw,
+  Plus,
+  Database,
   AlertCircle,
   Folder,
   FolderOpen,
@@ -38,169 +36,95 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type ViewMode = 'list' | 'tree';
-
 export function NamespacesPage() {
   const navigate = useNavigate();
   const { connectionId } = useParams<{ connectionId: string }>();
-  const { connections, getDelimiterPreference, setDelimiterPreference, getConnectionById } = useConnections();
-  const { loadNamespacesForConnection } = useNamespace();
+  const { getDelimiterPreference, setDelimiterPreference, getConnectionById } = useConnections();
+
+  // Zustand store
+  const {
+    namespaces,
+    isLoading,
+    isRefreshing,
+    isSearching,
+    error,
+    searchTerm,
+    viewMode,
+    intendedDestination: storeIntendedDestination,
+    setConnectionId,
+    initializeClient,
+    loadNamespaces,
+    refresh,
+    createNamespace,
+    deleteNamespace,
+    setSearchTerm,
+    searchNamespacesAPI,
+    setViewMode,
+    setIntendedDestination,
+    loadMoreForPrefix,
+    getFilteredNamespaces,
+  } = useNamespacesStore();
 
   const connection = connectionId ? getConnectionById(connectionId) : null;
-  const [namespaces, setNamespaces] = useState<Namespace[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [delimiter, setDelimiter] = useState('-');
-  const [loadedPrefixes, setLoadedPrefixes] = useState<Set<string>>(new Set());
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [intendedDestination, setIntendedDestination] = useState<string | null>(null);
 
-  // Local filtering of already loaded namespaces
-  const filteredNamespaces = useMemo(() => {
-    if (!searchTerm) return namespaces;
-    return namespaces.filter(ns => 
-      ns.id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [namespaces, searchTerm]);
-
-
-  const loadNamespaces = async (search?: string, isLoadMore?: boolean) => {
-    if (!connectionId || !connection) return;
-
-    // Only set main loading state if not loading more for a folder
-    if (!isLoadMore) {
-      setIsLoading(true);
-    }
-    setError(null);
-
-    try {
-      let connectionWithKey;
-      try {
-        connectionWithKey = await window.electronAPI.getConnectionForUse(connectionId);
-      } catch (err) {
-        console.error('Failed to get connection for use:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Connection not found';
-
-        // If connection not found, it might have been deleted
-        if (errorMessage.includes('not found')) {
-          setError('The selected connection no longer exists. Please select a different connection.');
-          navigate('/connections');
-        } else {
-          setError(`Failed to connect: ${errorMessage}`);
-        }
-
-        setIsLoading(false);
-        setIsRefreshing(false);
-        setIsSearching(false);
-        setIsLoadingMore(false);
-        return;
-      }
-      
-      await turbopufferService.initializeClient(connectionWithKey.apiKey, connectionWithKey.region);
-      namespaceService.setClient(turbopufferService.getClient()!);
-
-      const response = await namespaceService.listNamespaces({
-        prefix: search || undefined,
-        page_size: 1000 // Max allowed
-      });
-
-      if (search) {
-        // If searching with prefix, merge with existing results
-        const existingIds = new Set(namespaces.map(ns => ns.id));
-        const newNamespaces = response.namespaces.filter(ns => !existingIds.has(ns.id));
-        const allNamespaces = [...namespaces, ...newNamespaces];
-        setNamespaces(allNamespaces);
-        setLoadedPrefixes(new Set([...loadedPrefixes, search]));
-      } else {
-        setNamespaces(response.namespaces);
-        setLoadedPrefixes(new Set());
-      }
-    } catch (err) {
-      console.error('Failed to load namespaces:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load namespaces');
-    } finally {
-      if (!isLoadMore) {
-        setIsLoading(false);
-      }
-      setIsRefreshing(false);
-      setIsSearching(false);
-      setIsLoadingMore(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    setLoadedPrefixes(new Set());
-    await loadNamespaces();
-  };
+  const filteredNamespaces = getFilteredNamespaces();
 
   const handleSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (searchTerm.length >= 2) {
-      setIsSearching(true);
-      await loadNamespaces(searchTerm);
+      await searchNamespacesAPI(searchTerm);
     }
   };
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    // Clear search results if search term is cleared
-    if (value.length === 0 && isSearching) {
-      setIsSearching(false);
-      loadNamespaces();
-    }
-  };
-
-  const handleLoadMoreForPrefix = async (prefix: string) => {
-    if (!loadedPrefixes.has(prefix)) {
-      setIsLoadingMore(true);
-      await loadNamespaces(prefix, true);
+    // Clear search and reload if search term is cleared
+    if (value.length === 0) {
+      loadNamespaces(true);
     }
   };
 
   const handleCreateNamespace = async (namespaceId: string) => {
     try {
-      await namespaceService.createNamespace(namespaceId);
+      await createNamespace(namespaceId);
       setIsCreateDialogOpen(false);
-      await loadNamespaces();
     } catch (err) {
       console.error('Failed to create namespace:', err);
       throw err;
     }
   };
 
-  const handleDeleteNamespace = async (namespaceId: string) => {
-    try {
-      await namespaceService.deleteNamespace(namespaceId);
-      setNamespaces(namespaces.filter(ns => ns.id !== namespaceId));
-    } catch (err) {
-      console.error('Failed to delete namespace:', err);
-      throw err;
-    }
-  };
 
+  // Check for intended destination on mount
   useEffect(() => {
-    // Check for intended destination
     const destination = sessionStorage.getItem('intendedDestination');
     if (destination) {
       setIntendedDestination(destination);
       sessionStorage.removeItem('intendedDestination');
     }
-  }, []);
+  }, [setIntendedDestination]);
 
+  // Initialize connection and load namespaces
   useEffect(() => {
-    if (connection && connectionId) {
-      loadNamespaces();
+    if (connection && connectionId && connection.region) {
+      // Set connection in store
+      setConnectionId(connectionId);
+
+      // Initialize client
+      initializeClient(connectionId, connection.region).then((success) => {
+        if (success) {
+          // Load namespaces after client is initialized
+          loadNamespaces();
+        }
+      });
+
       // Load delimiter preference for this connection
       const savedDelimiter = getDelimiterPreference(connectionId);
       setDelimiter(savedDelimiter);
     }
-  }, [connection, connectionId, getDelimiterPreference]);
+  }, [connection, connectionId, setConnectionId, initializeClient, loadNamespaces, getDelimiterPreference]);
 
   // Save delimiter preference when it changes
   const handleDelimiterChange = (value: string) => {
@@ -257,7 +181,7 @@ export function NamespacesPage() {
           <div className="flex items-center gap-1.5">
             <Button
               variant="ghost"
-              onClick={handleRefresh}
+              onClick={refresh}
               disabled={isLoading}
               size="sm"
             >
@@ -275,7 +199,7 @@ export function NamespacesPage() {
           </div>
         </div>
 
-        <RecentNamespaces intendedDestination={intendedDestination} />
+        <RecentNamespaces connectionId={connectionId!} intendedDestination={storeIntendedDestination} />
 
         {/* Enhanced Search and View Controls */}
         <div className="px-3 py-2.5 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between gap-4">
@@ -361,14 +285,14 @@ export function NamespacesPage() {
         </div>
 
         <div className="flex-1 overflow-auto px-3 py-3 space-y-3">
-          {intendedDestination && (
+          {storeIntendedDestination && (
             <Alert className="bg-tp-surface-alt border-tp-border-strong">
               <Info className="h-3 w-3" />
               <AlertTitle className="text-xs uppercase tracking-wider">select namespace</AlertTitle>
               <AlertDescription className="text-[11px] text-tp-text-muted">
-                choose a namespace to continue to {intendedDestination === '/documents' ? 'documents' :
-                  intendedDestination === '/query' ? 'query builder' :
-                  intendedDestination === '/schema' ? 'schema designer' :
+                choose a namespace to continue to {storeIntendedDestination === '/documents' ? 'documents' :
+                  storeIntendedDestination === '/query' ? 'query builder' :
+                  storeIntendedDestination === '/schema' ? 'schema designer' :
                   'requested page'}
               </AlertDescription>
             </Alert>
@@ -456,18 +380,16 @@ export function NamespacesPage() {
           ) : viewMode === 'list' ? (
             <NamespaceList
               namespaces={filteredNamespaces}
-              onDeleteNamespace={handleDeleteNamespace}
               isRefreshing={isRefreshing}
-              intendedDestination={intendedDestination}
+              intendedDestination={storeIntendedDestination}
             />
           ) : (
             <NamespaceTreeView
               namespaces={filteredNamespaces}
               delimiter={delimiter}
-              onDeleteNamespace={handleDeleteNamespace}
-              onLoadMore={handleLoadMoreForPrefix}
+              connectionId={connectionId!}
               isRefreshing={isRefreshing}
-              intendedDestination={intendedDestination}
+              intendedDestination={storeIntendedDestination}
             />
           )}
         </div>

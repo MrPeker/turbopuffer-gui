@@ -18,9 +18,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useConnection } from "@/renderer/contexts/ConnectionContext";
+import { useConnections } from "@/renderer/contexts/ConnectionContext";
 import { useDocumentsStore } from "@/renderer/stores/documentsStore";
-import { useNamespace } from "@/renderer/contexts/NamespaceContext";
 import { useToast } from "@/hooks/use-toast";
 import { useInspector } from "@/renderer/components/layout/MainLayout";
 import { DocumentsTable } from "./DocumentsTable";
@@ -31,9 +30,9 @@ import { RawQueryBar } from "./RawQueryBar";
 import { convertFiltersToRawQuery } from "@/renderer/utils/filterConversion";
 
 export const DocumentsPage: React.FC = () => {
-  const { namespaceId } = useParams<{ namespaceId: string }>();
-  const { selectedConnection } = useConnection();
-  const { selectedNamespace, loadNamespaceById } = useNamespace();
+  const { connectionId, namespaceId } = useParams<{ connectionId: string; namespaceId: string }>();
+  const { getConnectionById } = useConnections();
+  const connection = connectionId ? getConnectionById(connectionId) : null;
   const { toast } = useToast();
   const { setInspectorContent, setInspectorTitle, openInspector, closeInspector } = useInspector();
   const {
@@ -69,33 +68,13 @@ export const DocumentsPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeDocumentId, setActiveDocumentId] = useState<string | number | null>(null);
 
-  // Auto-select namespace if URL has namespaceId but no namespace is selected
-  useEffect(() => {
-    const autoSelectNamespace = async () => {
-      if (namespaceId && selectedConnection && (!selectedNamespace || selectedNamespace.id !== namespaceId)) {
-        console.log(`Auto-selecting namespace: ${namespaceId}`);
-        try {
-          await loadNamespaceById(namespaceId);
-        } catch (error) {
-          console.error('Failed to auto-select namespace:', error);
-          // If namespace doesn't exist, redirect to namespace selection
-          toast.error('Namespace not found', {
-            description: `The namespace "${namespaceId}" does not exist or is not accessible.`,
-          });
-        }
-      }
-    };
-
-    autoSelectNamespace();
-  }, [namespaceId, selectedConnection, selectedNamespace, loadNamespaceById, toast]);
-
-// Single effect to handle initialization and loading
+  // Single effect to handle initialization and loading
   useEffect(() => {
     const initializeAndLoad = async () => {
-      if (namespaceId && selectedConnection) {
+      if (namespaceId && connection) {
         // Set connection ID first
-        setConnectionId(selectedConnection.id);
-        
+        setConnectionId(connection.id);
+
         // Set namespace first
         if (documents.length === 0 || currentNamespaceId !== namespaceId) {
           await setNamespace(namespaceId);
@@ -105,8 +84,8 @@ export const DocumentsPage: React.FC = () => {
 
         // Initialize the client with the current connection
         const initialized = await initializeClient(
-          selectedConnection.id,
-          selectedConnection.region
+          connection.id,
+          connection.region
         );
 
         if (initialized) {
@@ -118,7 +97,7 @@ export const DocumentsPage: React.FC = () => {
     };
 
     initializeAndLoad();
-  }, [namespaceId, selectedConnection, pageSize, isRefreshing]);
+  }, [namespaceId, connection, pageSize, isRefreshing]);
 
   const handleRefresh = () => {
     refresh();
@@ -127,12 +106,12 @@ export const DocumentsPage: React.FC = () => {
   };
 
   const handleRetryConnection = async () => {
-    if (namespaceId && selectedConnection) {
+    if (namespaceId && connection) {
       // Reset initialization state and retry
       resetInitialization();
       const initialized = await initializeClient(
-        selectedConnection.id,
-        selectedConnection.region
+        connection.id,
+        connection.region
       );
       if (initialized) {
         loadDocuments(false, false, pageSize);
@@ -253,9 +232,9 @@ export const DocumentsPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <div>
             <h1 className="text-sm font-bold uppercase tracking-wider text-tp-text">Documents</h1>
-            {selectedNamespace && (
+            {namespaceId && (
               <p className="text-xs text-tp-text-muted mt-0.5">
-                <span className="font-mono text-tp-accent">{selectedNamespace.id}</span>
+                <span className="font-mono text-tp-accent">{namespaceId}</span>
               </p>
             )}
           </div>

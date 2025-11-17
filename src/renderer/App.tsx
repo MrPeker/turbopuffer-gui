@@ -1,7 +1,6 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ConnectionProvider } from './contexts/ConnectionContext';
-import { NamespaceProvider } from './contexts/NamespaceContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { ConnectionGuard } from './components/layout/ConnectionGuard';
@@ -16,8 +15,7 @@ export function App() {
   return (
     <SettingsProvider>
       <ConnectionProvider>
-        <NamespaceProvider>
-          <Router>
+        <Router>
             <Routes>
               <Route path="/" element={<MainLayout />}>
                 {/* Root redirect */}
@@ -67,7 +65,6 @@ export function App() {
               </Route>
             </Routes>
           </Router>
-        </NamespaceProvider>
       </ConnectionProvider>
     </SettingsProvider>
   );

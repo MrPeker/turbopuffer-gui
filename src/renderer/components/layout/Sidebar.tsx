@@ -104,7 +104,7 @@ function SlideoutLabel({
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className="relative w-full"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -199,7 +199,7 @@ function ConnectionStatus({ isCollapsed }: { isCollapsed: boolean }) {
 
   if (isCollapsed) {
     return (
-      <div className="flex flex-col items-center gap-0.5 py-2">
+      <div className="flex flex-col gap-0.5 py-2">
         <SlideoutLabel label={connection?.name || "No connection"}>
           <button
             onClick={() => navigate("/connections")}

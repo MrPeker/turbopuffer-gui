@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Connection } from '../../../types/connection';
-import { useConnection } from '../../contexts/ConnectionContext';
+import { useConnections } from '../../contexts/ConnectionContext';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { 
-  Star, 
-  MoreVertical, 
-  TestTube, 
-  Trash2, 
-  Edit, 
-  MapPin, 
-  Zap, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  Star,
+  MoreVertical,
+  TestTube,
+  Trash2,
+  Edit,
+  MapPin,
+  Zap,
+  CheckCircle,
+  XCircle,
+  Clock,
   RefreshCw,
   Globe
 } from 'lucide-react';
@@ -30,14 +30,13 @@ interface ConnectionCardProps {
 
 export function ConnectionCard({ connection }: ConnectionCardProps) {
   const navigate = useNavigate();
-  const { selectConnection, deleteConnection, testConnection, setDefaultConnection } = useConnection();
+  const { deleteConnection, testConnection, setDefaultConnection } = useConnections();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleSelect = () => {
-    selectConnection(connection.id);
-    navigate('/namespaces');
+    navigate(`/connections/${connection.id}/namespaces`);
   };
 
   const handleTest = async (e: React.MouseEvent) => {

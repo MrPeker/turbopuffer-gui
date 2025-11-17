@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Database,
   Plus,
@@ -48,10 +48,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useConnection } from '@/renderer/contexts/ConnectionContext';
-import { useNamespace } from '@/renderer/contexts/NamespaceContext';
+import { useConnections } from '@/renderer/contexts/ConnectionContext';
 import { useToast } from '@/hooks/use-toast';
-import { RequireNamespace } from '@/renderer/components/layout/RequireNamespace';
 import { namespaceService } from '@/renderer/services/namespaceService';
 import { turbopufferService } from '@/renderer/services/turbopufferService';
 import { SchemaAttributeCard, AddAttributeDialog } from './shared';
@@ -79,8 +77,9 @@ interface IndexBuildingStatus {
 
 export const SchemaPage: React.FC = () => {
   const navigate = useNavigate();
-  const { activeConnection } = useConnection();
-  const { selectedNamespace } = useNamespace();
+  const { connectionId, namespaceId } = useParams<{ connectionId: string; namespaceId: string }>();
+  const { getConnectionById } = useConnections();
+  const connection = connectionId ? getConnectionById(connectionId) : null;
   const { toast } = useToast();
   
   const [attributes, setAttributes] = useState<SchemaAttribute[]>([]);
@@ -103,23 +102,23 @@ export const SchemaPage: React.FC = () => {
 
   // Load schema when namespace changes
   useEffect(() => {
-    if (selectedNamespace && activeConnection) {
+    if (namespaceId && connection) {
       loadSchema();
     }
-  }, [selectedNamespace, activeConnection]);
+  }, [namespaceId, connection]);
 
   const loadSchema = async () => {
-    if (!selectedNamespace || !activeConnection) return;
-    
+    if (!namespaceId || !connection) return;
+
     setLoading(true);
     try {
       // Get connection details with decrypted API key
-      const connectionDetails = await window.electronAPI.getConnectionForUse(activeConnection.id);
-      
+      const connectionDetails = await window.electronAPI.getConnectionForUse(connection.id);
+
       // Initialize client
       await turbopufferService.initializeClient(connectionDetails.apiKey, connectionDetails.region);
-      
-      const schema = await namespaceService.getNamespaceSchema(selectedNamespace.id);
+
+      const schema = await namespaceService.getNamespaceSchema(namespaceId);
       
       // Convert schema to our internal format
       const schemaAttributes: SchemaAttribute[] = Object.entries(schema).map(([name, attributeSchema]) => ({
@@ -160,8 +159,8 @@ export const SchemaPage: React.FC = () => {
   };
 
   const handleSaveSchema = async () => {
-    if (!selectedNamespace) return;
-    
+    if (!namespaceId) return;
+
     setSaving(true);
     try {
       // Convert back to namespace schema format
@@ -170,7 +169,7 @@ export const SchemaPage: React.FC = () => {
         schema[attr.name] = attr.schema;
       });
 
-      const response = await namespaceService.updateNamespaceSchema(selectedNamespace.id, schema);
+      const response = await namespaceService.updateNamespaceSchema(namespaceId, schema);
       
       // Check for HTTP 202 response (index building)
       if (response && typeof response === 'object' && 'status' in response && response.status === 202) {
@@ -214,7 +213,7 @@ export const SchemaPage: React.FC = () => {
       try {
         // Try to get the schema to see if indexes are ready
         // The TurboPuffer API will return HTTP 202 if indexes are still building
-        const schema = await namespaceService.getNamespaceSchema(selectedNamespace!.id);
+        const schema = await namespaceService.getNamespaceSchema(namespaceId!);
         
         // If we successfully get the schema without a 202 status, indexes are ready
         setIndexBuildingStatus({});
@@ -318,35 +317,15 @@ export const SchemaPage: React.FC = () => {
     setHasChanges(true);
   };
 
-  if (!activeConnection) {
-    return (
-      <div className="flex flex-col h-full bg-tp-bg">
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-          <div className="w-16 h-16 bg-tp-surface border border-tp-border-subtle flex items-center justify-center mx-auto mb-3">
-            <Database className="h-8 w-8 text-tp-accent" />
-          </div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-tp-text mb-2">no connection</h2>
-          <p className="text-xs text-tp-text-muted mb-4 max-w-sm">
-            connect to turbopuffer to manage schemas
-          </p>
-          <Button onClick={() => navigate('/connections')} size="sm">
-            <Database className="h-3 w-3 mr-1.5" />
-            connections
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <RequireNamespace>
+    <>
       <div className="flex flex-col h-full bg-tp-bg">
         {/* Header */}
         <div className="px-3 py-2 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold uppercase tracking-wider text-tp-text">schema</h1>
             <p className="text-xs text-tp-text-muted mt-0.5">
-              <span className="font-mono text-tp-accent">{selectedNamespace?.id}</span>
+              <span className="font-mono text-tp-accent">{namespaceId}</span>
             </p>
           </div>
           <div className="flex items-center gap-1.5">
@@ -481,7 +460,7 @@ export const SchemaPage: React.FC = () => {
           setNewAttribute
         }
       />
-    </RequireNamespace>
+    </>
   );
 };
 

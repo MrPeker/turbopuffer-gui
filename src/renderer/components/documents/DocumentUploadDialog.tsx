@@ -33,8 +33,8 @@ import {
   X,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useParams } from 'react-router-dom';
 import { useConnection } from '@/renderer/contexts/ConnectionContext';
-import { useNamespace } from '@/renderer/contexts/NamespaceContext';
 import { useDocumentsStore } from '@/renderer/stores/documentsStore';
 import Papa from 'papaparse';
 
@@ -56,8 +56,8 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
   onSuccess,
 }) => {
   const { toast } = useToast();
+  const { namespaceId } = useParams<{ namespaceId?: string }>();
   const { selectedConnection } = useConnection();
-  const { selectedNamespace } = useNamespace();
   const { uploadDocuments } = useDocumentsStore();
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [jsonText, setJsonText] = useState('');
@@ -139,7 +139,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
   };
 
   const handleUpload = async () => {
-    if (!selectedConnection || !selectedNamespace) return;
+    if (!selectedConnection || !namespaceId) return;
 
     setUploading(true);
     setUploadProgress(0);

@@ -13,19 +13,19 @@
     --card-foreground: 220 15% 15%;
     --popover: 210 20% 98%;
     --popover-foreground: 220 15% 15%;
-    --primary: 200 85% 50%;
+    --primary: 200 55% 40%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 15% 90%;
     --secondary-foreground: 220 15% 15%;
     --muted: 210 15% 92%;
     --muted-foreground: 220 12% 45%;
-    --accent: 200 85% 50%;
+    --accent: 200 55% 40%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
     --border: 220 10% 85%;
     --input: 220 10% 85%;
-    --ring: 200 85% 50%;
+    --ring: 200 55% 40%;
     --radius: 2px;
 
     /* Turbopuffer-specific tokens */
@@ -37,7 +37,7 @@
     --tp-text: 220 15% 15%;
     --tp-text-muted: 220 12% 45%;
     --tp-text-faint: 220 10% 60%;
-    --tp-accent: 200 85% 50%;
+    --tp-accent: 200 55% 40%;
     --tp-accent-soft: 200 85% 40%;
     --tp-success: 142 70% 45%;
     --tp-warning: 38 92% 50%;
@@ -46,12 +46,12 @@
     /* Sidebar */
     --sidebar-background: 210 18% 95%;
     --sidebar-foreground: 220 15% 20%;
-    --sidebar-primary: 200 85% 50%;
+    --sidebar-primary: 200 55% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 210 15% 90%;
     --sidebar-accent-foreground: 220 15% 15%;
     --sidebar-border: 220 10% 85%;
-    --sidebar-ring: 200 85% 50%;
+    --sidebar-ring: 200 55% 40%;
   }
 
   .dark {
@@ -62,19 +62,19 @@
     --card-foreground: 210 20% 94%;
     --popover: 220 12% 12%;
     --popover-foreground: 210 20% 94%;
-    --primary: 200 85% 50%;
+    --primary: 200 65% 50%;
     --primary-foreground: 0 0% 100%;
     --secondary: 220 10% 16%;
     --secondary-foreground: 210 20% 94%;
     --muted: 220 10% 16%;
     --muted-foreground: 210 15% 65%;
-    --accent: 200 85% 50%;
+    --accent: 200 65% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 20% 94%;
     --border: 220 10% 20%;
     --input: 220 10% 20%;
-    --ring: 200 85% 50%;
+    --ring: 200 55% 40%;
 
     /* Turbopuffer-specific tokens */
     --tp-bg: 220 15% 8%;
@@ -85,7 +85,7 @@
     --tp-text: 210 20% 94%;
     --tp-text-muted: 210 15% 65%;
     --tp-text-faint: 210 12% 45%;
-    --tp-accent: 200 85% 50%;
+    --tp-accent: 200 65% 50%;
     --tp-accent-soft: 200 85% 40%;
     --tp-success: 142 70% 45%;
     --tp-warning: 38 92% 50%;
@@ -94,12 +94,12 @@
     /* Sidebar */
     --sidebar-background: 220 14% 10%;
     --sidebar-foreground: 210 20% 94%;
-    --sidebar-primary: 200 85% 50%;
+    --sidebar-primary: 200 55% 40%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 10% 16%;
     --sidebar-accent-foreground: 210 20% 94%;
     --sidebar-border: 220 10% 20%;
-    --sidebar-ring: 200 85% 50%;
+    --sidebar-ring: 200 55% 40%;
   }
 }
 

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { Namespace } from '../../../types/namespace';
 import {
   Table,
@@ -12,9 +13,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { 
-  MoreHorizontal, 
-  Trash2, 
+import {
+  MoreHorizontal,
+  Trash2,
   ArrowRight,
   RefreshCw,
   Database,
@@ -25,35 +26,42 @@ import { cn } from '@/lib/utils';
 
 interface NamespaceListProps {
   namespaces: Namespace[];
-  onDeleteNamespace: (namespaceId: string) => Promise<void>;
   isRefreshing?: boolean;
   intendedDestination?: string | null;
 }
 
-export function NamespaceList({ namespaces, onDeleteNamespace, isRefreshing, intendedDestination }: NamespaceListProps) {
+export function NamespaceList({ namespaces, isRefreshing, intendedDestination }: NamespaceListProps) {
   const navigate = useNavigate();
   const { connectionId } = useParams<{ connectionId: string }>();
-  const [deletingNamespace, setDeletingNamespace] = useState<string | null>(null);
-  const [deleteDialogNamespace, setDeleteDialogNamespace] = useState<string | null>(null);
+
+  // Zustand store
+  const {
+    deletingNamespace,
+    deleteDialogNamespace,
+    setDeleteDialogNamespace,
+    deleteNamespace,
+    addRecentNamespace,
+  } = useNamespacesStore();
 
   const handleDelete = async (namespaceId: string) => {
-    setDeletingNamespace(namespaceId);
     try {
-      await onDeleteNamespace(namespaceId);
-      setDeleteDialogNamespace(null);
-    } finally {
-      setDeletingNamespace(null);
+      await deleteNamespace(namespaceId);
+    } catch (error) {
+      console.error('Failed to delete namespace:', error);
     }
   };
 
-  const handleNamespaceClick = (namespaceId: string) => {
+  const handleNamespaceClick = (namespace: Namespace) => {
     if (!connectionId) return;
+
+    // Add to recent namespaces
+    addRecentNamespace(connectionId, namespace);
 
     // If there's an intended destination, navigate there instead
     if (intendedDestination) {
       navigate(intendedDestination);
     } else {
-      navigate(`/connections/${connectionId}/namespaces/${namespaceId}/documents`);
+      navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents`);
     }
   };
 
@@ -84,7 +92,7 @@ export function NamespaceList({ namespaces, onDeleteNamespace, isRefreshing, int
                 <TableRow
                   key={namespace.id}
                   className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
-                  onClick={() => handleNamespaceClick(namespace.id)}
+                  onClick={() => handleNamespaceClick(namespace)}
                 >
                   <TableCell className="py-3 px-4">
                     <FolderOpen className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />
@@ -103,7 +111,7 @@ export function NamespaceList({ namespaces, onDeleteNamespace, isRefreshing, int
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleNamespaceClick(namespace.id);
+                            handleNamespaceClick(namespace);
                           }}
                           className="text-sm"
                         >

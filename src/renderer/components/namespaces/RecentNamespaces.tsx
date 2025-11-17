@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useNamespace } from '../../contexts/NamespaceContext';
+import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { Namespace } from '../../../types/namespace';
 import { Badge } from '../../../components/ui/badge';
 import { FolderOpen } from 'lucide-react';
@@ -8,20 +8,36 @@ import { cn } from '../../../lib/utils';
 
 interface RecentNamespacesProps {
   className?: string;
+  connectionId: string;
   intendedDestination?: string | null;
 }
 
-export function RecentNamespaces({ className, intendedDestination }: RecentNamespacesProps) {
+export function RecentNamespaces({ className, connectionId, intendedDestination }: RecentNamespacesProps) {
   const navigate = useNavigate();
-  const { recentNamespaces, selectNamespace } = useNamespace();
+
+  // Zustand store
+  const {
+    recentNamespaces,
+    addRecentNamespace,
+    loadRecentNamespaces,
+  } = useNamespacesStore();
+
+  // Load recent namespaces for current connection on mount
+  useEffect(() => {
+    if (connectionId) {
+      loadRecentNamespaces(connectionId);
+    }
+  }, [connectionId, loadRecentNamespaces]);
 
   const handleNamespaceClick = (namespace: Namespace) => {
-    selectNamespace(namespace);
+    // Add to recent namespaces
+    addRecentNamespace(connectionId, namespace);
+
     // If there's an intended destination, navigate there instead
     if (intendedDestination) {
       navigate(intendedDestination);
     } else {
-      navigate(`/namespaces/${namespace.id}`);
+      navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents`);
     }
   };
 

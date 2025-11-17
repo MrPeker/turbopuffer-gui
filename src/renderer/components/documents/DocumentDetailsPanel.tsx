@@ -28,8 +28,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useParams } from 'react-router-dom';
 import { useConnection } from '@/renderer/contexts/ConnectionContext';
-import { useNamespace } from '@/renderer/contexts/NamespaceContext';
 import { useDocumentsStore } from '@/renderer/stores/documentsStore';
 
 interface DocumentDetailsPanelProps {
@@ -138,8 +138,8 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
   onUpdate,
 }) => {
   const { toast } = useToast();
+  const { namespaceId } = useParams<{ namespaceId?: string }>();
   const { selectedConnection } = useConnection();
-  const { selectedNamespace } = useNamespace();
   const { updateDocument } = useDocumentsStore();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -284,7 +284,7 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
   };
 
   const handleSave = async () => {
-    if (!selectedConnection || !selectedNamespace) return;
+    if (!selectedConnection || !namespaceId) return;
 
     setIsSaving(true);
     try {

@@ -247,9 +247,10 @@ export const useDocumentsStore = create<DocumentsState>()(
                   saved: history.saved?.length || 0,
                   recent: history.recent?.length || 0
                 });
+                const historyKey = `${state.currentConnectionId}:${namespaceId}`;
                 set((state) => {
-                  state.filterHistory.set(namespaceId, history.saved || []);
-                  state.recentFilterHistory.set(namespaceId, history.recent || []);
+                  state.filterHistory.set(historyKey, history.saved || []);
+                  state.recentFilterHistory.set(historyKey, history.recent || []);
                 });
               }).catch((error) => {
                 console.error('Failed to load query history:', error);
@@ -577,12 +578,13 @@ export const useDocumentsStore = create<DocumentsState>()(
               newEntry
             );
             console.log('💾 Saved filter to disk successfully');
-            
+
             // Update local state
+            const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
             set((state) => {
-              const namespaceHistory = state.filterHistory.get(currentNamespaceId) || [];
+              const namespaceHistory = state.filterHistory.get(historyKey) || [];
               const updatedHistory = [newEntry, ...namespaceHistory].slice(0, 20);
-              state.filterHistory.set(currentNamespaceId, updatedHistory);
+              state.filterHistory.set(historyKey, updatedHistory);
               console.log('💾 Updated local filter history, now has', updatedHistory.length, 'entries');
             });
           } catch (error) {
@@ -593,28 +595,29 @@ export const useDocumentsStore = create<DocumentsState>()(
         applyFilterFromHistory: async (historyId) => {
           const state = get();
           const { currentConnectionId, currentNamespaceId } = state;
-          
+
           if (!currentConnectionId || !currentNamespaceId) return;
-          
-          const namespaceHistory = state.filterHistory.get(currentNamespaceId) || [];
+
+          const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
+          const namespaceHistory = state.filterHistory.get(historyKey) || [];
           const historyEntry = namespaceHistory.find(entry => entry.id === historyId);
-          
+
           if (!historyEntry) return;
-          
+
           set((state) => {
             // Apply the saved filters and search text
             state.searchText = historyEntry.searchText;
             state.activeFilters = historyEntry.filters.map(f => ({ ...f })); // Deep copy filters
             state.isQueryMode = historyEntry.searchText.length > 0 || historyEntry.filters.length > 0;
-            
+
             // Update the applied count locally
-            const namespaceHistory = state.filterHistory.get(currentNamespaceId) || [];
-            const updatedHistory = namespaceHistory.map(entry => 
-              entry.id === historyId 
+            const namespaceHistory = state.filterHistory.get(historyKey) || [];
+            const updatedHistory = namespaceHistory.map(entry =>
+              entry.id === historyId
                 ? { ...entry, appliedCount: entry.appliedCount + 1 }
                 : entry
             );
-            state.filterHistory.set(currentNamespaceId, updatedHistory);
+            state.filterHistory.set(historyKey, updatedHistory);
           });
           
           // Update count on disk
@@ -635,9 +638,9 @@ export const useDocumentsStore = create<DocumentsState>()(
         deleteFilterFromHistory: async (historyId) => {
           const state = get();
           const { currentConnectionId, currentNamespaceId } = state;
-          
+
           if (!currentConnectionId || !currentNamespaceId) return;
-          
+
           try {
             // Delete from disk
             await window.electronAPI.deleteSavedFilter(
@@ -645,12 +648,13 @@ export const useDocumentsStore = create<DocumentsState>()(
               currentNamespaceId,
               historyId
             );
-            
+
             // Update local state
+            const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
             set((state) => {
-              const namespaceHistory = state.filterHistory.get(currentNamespaceId) || [];
+              const namespaceHistory = state.filterHistory.get(historyKey) || [];
               const updatedHistory = namespaceHistory.filter(entry => entry.id !== historyId);
-              state.filterHistory.set(currentNamespaceId, updatedHistory);
+              state.filterHistory.set(historyKey, updatedHistory);
             });
           } catch (error) {
             console.error('Failed to delete filter from history:', error);
@@ -659,53 +663,58 @@ export const useDocumentsStore = create<DocumentsState>()(
         
         getNamespaceFilterHistory: () => {
           const state = get();
-          const { currentNamespaceId } = state;
-          
-          if (!currentNamespaceId) return [];
-          
-          return state.filterHistory.get(currentNamespaceId) || [];
+          const { currentConnectionId, currentNamespaceId } = state;
+
+          if (!currentConnectionId || !currentNamespaceId) return [];
+
+          const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
+          return state.filterHistory.get(historyKey) || [];
         },
-        
+
         getNamespaceRecentHistory: () => {
           const state = get();
-          const { currentNamespaceId } = state;
-          
+          const { currentConnectionId, currentNamespaceId } = state;
+
           console.log('📖 getNamespaceRecentHistory called:', {
+            currentConnectionId,
             currentNamespaceId,
+            hasConnectionId: !!currentConnectionId,
             hasNamespaceId: !!currentNamespaceId,
             mapSize: state.recentFilterHistory.size,
             allKeys: Array.from(state.recentFilterHistory.keys())
           });
-          
-          if (!currentNamespaceId) return [];
-          
-          const history = state.recentFilterHistory.get(currentNamespaceId) || [];
+
+          if (!currentConnectionId || !currentNamespaceId) return [];
+
+          const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
+          const history = state.recentFilterHistory.get(historyKey) || [];
           console.log('📖 Returning recent history:', {
-            namespaceId: currentNamespaceId,
+            historyKey,
             count: history.length
           });
-          
+
           return history;
         },
         
         applyRecentFilter: (historyId) => {
           const state = get();
-          const { currentNamespaceId } = state;
-          
-          if (!currentNamespaceId) return;
-          
-          const recentHistory = state.recentFilterHistory.get(currentNamespaceId) || [];
+          const { currentConnectionId, currentNamespaceId } = state;
+
+          if (!currentConnectionId || !currentNamespaceId) return;
+
+          const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
+          const recentHistory = state.recentFilterHistory.get(historyKey) || [];
           const historyEntry = recentHistory.find(entry => entry.id === historyId);
-          
+
           if (!historyEntry) return;
-          
+
           set((state) => {
             // Apply the saved filters and search text
             state.searchText = historyEntry.searchText;
             state.activeFilters = historyEntry.filters.map(f => ({ ...f })); // Deep copy filters
             state.isQueryMode = historyEntry.searchText.length > 0 || historyEntry.filters.length > 0;
           });
-          
+
           // Load documents with the applied filters - force page 1
           setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
         },
@@ -752,26 +761,27 @@ export const useDocumentsStore = create<DocumentsState>()(
             console.log('📝 Saved filter to disk successfully');
             
             // Update local state
+            const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
             set((state) => {
-              const recentHistory = state.recentFilterHistory.get(currentNamespaceId) || [];
-              
+              const recentHistory = state.recentFilterHistory.get(historyKey) || [];
+
               // Check if this exact filter combination already exists in recent history
-              const isDuplicate = recentHistory.some(entry => 
+              const isDuplicate = recentHistory.some(entry =>
                 entry.searchText === newEntry.searchText &&
                 entry.filters.length === newEntry.filters.length &&
-                entry.filters.every((f, i) => 
+                entry.filters.every((f, i) =>
                   f.attribute === newEntry.filters[i]?.attribute &&
                   f.operator === newEntry.filters[i]?.operator &&
                   JSON.stringify(f.value) === JSON.stringify(newEntry.filters[i]?.value)
                 )
               );
-              
+
               if (!isDuplicate) {
                 // Keep only the last 30 entries per namespace
                 const updatedHistory = [newEntry, ...recentHistory].slice(0, 30);
-                state.recentFilterHistory.set(currentNamespaceId, updatedHistory);
+                state.recentFilterHistory.set(historyKey, updatedHistory);
                 console.log('📝 Updated recent filter history:', {
-                  namespaceId: currentNamespaceId,
+                  historyKey,
                   newEntryCount: updatedHistory.length,
                   firstEntry: updatedHistory[0]
                 });
@@ -871,7 +881,7 @@ loadDocuments: async (
             return;
           }
 
-          const cacheKey = `${state.currentNamespaceId}-${
+          const cacheKey = `${state.currentConnectionId}:${state.currentNamespaceId}-${
             state.searchText
           }-${JSON.stringify(state.activeFilters)}-${page}-${limit}`;
           console.log("🔑 Cache key:", cacheKey);
@@ -1343,12 +1353,13 @@ loadDocuments: async (
 
         discoverAttributes: async (force = false) => {
           const state = get();
-          if (!state.currentNamespaceId || state.isDiscoveringAttributes)
+          if (!state.currentNamespaceId || !state.currentConnectionId || state.isDiscoveringAttributes)
             return;
 
           // Check cache first
+          const attributesCacheKey = `${state.currentConnectionId}:${state.currentNamespaceId}`;
           if (!force) {
-            const cached = state.attributesCache.get(state.currentNamespaceId);
+            const cached = state.attributesCache.get(attributesCacheKey);
             if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
               set((state) => {
                 state.attributes = cached.attributes;
@@ -1375,7 +1386,7 @@ loadDocuments: async (
             });
 
             // Cache the results
-            state.attributesCache.set(state.currentNamespaceId, {
+            state.attributesCache.set(attributesCacheKey, {
               attributes: result.attributes,
               timestamp: Date.now(),
             });
@@ -1640,14 +1651,15 @@ loadDocuments: async (
             }
 
             // Cache the results within the same set call
-            if (state.currentNamespaceId) {
-              state.attributesCache.set(state.currentNamespaceId, {
+            if (state.currentNamespaceId && state.currentConnectionId) {
+              const attributesCacheKey = `${state.currentConnectionId}:${state.currentNamespaceId}`;
+              state.attributesCache.set(attributesCacheKey, {
                 attributes: discoveredAttributes,
                 timestamp: Date.now(),
               });
               console.log(
-                "💾 Cached attributes for namespace:",
-                state.currentNamespaceId
+                "💾 Cached attributes for connection:namespace:",
+                attributesCacheKey
               );
             }
           });

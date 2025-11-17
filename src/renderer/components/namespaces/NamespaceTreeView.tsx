@@ -1,12 +1,12 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useNamespace } from '../../contexts/NamespaceContext';
+import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { Namespace } from '../../../types/namespace';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
+import {
   ChevronRight,
   ChevronDown,
   Folder,
@@ -24,8 +24,7 @@ import { cn } from '@/lib/utils';
 interface NamespaceTreeViewProps {
   namespaces: Namespace[];
   delimiter: string;
-  onDeleteNamespace: (namespaceId: string) => Promise<void>;
-  onLoadMore: (prefix: string) => Promise<void>;
+  connectionId: string;
   isRefreshing?: boolean;
   intendedDestination?: string | null;
 }
@@ -40,25 +39,35 @@ interface TreeNode {
   isLoading?: boolean;
 }
 
-export function NamespaceTreeView({ 
-  namespaces, 
-  delimiter, 
-  onDeleteNamespace,
-  onLoadMore,
+export function NamespaceTreeView({
+  namespaces,
+  delimiter,
+  connectionId,
   isRefreshing,
-  intendedDestination 
+  intendedDestination
 }: NamespaceTreeViewProps) {
   const navigate = useNavigate();
-  const { selectNamespace } = useNamespace();
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
-  const [deletingNamespace, setDeletingNamespace] = useState<string | null>(null);
-  const [deleteDialogNamespace, setDeleteDialogNamespace] = useState<string | null>(null);
+
+  // Zustand store
+  const {
+    expandedFolders,
+    loadingFolders,
+    deletingNamespace,
+    deleteDialogNamespace,
+    expandFolder,
+    collapseFolder,
+    addLoadingFolder,
+    removeLoadingFolder,
+    loadMoreForPrefix,
+    setDeleteDialogNamespace,
+    deleteNamespace,
+    resetExpandedFolders,
+  } = useNamespacesStore();
 
   // Reset expanded folders when delimiter changes
   useEffect(() => {
-    setExpandedFolders(new Set());
-  }, [delimiter]);
+    resetExpandedFolders();
+  }, [delimiter, resetExpandedFolders]);
 
   // Build tree structure from flat namespace list
   const buildTree = useCallback((namespaceList: Namespace[]): TreeNode[] => {
@@ -103,30 +112,55 @@ export function NamespaceTreeView({
   const treeData = useMemo(() => buildTree(namespaces), [namespaces, buildTree]);
 
   const toggleFolder = async (folderId: string) => {
-    const newExpanded = new Set(expandedFolders);
-    
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
+    if (expandedFolders.has(folderId)) {
+      collapseFolder(folderId);
     } else {
-      newExpanded.add(folderId);
-      
+      expandFolder(folderId);
+
       // Check if we need to load more items for this folder
       const folderNode = findNode(treeData, folderId);
       if (folderNode?.hasMore && !loadingFolders.has(folderId)) {
-        setLoadingFolders(new Set([...loadingFolders, folderId]));
+        addLoadingFolder(folderId);
         try {
-          await onLoadMore(folderId);
+          await loadMoreForPrefix(folderId);
         } finally {
-          setLoadingFolders(prev => {
-            const next = new Set(prev);
-            next.delete(folderId);
-            return next;
-          });
+          removeLoadingFolder(folderId);
         }
       }
+
+      // Auto-expand single-child folders recursively (non-blocking)
+      autoExpandSingleChildren(folderId);
     }
-    
-    setExpandedFolders(newExpanded);
+  };
+
+  const autoExpandSingleChildren = async (folderId: string) => {
+    // Small delay to let UI update
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    const folderNode = findNode(treeData, folderId);
+    if (!folderNode ||
+        folderNode.children.length !== 1 ||
+        !folderNode.children[0].isFolder) {
+      return;
+    }
+
+    const childFolder = folderNode.children[0];
+
+    // Expand the child folder
+    expandFolder(childFolder.id);
+
+    // Load more for child if needed
+    if (childFolder.hasMore && !loadingFolders.has(childFolder.id)) {
+      addLoadingFolder(childFolder.id);
+      try {
+        await loadMoreForPrefix(childFolder.id);
+      } finally {
+        removeLoadingFolder(childFolder.id);
+      }
+    }
+
+    // Continue recursively
+    autoExpandSingleChildren(childFolder.id);
   };
 
   const findNode = (nodes: TreeNode[], id: string): TreeNode | null => {
@@ -140,26 +174,20 @@ export function NamespaceTreeView({
 
   const handleNamespaceClick = (namespace: TreeNode) => {
     if (!namespace.isFolder) {
-      const ns = namespaces.find(n => n.id === namespace.id);
-      if (ns) {
-        selectNamespace(ns);
-      }
       // If there's an intended destination, navigate there instead
       if (intendedDestination) {
         navigate(intendedDestination);
       } else {
-        navigate(`/namespaces/${namespace.id}`);
+        navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents`);
       }
     }
   };
 
   const handleDelete = async (namespaceId: string) => {
-    setDeletingNamespace(namespaceId);
     try {
-      await onDeleteNamespace(namespaceId);
-      setDeleteDialogNamespace(null);
-    } finally {
-      setDeletingNamespace(null);
+      await deleteNamespace(namespaceId);
+    } catch (error) {
+      console.error('Failed to delete namespace:', error);
     }
   };
 
