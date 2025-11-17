@@ -20,6 +20,10 @@ const operatorLabels: Record<string, string> = {
   not_matches: "not matches",
   imatches: "matches (i)",
   not_imatches: "not matches (i)",
+  any_lt: "any <",
+  any_lte: "any ≤",
+  any_gt: "any >",
+  any_gte: "any ≥",
 };
 
 function formatValue(value: any): string {

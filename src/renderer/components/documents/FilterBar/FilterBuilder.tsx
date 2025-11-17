@@ -18,7 +18,7 @@ import {
 interface SimpleFilter {
   id: string;
   attribute: string;
-  operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches";
+  operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches" | "any_lt" | "any_lte" | "any_gt" | "any_gte";
   value: any;
   displayValue: string;
 }
@@ -166,12 +166,25 @@ const FilterRow: React.FC<FilterRowProps> = ({
     
     // Specialized operators for array fields with clearer labels
     if (isArrayType(type)) {
-      return [
+      const baseArrayOps = [
         { value: "contains", label: arrayOperatorLabels.contains },
         { value: "not_equals", label: arrayOperatorLabels.not_equals },
         { value: "in", label: arrayOperatorLabels.in },
         { value: "not_in", label: arrayOperatorLabels.not_in },
       ];
+
+      // Add numeric array operators if the array contains numbers
+      if (type.includes('number') || type === '[]number') {
+        return [
+          ...baseArrayOps,
+          { value: "any_lt", label: "Any element < value" },
+          { value: "any_lte", label: "Any element ≤ value" },
+          { value: "any_gt", label: "Any element > value" },
+          { value: "any_gte", label: "Any element ≥ value" },
+        ];
+      }
+
+      return baseArrayOps;
     } 
     // Operators for numeric fields
     else if (type === "number" || isNumericType(type)) {

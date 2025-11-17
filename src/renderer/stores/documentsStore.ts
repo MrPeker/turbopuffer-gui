@@ -19,7 +19,7 @@ import { isArrayType, parseValueForFieldType } from "../utils/filterTypeConversi
 export interface SimpleFilter {
   id: string;
   attribute: string;
-  operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches";
+  operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches" | "any_lt" | "any_lte" | "any_gt" | "any_gte";
   value: any;
   displayValue: string;
 }
