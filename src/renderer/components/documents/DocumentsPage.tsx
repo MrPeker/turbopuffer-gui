@@ -226,7 +226,7 @@ export const DocumentsPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col h-full bg-tp-bg">
+    <div className="flex flex-col h-full bg-tp-bg relative">
       {/* Toolbar */}
       <div className="px-3 py-2 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -317,36 +317,6 @@ export const DocumentsPage: React.FC = () => {
         />
       )}
 
-      {/* Bulk Actions */}
-      {!isRawQueryMode && selectedDocuments.size > 0 && (
-        <div className="px-3 py-1.5 bg-tp-surface-alt border-b border-tp-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-tp-text-muted">
-              {selectedDocuments.size} selected
-            </span>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteSelected}
-                className="h-6 text-xs"
-              >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Delete
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedDocuments(new Set())}
-                className="h-6 text-xs"
-              >
-                Clear
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Error Display */}
       {error && (
         <div className="mx-3 my-2 px-3 py-2 bg-tp-danger/10 border border-tp-danger/30 rounded-sm">
@@ -394,6 +364,36 @@ export const DocumentsPage: React.FC = () => {
             refresh();
           }}
         />
+      )}
+
+      {/* Selection Footer - Absolute positioned at bottom */}
+      {!isRawQueryMode && selectedDocuments.size > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 px-3 py-2.5 bg-tp-surface border-t border-tp-border-strong shadow-lg z-10">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-tp-text">
+              {selectedDocuments.size} document{selectedDocuments.size !== 1 ? 's' : ''} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedDocuments(new Set())}
+                className="h-7 text-xs"
+              >
+                Clear Selection
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                className="h-7 text-xs"
+              >
+                <Trash2 className="h-3 w-3 mr-1.5" />
+                Delete Selected
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

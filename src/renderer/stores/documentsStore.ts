@@ -1097,9 +1097,9 @@ loadDocuments: async (
               totalPages = Math.ceil(totalCount / limit);
 
               // Execute query for documents with cursor pagination
-              const includeAttributes = state.visibleColumns.size > 0 
-                ? Array.from(state.visibleColumns).filter(col => col !== 'id' && col !== 'vector' && col !== '$dist')
-                : true;
+              // When filtering, ALWAYS fetch ALL attributes (filters select documents, not columns)
+              // This is like MongoDB - query filters determine WHICH docs, but you get ALL fields
+              const includeAttributes = true;
               
               // Add cursor filter for pagination
               let finalFilter = combinedFilter;
@@ -1207,9 +1207,9 @@ loadDocuments: async (
               // Get documents using ID-based cursor pagination
               console.log("📄 Listing documents with cursor pagination...");
 
-              const includeAttributes = state.visibleColumns.size > 0 
-                ? Array.from(state.visibleColumns).filter(col => col !== 'id' && col !== 'vector' && col !== '$dist')
-                : true;
+              // For list mode (no filters), fetch ALL attributes to ensure complete document data
+              // Users expect to see all fields when clicking a document, regardless of table columns
+              const includeAttributes = true;
 
               // Build filters for cursor-based pagination
               let paginationFilter: TurbopufferFilter | undefined = undefined;
@@ -1413,22 +1413,22 @@ loadDocuments: async (
             
             // Initialize visible columns from schema
             const defaultColumns = new Set<string>();
-            
+
             // Always include id
             defaultColumns.add('id');
-            
-            // Add all non-vector attributes from schema
+
+            // Add all attributes from schema (including vectors)
             Object.entries(schema).forEach(([attrName, attrSchema]) => {
-              // Skip vector columns and potentially large text fields
-              if (!attrName.includes('vector') && 
-                  !attrName.includes('embedding') &&
-                  attrName !== 'long_text' && // Example of field to exclude
-                  typeof attrSchema.type === 'string' && 
-                  !attrSchema.type.startsWith('[') // Skip vector types like "[512]f32"
-              ) {
+              // Only skip internal attributes
+              if (attrName !== '$dist' && attrName !== 'attributes') {
                 defaultColumns.add(attrName);
               }
             });
+
+            // Ensure vector is included if it exists in schema
+            if ('vector' in schema) {
+              defaultColumns.add('vector');
+            }
 
             set((state) => {
               // Only set if visibleColumns is empty (first time)
@@ -1631,22 +1631,24 @@ loadDocuments: async (
             // Initialize visible columns if not set
             if (state.visibleColumns.size === 0 && discoveredAttributes.length > 0) {
               const defaultColumns = new Set<string>();
-              
-              // Always include id
+
+              // Always include id and vector
               defaultColumns.add('id');
-              
-              // Add non-vector, non-special attributes
+
+              // Add all attributes except special internal ones
               discoveredAttributes.forEach(attr => {
-                if (!attr.name.includes('vector') && 
-                    !attr.name.includes('embedding') &&
-                    attr.name !== '$dist' &&
-                    attr.name !== 'attributes' &&
-                    attr.name !== 'long_text' // Example of field to exclude
+                if (attr.name !== '$dist' &&
+                    attr.name !== 'attributes'
                 ) {
                   defaultColumns.add(attr.name);
                 }
               });
-              
+
+              // Ensure vector is included if it exists
+              if (discoveredAttributes.some(attr => attr.name === 'vector')) {
+                defaultColumns.add('vector');
+              }
+
               state.visibleColumns = defaultColumns;
             }
 

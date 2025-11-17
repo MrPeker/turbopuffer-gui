@@ -5,6 +5,7 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { ConnectionGuard } from './components/layout/ConnectionGuard';
 import { NamespaceGuard } from './components/layout/NamespaceGuard';
+import { NavigationLogger } from './components/layout/NavigationLogger';
 import { ConnectionsPage } from './components/connections/ConnectionsPage';
 import { NamespacesPage } from './components/namespaces/NamespacesPage';
 import { SettingsPage } from './components/settings/SettingsPage';
@@ -16,7 +17,8 @@ export function App() {
     <SettingsProvider>
       <ConnectionProvider>
         <Router>
-            <Routes>
+          <NavigationLogger />
+          <Routes>
               <Route path="/" element={<MainLayout />}>
                 {/* Root redirect */}
                 <Route index element={<Navigate to="/connections" replace />} />
