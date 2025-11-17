@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NewConnectionDialog } from './NewConnectionDialog';
 import { ConnectionList } from './ConnectionList';
-import { useConnection } from '../../contexts/ConnectionContext';
+import { useConnections } from '../../contexts/ConnectionContext';
 import { PageHeader } from '../layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,7 @@ import {
 import { RefreshCw, Plus, Database, Search, Zap, Globe, Sparkles } from 'lucide-react';
 
 export function ConnectionsPage() {
-  const { connections, loadConnections, isLoading } = useConnection();
+  const { connections, loadConnections, isLoading } = useConnections();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -79,38 +79,34 @@ export function ConnectionsPage() {
 
   if (connections.length === 0 && !searchTerm) {
     return (
-      <div className="space-y-8">
+      <div className="flex flex-col h-full bg-tp-bg">
         <PageHeader
           title="Connections"
-          description="Manage your Turbopuffer database connections"
+          description="database connections"
         />
-        
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-          <div className="relative mb-8">
-            <div className="w-32 h-32 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mb-6 mx-auto">
-              <Database className="h-16 w-16 text-blue-600 dark:text-blue-400" />
-              <div className="absolute -top-2 -right-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-white" />
-                </div>
-              </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-tp-surface border border-tp-border-subtle flex items-center justify-center mx-auto mb-3">
+              <Database className="h-8 w-8 text-tp-accent" />
             </div>
           </div>
-          
-          <h2 className="text-3xl font-bold text-foreground mb-4">Welcome to Turbopuffer GUI</h2>
-          <p className="text-lg text-muted-foreground mb-2 max-w-md">
-            A powerful third-party client for managing your Turbopuffer vector databases.
+
+          <h2 className="text-sm font-bold uppercase tracking-wider text-tp-text mb-2">no connections</h2>
+          <p className="text-xs text-tp-text-muted mb-1 max-w-sm">
+            connect to turbopuffer to manage namespaces and vector data
           </p>
-          <Badge variant="outline" className="mb-8 text-xs">
-            Third-party • Open Source • Community Built
+          <Badge variant="outline" className="mb-4">
+            third-party • open source
           </Badge>
 
-          <Button 
-            onClick={() => setIsCreateDialogOpen(true)} 
-            size="lg"
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            size="sm"
+            className="mt-2"
           >
-            <Plus className="h-5 w-5 mr-2" />
-            Create Your First Connection
+            <Plus className="h-3 w-3 mr-1.5" />
+            create connection
           </Button>
         </div>
 
@@ -123,39 +119,41 @@ export function ConnectionsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full bg-tp-bg">
       <PageHeader
         title="Connections"
-        description="Manage your Turbopuffer database connections"
+        description={`${connections.length} total • ${connectedCount} active`}
         actions={
           <>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-tp-text-muted h-3 w-3" />
               <Input
                 type="text"
-                placeholder="Search connections..."
+                placeholder="search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 w-80"
+                className="pl-7 w-48 h-7 text-xs"
               />
             </div>
-            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+            <Button variant="ghost" onClick={handleRefresh} disabled={isLoading} size="sm">
+              <RefreshCw className={`h-3 w-3 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+              refresh
             </Button>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Connection
+            <Button onClick={() => setIsCreateDialogOpen(true)} size="sm">
+              <Plus className="h-3 w-3 mr-1" />
+              new
             </Button>
           </>
         }
       />
 
-      <ConnectionList 
-        connections={filteredConnections}
-        connectedCount={connectedCount}
-        totalCount={connections.length}
-      />
+      <div className="flex-1 overflow-auto">
+        <ConnectionList
+          connections={filteredConnections}
+          connectedCount={connectedCount}
+          totalCount={connections.length}
+        />
+      </div>
 
       <NewConnectionDialog
         isOpen={isCreateDialogOpen}

@@ -159,10 +159,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col fixed top-[7.5vh]">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center justify-between">
-            <span>Document Details</span>
+            <span className="text-sm font-bold uppercase tracking-wider">Document Details</span>
             <div className="flex items-center gap-2">
               {!isEditing && (
                 <Button
@@ -170,45 +170,46 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   size="sm"
                   onClick={() => setIsEditing(true)}
                 >
-                  <Edit className="h-4 w-4 mr-2" />
+                  <Edit className="h-3 w-3 mr-1.5" />
                   Edit
                 </Button>
               )}
               <Button
                 variant="ghost"
-                size="icon"
+                size="sm"
                 onClick={handleCopyJson}
+                className="h-7 w-7 p-0"
               >
-                <Copy className="h-4 w-4" />
+                <Copy className="h-3 w-3" />
               </Button>
             </div>
           </DialogTitle>
-          <DialogDescription>
-            ID: {document.id || 'No ID'}
+          <DialogDescription className="text-xs text-tp-text-muted">
+            <span className="font-mono">ID: {document.id || 'No ID'}</span>
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onValueChange={setActiveTab}
-          className="flex-1 overflow-hidden flex flex-col"
+          className="flex-1 overflow-hidden flex flex-col min-h-0"
         >
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="preview">
-              <Eye className="h-4 w-4 mr-2" />
+          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
+            <TabsTrigger value="preview" className="text-xs">
+              <Eye className="h-3 w-3 mr-1.5" />
               Preview
             </TabsTrigger>
-            <TabsTrigger value="form">
-              <FormInput className="h-4 w-4 mr-2" />
+            <TabsTrigger value="form" className="text-xs">
+              <FormInput className="h-3 w-3 mr-1.5" />
               Form View
             </TabsTrigger>
-            <TabsTrigger value="json">
-              <FileJson className="h-4 w-4 mr-2" />
+            <TabsTrigger value="json" className="text-xs">
+              <FileJson className="h-3 w-3 mr-1.5" />
               JSON
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
+          <ScrollArea className="flex-1 mt-3 min-h-0">
             <TabsContent value="preview">
               <div className="space-y-4">
                 {Object.entries(editedDocument).map(([key, value]) => (
@@ -277,27 +278,28 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </ScrollArea>
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 gap-2">
           {isEditing ? (
             <>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   setIsEditing(false);
                   setEditedDocument(document);
                   setJsonError(null);
                 }}
               >
-                <X className="h-4 w-4 mr-2" />
+                <X className="h-3 w-3 mr-1.5" />
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={!!jsonError}>
-                <Save className="h-4 w-4 mr-2" />
+              <Button size="sm" onClick={handleSave} disabled={!!jsonError}>
+                <Save className="h-3 w-3 mr-1.5" />
                 Save Changes
               </Button>
             </>
           ) : (
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" size="sm" onClick={onClose}>
               Close
             </Button>
           )}

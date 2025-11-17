@@ -50,7 +50,7 @@ function formatValue(value: any): string {
 
 export function generateFilterDescription(
   filters: SimpleFilter[],
-  searchText: string = ""
+  searchText = ""
 ): string {
   const parts: string[] = [];
 
@@ -81,7 +81,7 @@ export function generateFilterDescription(
 
 export function generateShortFilterSummary(
   filters: SimpleFilter[],
-  searchText: string = ""
+  searchText = ""
 ): string {
   const totalItems = filters.length + (searchText ? 1 : 0);
   

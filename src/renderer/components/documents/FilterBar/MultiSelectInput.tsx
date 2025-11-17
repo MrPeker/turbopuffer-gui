@@ -3,6 +3,7 @@ import CreatableSelect from 'react-select/creatable';
 import { components } from 'react-select';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { parseValueForFieldType } from '@/renderer/utils/filterTypeConversion';
 
 interface Option {
   value: string | number;
@@ -17,6 +18,7 @@ interface MultiSelectInputProps {
   disabled?: boolean;
   className?: string;
   allowCreate?: boolean;
+  fieldType?: string; // Field type for proper parsing of manually entered values
 }
 
 const MultiValueRemove = (props: any) => {
@@ -35,6 +37,7 @@ export const MultiSelectInput: React.FC<MultiSelectInputProps> = ({
   disabled = false,
   className,
   allowCreate = true,
+  fieldType,
 }) => {
   const selectedOptions = value.map(v => ({
     value: v,
@@ -42,7 +45,14 @@ export const MultiSelectInput: React.FC<MultiSelectInputProps> = ({
   }));
 
   const handleChange = (newValue: any) => {
-    const values = newValue ? newValue.map((opt: Option) => opt.value) : [];
+    const values = newValue ? newValue.map((opt: Option) => {
+      // If this is a newly created value (string) and we have a field type,
+      // parse it to the appropriate type
+      if (typeof opt.value === 'string' && fieldType && allowCreate) {
+        return parseValueForFieldType(opt.value, fieldType);
+      }
+      return opt.value;
+    }) : [];
     onChange(values);
   };
 

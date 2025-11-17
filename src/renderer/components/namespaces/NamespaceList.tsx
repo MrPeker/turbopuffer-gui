@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useNamespace } from '../../contexts/NamespaceContext';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Namespace } from '../../../types/namespace';
 import {
   Table,
@@ -33,7 +32,7 @@ interface NamespaceListProps {
 
 export function NamespaceList({ namespaces, onDeleteNamespace, isRefreshing, intendedDestination }: NamespaceListProps) {
   const navigate = useNavigate();
-  const { selectNamespace } = useNamespace();
+  const { connectionId } = useParams<{ connectionId: string }>();
   const [deletingNamespace, setDeletingNamespace] = useState<string | null>(null);
   const [deleteDialogNamespace, setDeleteDialogNamespace] = useState<string | null>(null);
 
@@ -48,15 +47,13 @@ export function NamespaceList({ namespaces, onDeleteNamespace, isRefreshing, int
   };
 
   const handleNamespaceClick = (namespaceId: string) => {
-    const namespace = namespaces.find(ns => ns.id === namespaceId);
-    if (namespace) {
-      selectNamespace(namespace);
-    }
+    if (!connectionId) return;
+
     // If there's an intended destination, navigate there instead
     if (intendedDestination) {
       navigate(intendedDestination);
     } else {
-      navigate(`/namespaces/${namespaceId}`);
+      navigate(`/connections/${connectionId}/namespaces/${namespaceId}/documents`);
     }
   };
 
@@ -66,67 +63,73 @@ export function NamespaceList({ namespaces, onDeleteNamespace, isRefreshing, int
 
   return (
     <>
-      <div className="rounded-md border">
+      <div className="border border-tp-border-subtle bg-tp-bg">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[20px]"></TableHead>
-              <TableHead>Namespace ID</TableHead>
-              <TableHead className="w-[100px] text-right">Actions</TableHead>
+          <TableHeader className="bg-tp-surface sticky top-0 z-10">
+            <TableRow className="border-b border-tp-border-subtle hover:bg-transparent">
+              <TableHead className="h-9 px-4 w-[24px]"></TableHead>
+              <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">namespace</TableHead>
+              <TableHead className="h-9 px-4 w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {namespaces.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center">
-                  No namespaces found.
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={3} className="h-24 text-center text-xs text-tp-text-muted">
+                  no namespaces found
                 </TableCell>
               </TableRow>
             ) : (
               namespaces.map((namespace) => (
-                <TableRow 
+                <TableRow
                   key={namespace.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
                   onClick={() => handleNamespaceClick(namespace.id)}
                 >
-                  <TableCell className="w-[20px]">
-                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                  <TableCell className="py-3 px-4">
+                    <FolderOpen className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />
                   </TableCell>
-                  <TableCell className="font-mono">
+                  <TableCell className="py-3 px-4 font-mono text-sm text-tp-text font-medium">
                     {namespace.id}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="py-3 px-4">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <MoreHorizontal className="h-3 w-3" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          handleNamespaceClick(namespace.id);
-                        }}>
-                          <ArrowRight className="h-4 w-4 mr-2" />
-                          Open Namespace
+                      <DropdownMenuContent align="end" className="bg-tp-surface border-tp-border-strong">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNamespaceClick(namespace.id);
+                          }}
+                          className="text-sm"
+                        >
+                          <ArrowRight className="h-3 w-3 mr-1.5" />
+                          open
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard(namespace.id);
-                        }}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy ID
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(namespace.id);
+                          }}
+                          className="text-sm"
+                        >
+                          <Copy className="h-3 w-3 mr-1.5" />
+                          copy id
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuSeparator className="bg-tp-border-subtle" />
+                        <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeleteDialogNamespace(namespace.id);
                           }}
-                          className="text-destructive focus:text-destructive"
+                          className="text-tp-danger focus:text-tp-danger text-sm"
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
+                          <Trash2 className="h-3 w-3 mr-1.5" />
+                          delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -139,42 +142,41 @@ export function NamespaceList({ namespaces, onDeleteNamespace, isRefreshing, int
       </div>
 
       {namespaces.length > 0 && (
-        <div className="flex items-center justify-between px-2 py-3 text-sm text-muted-foreground">
-          <div>
-            Showing {namespaces.length} namespace{namespaces.length !== 1 ? 's' : ''}
-          </div>
+        <div className="px-4 py-2.5 text-[11px] text-tp-text-muted font-mono font-medium bg-tp-surface border-t border-tp-border-subtle">
+          showing {namespaces.length} namespace{namespaces.length !== 1 ? 's' : ''}
         </div>
       )}
 
       <Dialog open={!!deleteDialogNamespace} onOpenChange={(open) => !open && setDeleteDialogNamespace(null)}>
-        <DialogContent>
+        <DialogContent className="bg-tp-surface border-tp-border-strong">
           <DialogHeader>
-            <DialogTitle>Delete Namespace</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the namespace <span className="font-mono font-semibold">{deleteDialogNamespace}</span>?
+            <DialogTitle className="text-sm uppercase tracking-wider">delete namespace</DialogTitle>
+            <DialogDescription className="text-xs text-tp-text-muted">
+              delete <span className="font-mono font-semibold text-tp-accent">{deleteDialogNamespace}</span>?
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">
-              This action cannot be undone and will permanently delete all vectors, documents, and data in this namespace.
+          <div className="py-3">
+            <p className="text-[11px] text-tp-text-muted">
+              permanently deletes all vectors, documents, and data
             </p>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogNamespace(null)}>
-              Cancel
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteDialogNamespace(null)}>
+              cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={() => deleteDialogNamespace && handleDelete(deleteDialogNamespace)}
               disabled={!!deletingNamespace}
             >
               {deletingNamespace === deleteDialogNamespace ? (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
+                  <RefreshCw className="h-3 w-3 mr-1.5 animate-spin" />
+                  deleting
                 </>
               ) : (
-                'Delete Namespace'
+                'delete'
               )}
             </Button>
           </DialogFooter>

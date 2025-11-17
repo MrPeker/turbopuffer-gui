@@ -320,99 +320,105 @@ export const SchemaPage: React.FC = () => {
 
   if (!activeConnection) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6">
-        <Database className="h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold mb-2">No Connection</h2>
-        <p className="text-muted-foreground text-center mb-4">
-          Connect to a Turbopuffer instance to manage schemas
-        </p>
-        <Button onClick={() => navigate('/connections')}>
-          Go to Connections
-        </Button>
+      <div className="flex flex-col h-full bg-tp-bg">
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+          <div className="w-16 h-16 bg-tp-surface border border-tp-border-subtle flex items-center justify-center mx-auto mb-3">
+            <Database className="h-8 w-8 text-tp-accent" />
+          </div>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-tp-text mb-2">no connection</h2>
+          <p className="text-xs text-tp-text-muted mb-4 max-w-sm">
+            connect to turbopuffer to manage schemas
+          </p>
+          <Button onClick={() => navigate('/connections')} size="sm">
+            <Database className="h-3 w-3 mr-1.5" />
+            connections
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
     <RequireNamespace>
-      <div className="p-6 space-y-6">
+      <div className="flex flex-col h-full bg-tp-bg">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="px-3 py-2 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Schema</h1>
-            <p className="text-muted-foreground">
-              Manage the schema for namespace: <span className="font-medium">{selectedNamespace?.id}</span>
+            <h1 className="text-sm font-bold uppercase tracking-wider text-tp-text">schema</h1>
+            <p className="text-xs text-tp-text-muted mt-0.5">
+              <span className="font-mono text-tp-accent">{selectedNamespace?.id}</span>
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={loadSchema}
               disabled={loading}
+              size="sm"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              refresh
             </Button>
             <Button
               onClick={handleSaveSchema}
               disabled={!hasChanges || saving}
+              size="sm"
             >
               {saving ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
               ) : (
-                <Save className="h-4 w-4 mr-2" />
+                <Save className="h-3 w-3 mr-1" />
               )}
-              Save Changes
+              save
             </Button>
           </div>
         </div>
 
-        {hasChanges && (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              You have unsaved changes. Click "Save Changes" to persist your schema modifications.
-            </AlertDescription>
-          </Alert>
-        )}
+        <div className="flex-1 overflow-auto px-3 py-3 space-y-3">
+          {hasChanges && (
+            <Alert className="bg-tp-surface-alt border-tp-border-strong">
+              <AlertCircle className="h-3 w-3" />
+              <AlertDescription className="text-[11px] text-tp-text-muted">
+                unsaved changes • click save to persist
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {Object.keys(indexBuildingStatus).length > 0 && (
-          <Alert>
-            <Clock className="h-4 w-4" />
-            <AlertDescription>
-              Schema update in progress. Indexes are being built for modified attributes.
-            </AlertDescription>
-          </Alert>
-        )}
+          {Object.keys(indexBuildingStatus).length > 0 && (
+            <Alert className="bg-tp-surface-alt border-tp-border-strong">
+              <Clock className="h-3 w-3" />
+              <AlertDescription className="text-[11px] text-tp-text-muted">
+                building indexes for modified attributes
+              </AlertDescription>
+            </Alert>
+          )}
 
-        <div className="grid gap-6">
-          {/* Schema Attributes */}
-          <Card>
+          <Card className="border-tp-border-subtle bg-tp-surface">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Schema Attributes</CardTitle>
-                  <CardDescription>Define the attributes and their indexing behavior</CardDescription>
+                  <CardTitle className="text-sm uppercase tracking-wider">schema attributes</CardTitle>
+                  <CardDescription className="text-[11px] text-tp-text-muted">define attributes and indexing behavior</CardDescription>
                 </div>
                 <Button
                   onClick={() => setShowAddAttribute(true)}
                   size="sm"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Attribute
+                  <Plus className="h-3 w-3 mr-1" />
+                  add
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {loading ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                    Loading schema...
+                  <div className="text-center py-8 text-tp-text-muted">
+                    <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-tp-accent" />
+                    <p className="text-xs">loading schema</p>
                   </div>
                 ) : attributes.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No attributes defined yet. Add an attribute to get started.
+                  <div className="text-center py-8 text-tp-text-muted">
+                    <p className="text-xs">no attributes defined • add one to start</p>
                   </div>
                 ) : (
                   attributes.map(attribute => (
@@ -433,48 +439,48 @@ export const SchemaPage: React.FC = () => {
             </CardContent>
           </Card>
         </div>
-
-        {/* Add/Edit Attribute Dialog */}
-        <AddAttributeDialog
-          open={showAddAttribute}
-          attribute={editingAttribute || newAttribute}
-          isEditing={!!editingAttribute}
-          onOpenChange={(open) => {
-            setShowAddAttribute(open);
-            if (!open) {
-              setEditingAttribute(null);
-              setNewAttribute({
-                name: '',
-                schema: {
-                  type: 'string',
-                  filterable: true,
-                  full_text_search: false,
-                },
-                isInferred: false,
-                isBuiltIn: false,
-              });
-            }
-          }}
-          onSave={editingAttribute ? 
-            (updates) => {
-              if (updates.schema) {
-                handleUpdateAttribute(editingAttribute.name, updates.schema);
-              }
-              setShowAddAttribute(false);
-              setEditingAttribute(null);
-            } : 
-            () => {
-              handleAddAttribute();
-            }
-          }
-          onAttributeChange={editingAttribute ? 
-            (updates) => {
-              setEditingAttribute({ ...editingAttribute, ...updates });
-            } : 
-            setNewAttribute
-          }
-        />
       </div>
+
+      {/* Add/Edit Attribute Dialog */}
+      <AddAttributeDialog
+        open={showAddAttribute}
+        attribute={editingAttribute || newAttribute}
+        isEditing={!!editingAttribute}
+        onOpenChange={(open) => {
+          setShowAddAttribute(open);
+          if (!open) {
+            setEditingAttribute(null);
+            setNewAttribute({
+              name: '',
+              schema: {
+                type: 'string',
+                filterable: true,
+                full_text_search: false,
+              },
+              isInferred: false,
+              isBuiltIn: false,
+            });
+          }
+        }}
+        onSave={editingAttribute ?
+          (updates) => {
+            if (updates.schema) {
+              handleUpdateAttribute(editingAttribute.name, updates.schema);
+            }
+            setShowAddAttribute(false);
+            setEditingAttribute(null);
+          } :
+          () => {
+            handleAddAttribute();
+          }
+        }
+        onAttributeChange={editingAttribute ?
+          (updates) => {
+            setEditingAttribute({ ...editingAttribute, ...updates });
+          } :
+          setNewAttribute
+        }
+      />
     </RequireNamespace>
   );
 };

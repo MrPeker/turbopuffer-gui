@@ -5,16 +5,14 @@ import { settingsService } from '../services/settingsService';
 
 interface ConnectionContextType {
   connections: Connection[];
-  selectedConnection: Connection | null;
-  activeConnection: Connection | null;
   isLoading: boolean;
   error: string | null;
   loadConnections: () => Promise<void>;
   saveConnection: (connection: ConnectionFormData) => Promise<Connection>;
   deleteConnection: (connectionId: string) => Promise<void>;
   testConnection: (connectionId: string) => Promise<TestConnectionResult>;
-  selectConnection: (connectionId: string) => void;
   setDefaultConnection: (connectionId: string) => Promise<void>;
+  getConnectionById: (connectionId: string) => Connection | undefined;
   getDelimiterPreference: (connectionId: string) => string;
   setDelimiterPreference: (connectionId: string, delimiter: string) => void;
 }
@@ -23,7 +21,6 @@ const ConnectionContext = createContext<ConnectionContextType | undefined>(undef
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [delimiterPreferences, setDelimiterPreferences] = useState<Record<string, string>>({});
@@ -34,26 +31,6 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     try {
       const loadedConnections = await window.electronAPI.loadConnections();
       setConnections(loadedConnections);
-      
-      // Auto-select connection based on settings or default
-      if (!selectedConnection) {
-        const settings = await settingsService.getSettings();
-        
-        // First try to select the connection from settings
-        if (settings.connection.defaultConnectionId) {
-          const settingsConn = loadedConnections.find(c => c.id === settings.connection.defaultConnectionId);
-          if (settingsConn) {
-            setSelectedConnection(settingsConn);
-            return;
-          }
-        }
-        
-        // Fall back to connection marked as default
-        const defaultConn = loadedConnections.find(c => c.isDefault);
-        if (defaultConn) {
-          setSelectedConnection(defaultConn);
-        }
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load connections');
     } finally {
@@ -78,12 +55,6 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       await window.electronAPI.deleteConnection(connectionId);
-      
-      // If we deleted the selected connection, clear selection
-      if (selectedConnection?.id === connectionId) {
-        setSelectedConnection(null);
-      }
-      
       await loadConnections();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete connection';
@@ -117,11 +88,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const selectConnection = (connectionId: string) => {
-    const connection = connections.find(c => c.id === connectionId);
-    if (connection) {
-      setSelectedConnection(connection);
-    }
+  const getConnectionById = (connectionId: string): Connection | undefined => {
+    return connections.find(c => c.id === connectionId);
   };
 
   const setDefaultConnection = async (connectionId: string) => {
@@ -160,15 +128,13 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     <ConnectionContext.Provider
       value={{
         connections,
-        selectedConnection,
-        activeConnection: selectedConnection,
         isLoading,
         error,
         loadConnections,
         saveConnection,
         deleteConnection,
         testConnection,
-        selectConnection,
+        getConnectionById,
         setDefaultConnection,
         getDelimiterPreference,
         setDelimiterPreference,

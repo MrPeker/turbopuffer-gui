@@ -20,27 +20,27 @@ interface SettingsSidebarItem {
 const sidebarItems: SettingsSidebarItem[] = [
   {
     id: 'connection',
-    label: 'Connection',
-    icon: <Database className="h-4 w-4" />,
-    description: 'Default connection and timeouts',
+    label: 'connection',
+    icon: <Database className="h-3 w-3" />,
+    description: 'defaults • timeouts',
   },
   {
     id: 'api',
-    label: 'API Settings',
-    icon: <Globe className="h-4 w-4" />,
-    description: 'Custom endpoints and logging',
+    label: 'api settings',
+    icon: <Globe className="h-3 w-3" />,
+    description: 'endpoints • logging',
   },
   {
     id: 'export-import',
-    label: 'Export/Import',
-    icon: <Download className="h-4 w-4" />,
-    description: 'Backup and restore settings',
+    label: 'export/import',
+    icon: <Download className="h-3 w-3" />,
+    description: 'backup • restore',
   },
   {
     id: 'about',
-    label: 'About',
-    icon: <Info className="h-4 w-4" />,
-    description: 'Version and links',
+    label: 'about',
+    icon: <Info className="h-3 w-3" />,
+    description: 'version • links',
   },
 ];
 
@@ -48,31 +48,31 @@ export function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSection>('connection');
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-tp-bg">
       <PageHeader
         title="Settings"
-        description="Configure application preferences and customize your workflow"
+        description="application preferences"
       />
 
-      <div className="flex-1 flex gap-6 min-h-0">
+      <div className="flex-1 flex min-h-0">
         {/* Sidebar */}
-        <div className="w-64 flex-shrink-0">
+        <div className="w-52 flex-shrink-0 border-r border-tp-border-subtle bg-tp-surface px-2 py-2">
           <nav className="space-y-1">
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
                 className={cn(
-                  'w-full flex items-start gap-3 px-3 py-2 rounded-lg text-left transition-colors',
+                  'w-full flex items-start gap-2 px-3 py-2 text-left transition-colors border-l-[3px] focus:outline-none',
                   activeSection === item.id
-                    ? 'bg-accent text-accent-foreground'
-                    : 'hover:bg-accent/50'
+                    ? 'bg-tp-surface-alt/80 text-tp-text border-tp-accent'
+                    : 'hover:bg-tp-surface-alt/40 border-transparent text-tp-text-muted hover:text-tp-text'
                 )}
               >
-                <div className="mt-0.5">{item.icon}</div>
+                <div className="mt-0.5 flex-shrink-0">{item.icon}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{item.label}</div>
-                  <div className="text-xs text-muted-foreground truncate">
+                  <div className="text-xs font-semibold uppercase tracking-wider">{item.label}</div>
+                  <div className="text-[10px] text-tp-text-faint truncate mt-0.5">
                     {item.description}
                   </div>
                 </div>
@@ -82,7 +82,7 @@ export function SettingsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-4 py-4">
           <div className="max-w-2xl">
             {activeSection === 'connection' && <ConnectionSettings />}
             {activeSection === 'api' && <ApiSettings />}

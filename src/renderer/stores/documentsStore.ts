@@ -14,6 +14,7 @@ import { turbopufferService } from "../services/turbopufferService";
 import { attributeDiscoveryService } from "../services/attributeDiscoveryService";
 import { namespaceService } from "../services/namespaceService";
 import { generateFilterDescription } from "../utils/filterDescriptions";
+import { isArrayType, parseValueForFieldType } from "../utils/filterTypeConversion";
 
 export interface SimpleFilter {
   id: string;
@@ -49,6 +50,10 @@ interface DocumentsState {
   attributes: DiscoveredAttribute[];
   lastQueryResult: DocumentsQueryResponse | null;
   nextCursor: string | number | null;
+  previousCursors: (string | number)[];  // Stack of previous cursors for backward navigation
+  currentPage: number;
+  pageSize: number;
+  totalPages: number | null;
 
   // Connection State
   currentConnectionId: string | null;
@@ -95,6 +100,12 @@ interface DocumentsState {
     operator: SimpleFilter["operator"],
     value: any
   ) => void;
+  updateFilter: (
+    filterId: string,
+    attribute: string,
+    operator: SimpleFilter["operator"],
+    value: any
+  ) => void;
   removeFilter: (filterId: string) => void;
   clearFilters: () => void;
   clearAllFilters: () => void;
@@ -113,12 +124,12 @@ interface DocumentsState {
 
   // Async Actions
   initializeClient: (connectionId: string, region: TurbopufferRegion) => Promise<boolean>;
-  loadDocuments: (
-    force?: boolean,
-    loadMore?: boolean,
-    limit?: number
-  ) => Promise<void>;
-  discoverAttributes: (force?: boolean) => Promise<void>;
+loadDocuments: (
+          force?: boolean,
+          loadMore?: boolean,
+          limit?: number,
+          page?: number
+        ) => Promise<void>;  discoverAttributes: (force?: boolean) => Promise<void>;
   discoverAttributesFromDocuments: (documents: Document[]) => void;
   loadSchemaAndInitColumns: () => Promise<void>;
   deleteDocuments: (ids: (string | number)[]) => Promise<void>;
@@ -162,6 +173,10 @@ export const useDocumentsStore = create<DocumentsState>()(
         attributes: [],
         lastQueryResult: null,
         nextCursor: null,
+        previousCursors: [],
+        currentPage: 1,
+        pageSize: 100,
+        totalPages: null,
         isLoading: false,
         isRefreshing: false,
         isDiscoveringAttributes: false,
@@ -204,6 +219,8 @@ export const useDocumentsStore = create<DocumentsState>()(
               state.attributes = [];
               state.lastQueryResult = null;
               state.nextCursor = null;
+              state.previousCursors = [];
+              state.currentPage = 1;
               state.selectedDocuments = new Set();
               state.visibleColumns = new Set();
               state.searchText = "";
@@ -215,17 +232,17 @@ export const useDocumentsStore = create<DocumentsState>()(
               state.initializationAttempts = 0;
             });
 
-            // Load query history from disk if we have connection ID
+            // Load query history from disk if we have connection ID (non-blocking)
             if (state.currentConnectionId && namespaceId) {
               console.log('📚 Loading query history for:', {
                 connectionId: state.currentConnectionId,
                 namespaceId
               });
-              try {
-                const history = await window.electronAPI.loadQueryHistory(
-                  state.currentConnectionId,
-                  namespaceId
-                );
+              // Don't await - load in background to avoid blocking page navigation
+              window.electronAPI.loadQueryHistory(
+                state.currentConnectionId,
+                namespaceId
+              ).then((history) => {
                 console.log('📚 Loaded query history:', {
                   saved: history.saved?.length || 0,
                   recent: history.recent?.length || 0
@@ -234,9 +251,9 @@ export const useDocumentsStore = create<DocumentsState>()(
                   state.filterHistory.set(namespaceId, history.saved || []);
                   state.recentFilterHistory.set(namespaceId, history.recent || []);
                 });
-              } catch (error) {
+              }).catch((error) => {
                 console.error('Failed to load query history:', error);
-              }
+              });
             }
           }
         },
@@ -246,6 +263,10 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.searchText = text;
             state.isQueryMode =
               text.length > 0 || state.activeFilters.length > 0;
+            // Reset pagination when search text changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
 
             // Clear previous timer
             if (searchDebounceTimer) {
@@ -255,40 +276,85 @@ export const useDocumentsStore = create<DocumentsState>()(
             // Debounce the search
             searchDebounceTimer = setTimeout(() => {
               get().logFilterChange();
-              get().loadDocuments(true, false, 1000);
+              get().loadDocuments(true, false, 1000, 1); // Force page 1
             }, DEBOUNCE_DELAY);
           }),
 
-        addFilter: (attribute, operator, value) => {
+        addFilter: (attribute, operator, rawValue) => {
           console.log("🔍 CHECKPOINT 2: Filter Storage");
-          console.log("addFilter called with:", {
+          console.log("addFilter called with raw value:", {
             attribute,
             operator,
-            value,
-            valueType: typeof value,
-            isArray: Array.isArray(value),
+            rawValue,
+            rawValueType: typeof rawValue,
+            isArray: Array.isArray(rawValue),
+          });
+
+          // Get the field type from attributes
+          const state = get();
+          const attributeInfo = state.attributes.find(a => a.name === attribute);
+          const fieldType = attributeInfo?.type;
+          
+          console.log("🔍 Field type lookup:", {
+            attribute,
+            fieldType,
+            attributeInfo
+          });
+          
+          // Convert the raw value to the correct type
+          let typedValue: any = rawValue;
+          
+          // Handle different input formats
+          if (operator === "in" || operator === "not_in") {
+            // For in/not_in operators, ensure we have an array
+            if (!Array.isArray(rawValue)) {
+              // Parse comma-separated string into array
+              const values = String(rawValue).split(",").map(v => v.trim()).filter(v => v);
+              typedValue = values.map(v => parseValueForFieldType(v, fieldType));
+            } else {
+              // Convert each element in the array
+              typedValue = rawValue.map((v: any) => 
+                typeof v === 'string' ? parseValueForFieldType(v, fieldType) : v
+              );
+            }
+          } else if (rawValue === "null" || (typeof rawValue === 'string' && rawValue.toLowerCase() === "null")) {
+            typedValue = null;
+          } else {
+            // Single value - convert to appropriate type
+            typedValue = typeof rawValue === 'string' 
+              ? parseValueForFieldType(rawValue, fieldType)
+              : rawValue;
+          }
+          
+          console.log("🔍 Type conversion result:", {
+            fieldType,
+            rawValue,
+            typedValue,
+            typedValueType: typeof typedValue,
+            isArray: Array.isArray(typedValue)
           });
 
           // Create human-readable display value
           let displayValue: string;
-          if (value === null) {
+          if (typedValue === null) {
             displayValue = "null";
-          } else if (Array.isArray(value)) {
-            if (value.length > 3) {
-              displayValue = `[${value.slice(0, 3).join(', ')}, ...]`;
+          } else if (Array.isArray(typedValue)) {
+            if (typedValue.length > 3) {
+              displayValue = `[${typedValue.slice(0, 3).join(', ')}, ...]`;
             } else {
-              displayValue = `[${value.join(', ')}]`;
+              displayValue = `[${typedValue.join(', ')}]`;
             }
-          } else if (typeof value === "object") {
-            displayValue = JSON.stringify(value);
+          } else if (typeof typedValue === "object") {
+            displayValue = JSON.stringify(typedValue);
           } else {
-            displayValue = String(value);
+            displayValue = String(typedValue);
           }
+          
           const newFilter: SimpleFilter = {
             id: `${Date.now()}-${Math.random()}`,
             attribute,
             operator,
-            value,
+            value: typedValue,  // Store the correctly typed value
             displayValue,
           };
 
@@ -301,6 +367,10 @@ export const useDocumentsStore = create<DocumentsState>()(
             );
             state.activeFilters = [...state.activeFilters, newFilter];
             state.isQueryMode = true;
+            // Reset pagination when filters change
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
             console.log(
               "After adding filter - activeFilters:",
               state.activeFilters.length
@@ -312,8 +382,82 @@ export const useDocumentsStore = create<DocumentsState>()(
           // Log the filter change
           setTimeout(() => get().logFilterChange(), 100);
           
-          // Automatically load documents when filter is added
-          setTimeout(() => get().loadDocuments(true, false, 1000), 0);
+          // Automatically load documents when filter is added - force page 1
+          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+        },
+
+        updateFilter: (filterId, attribute, operator, rawValue) => {
+          console.log("updateFilter called:", {
+            filterId,
+            attribute,
+            operator,
+            rawValue,
+            rawValueType: typeof rawValue
+          });
+
+          // Get the field type from attributes
+          const state = get();
+          const attributeInfo = state.attributes.find(a => a.name === attribute);
+          const fieldType = attributeInfo?.type;
+          
+          // Convert the raw value to the correct type (same logic as addFilter)
+          let typedValue: any = rawValue;
+          
+          if (operator === "in" || operator === "not_in") {
+            if (!Array.isArray(rawValue)) {
+              const values = String(rawValue).split(",").map(v => v.trim()).filter(v => v);
+              typedValue = values.map(v => parseValueForFieldType(v, fieldType));
+            } else {
+              typedValue = rawValue.map((v: any) => 
+                typeof v === 'string' ? parseValueForFieldType(v, fieldType) : v
+              );
+            }
+          } else if (rawValue === "null" || (typeof rawValue === 'string' && rawValue.toLowerCase() === "null")) {
+            typedValue = null;
+          } else {
+            typedValue = typeof rawValue === 'string' 
+              ? parseValueForFieldType(rawValue, fieldType)
+              : rawValue;
+          }
+
+          // Create display value
+          let displayValue: string;
+          if (typedValue === null) {
+            displayValue = "null";
+          } else if (Array.isArray(typedValue)) {
+            if (typedValue.length > 3) {
+              displayValue = `[${typedValue.slice(0, 3).join(', ')}, ...]`;
+            } else {
+              displayValue = `[${typedValue.join(', ')}]`;
+            }
+          } else if (typeof typedValue === "object") {
+            displayValue = JSON.stringify(typedValue);
+          } else {
+            displayValue = String(typedValue);
+          }
+
+          set((state) => {
+            const filterIndex = state.activeFilters.findIndex(f => f.id === filterId);
+            if (filterIndex !== -1) {
+              state.activeFilters[filterIndex] = {
+                ...state.activeFilters[filterIndex],
+                attribute,
+                operator,
+                value: typedValue,
+                displayValue,
+              };
+            }
+            // Reset pagination when filters change
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          });
+
+          // Log the filter change
+          setTimeout(() => get().logFilterChange(), 100);
+          
+          // Automatically load documents when filter is updated - force page 1
+          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
         },
 
         removeFilter: (filterId) =>
@@ -323,12 +467,16 @@ export const useDocumentsStore = create<DocumentsState>()(
             );
             state.isQueryMode =
               state.searchText.length > 0 || state.activeFilters.length > 0;
+            // Reset pagination when filters change
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
 
             // Log the filter change
             setTimeout(() => get().logFilterChange(), 100);
             
-            // Automatically load documents when filter is removed
-            setTimeout(() => get().loadDocuments(true, false, 1000), 0);
+            // Automatically load documents when filter is removed - force page 1
+            setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
           }),
 
         clearFilters: () =>
@@ -337,6 +485,8 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.activeFilters = [];
             state.isQueryMode = false;
             state.nextCursor = null; // Reset pagination when clearing filters
+            state.previousCursors = [];
+            state.currentPage = 1;
 
             // Clear debounce timer
             if (searchDebounceTimer) {
@@ -346,8 +496,8 @@ export const useDocumentsStore = create<DocumentsState>()(
             // Log the filter change (empty filters)
             setTimeout(() => get().logFilterChange(), 100);
             
-            // Trigger immediate load
-            setTimeout(() => get().loadDocuments(true, false, 1000), 0);
+            // Trigger immediate load - force page 1
+            setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
           }),
 
         clearAllFilters: () =>
@@ -356,14 +506,16 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.activeFilters = [];
             state.isQueryMode = false;
             state.nextCursor = null; // Reset pagination when clearing filters
+            state.previousCursors = [];
+            state.currentPage = 1;
 
             // Clear debounce timer
             if (searchDebounceTimer) {
               clearTimeout(searchDebounceTimer);
             }
 
-            // Automatically load documents when all filters are cleared
-            setTimeout(() => get().loadDocuments(true, false, 1000), 0);
+            // Automatically load documents when all filters are cleared - force page 1
+            setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
           }),
 
         setSelectedDocuments: (selected) =>
@@ -476,8 +628,8 @@ export const useDocumentsStore = create<DocumentsState>()(
             console.error('Failed to update filter count:', error);
           }
           
-          // Load documents with the applied filters
-          setTimeout(() => get().loadDocuments(true, false, 1000), 0);
+          // Load documents with the applied filters - force page 1
+          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
         },
         
         deleteFilterFromHistory: async (historyId) => {
@@ -554,8 +706,8 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.isQueryMode = historyEntry.searchText.length > 0 || historyEntry.filters.length > 0;
           });
           
-          // Load documents with the applied filters
-          setTimeout(() => get().loadDocuments(true, false, 1000), 0);
+          // Load documents with the applied filters - force page 1
+          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
         },
         
         logFilterChange: async () => {
@@ -683,16 +835,21 @@ export const useDocumentsStore = create<DocumentsState>()(
           }
         },
 
-        loadDocuments: async (
+loadDocuments: async (
           force = false,
           loadMore = false,
-          limit = 1000
+          limit = 100,
+          page = 1
         ) => {
           const state = get();
           console.log("📊 loadDocuments called:", {
             force,
             loadMore,
             limit,
+            page,
+            currentPage: state.currentPage,
+            previousCursors: state.previousCursors.length,
+            nextCursor: state.nextCursor,
             currentNamespaceId: state.currentNamespaceId,
             isLoading: state.isLoading,
             searchText: state.searchText,
@@ -716,11 +873,11 @@ export const useDocumentsStore = create<DocumentsState>()(
 
           const cacheKey = `${state.currentNamespaceId}-${
             state.searchText
-          }-${JSON.stringify(state.activeFilters)}`;
+          }-${JSON.stringify(state.activeFilters)}-${page}-${limit}`;
           console.log("🔑 Cache key:", cacheKey);
 
-          // Check cache first (only for non-forced and non-loadMore loads)
-          if (!force && !loadMore) {
+          // Check cache first (only for non-forced loads)
+          if (!force) {
             const cached = state.documentsCache.get(cacheKey);
             if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
               console.log(
@@ -731,6 +888,7 @@ export const useDocumentsStore = create<DocumentsState>()(
                 state.documents = cached.documents;
                 state.totalCount = cached.totalCount;
                 state.lastQueryResult = null;
+                state.currentPage = page;
               });
               // Auto-discover attributes from cached documents
               get().discoverAttributesFromDocuments(cached.documents);
@@ -747,6 +905,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             let documents: Document[] = [];
             let totalCount: number | null = null;
             let queryResult: any = null;
+            let totalPages: number | null = null;
 
             // Force query mode if there are any filters or search text
             const shouldUseQueryMode =
@@ -789,17 +948,19 @@ export const useDocumentsStore = create<DocumentsState>()(
                   case "equals": {
                     // Check if this is an array field
                     const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
-                    const isArrayField = fieldInfo?.type && typeof fieldInfo.type === 'string' && (fieldInfo.type.startsWith('[]') || fieldInfo.type === 'array');
+                    const fieldType = fieldInfo?.type;
+                    const isArrayField = isArrayType(fieldType);
                     
                     if (isArrayField) {
                       // For arrays, use "Contains" to check if array contains the value
-                      // If value is an array, use the first element (for single-value contains)
+                      // Value is already correctly typed from addFilter
                       const containsValue = Array.isArray(filter.value) ? filter.value[0] : filter.value;
                       const arrayFilter = [filter.attribute, "ContainsAny", containsValue];
                       console.log("🔍 Adding ARRAY filter (ContainsAny):", arrayFilter);
                       filters.push(arrayFilter as TurbopufferFilter);
                     } else {
                       // For non-arrays, use standard equality
+                      // Value is already correctly typed
                       const nonArrayFilter = [filter.attribute, "Eq", filter.value];
                       console.log("🔍 Adding NON-ARRAY filter (Eq):", nonArrayFilter);
                       filters.push(nonArrayFilter as TurbopufferFilter);
@@ -809,11 +970,12 @@ export const useDocumentsStore = create<DocumentsState>()(
                   case "not_equals": {
                     // Check if this is an array field
                     const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
-                    const isArrayField = fieldInfo?.type && typeof fieldInfo.type === 'string' && (fieldInfo.type.startsWith('[]') || fieldInfo.type === 'array');
+                    const fieldType = fieldInfo?.type;
+                    const isArrayField = isArrayType(fieldType);
                     
                     if (isArrayField) {
-                      // For arrays, use "Not", [filter.attribute, "Contains" to check if array does not contain the value
-                      // If value is an array, use the first element
+                      // For arrays, use "Not" with ContainsAny
+                      // Value is already correctly typed
                       const notContainsValue = Array.isArray(filter.value) ? filter.value[0] : filter.value;
                       filters.push(["Not", [filter.attribute, "ContainsAny", notContainsValue]] as TurbopufferFilter);
                     } else {
@@ -823,14 +985,15 @@ export const useDocumentsStore = create<DocumentsState>()(
                     break;
                   }
                   case "contains": {
-                    // For array fields, we use the "In" operator to check if arrays intersect
+                    // For array fields, we use ContainsAny to check if array contains value
                     // For string fields, use Glob pattern matching
                     const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
-                    const isArrayField = fieldInfo?.type && typeof fieldInfo.type === 'string' && (fieldInfo.type.startsWith('[]') || fieldInfo.type === 'array');
+                    const fieldType = fieldInfo?.type;
+                    const isArrayField = isArrayType(fieldType);
                     
                     if (isArrayField) {
-                      // For arrays, use "Contains" operator for containment checking
-                      // If value is an array, use the first element
+                      // For arrays, use "ContainsAny" operator
+                      // Value is already correctly typed from addFilter
                       const containsValue = Array.isArray(filter.value) ? filter.value[0] : filter.value;
                       filters.push([
                         filter.attribute,
@@ -847,36 +1010,46 @@ export const useDocumentsStore = create<DocumentsState>()(
                     }
                     break;
                   }
-                  case "greater":
+                  case "greater": {
+                    // Value is already correctly typed
                     filters.push([filter.attribute, "Gt", filter.value]);
                     break;
-                  case "greater_or_equal":
+                  }
+                  case "greater_or_equal": {
+                    // Value is already correctly typed
                     filters.push([filter.attribute, "Gte", filter.value]);
                     break;
-                  case "less":
+                  }
+                  case "less": {
+                    // Value is already correctly typed
                     filters.push([filter.attribute, "Lt", filter.value]);
                     break;
-                  case "less_or_equal":
+                  }
+                  case "less_or_equal": {
+                    // Value is already correctly typed
                     filters.push([filter.attribute, "Lte", filter.value]);
                     break;
-                  case "in":
+                  }
+                  case "in": {
+                    // Value is already correctly typed as an array from addFilter
+                    const values = Array.isArray(filter.value) ? filter.value : [filter.value];
                     filters.push([
                       filter.attribute,
                       "In",
-                      Array.isArray(filter.value)
-                        ? filter.value
-                        : [filter.value],
+                      values,
                     ]);
                     break;
-                  case "not_in":
+                  }
+                  case "not_in": {
+                    // Value is already correctly typed as an array from addFilter
+                    const values = Array.isArray(filter.value) ? filter.value : [filter.value];
                     filters.push([
                       filter.attribute,
                       "NotIn",
-                      Array.isArray(filter.value)
-                        ? filter.value
-                        : [filter.value],
+                      values,
                     ]);
                     break;
+                  }
                   case "matches":
                     filters.push([filter.attribute, "Glob", filter.value]);
                     break;
@@ -902,16 +1075,70 @@ export const useDocumentsStore = create<DocumentsState>()(
 
               console.log("🔍 Executing query with filters:", combinedFilter);
 
-              // Execute query
+              // First get the total count for filtered results
+              const countResult = await documentService.queryDocuments(
+                state.currentNamespaceId,
+                {
+                  filters: combinedFilter,
+                  aggregate_by: { count: ["Count", "id"] },
+                }
+              );
+              totalCount = countResult.aggregations?.count || 0;
+              totalPages = Math.ceil(totalCount / limit);
+
+              // Execute query for documents with cursor pagination
               const includeAttributes = state.visibleColumns.size > 0 
                 ? Array.from(state.visibleColumns).filter(col => col !== 'id' && col !== 'vector' && col !== '$dist')
                 : true;
               
+              // Add cursor filter for pagination
+              let finalFilter = combinedFilter;
+              let cursor: string | number | null = null;
+              
+              if (page > state.currentPage && state.documents.length > 0) {
+                // Going forward - use the last document ID from current page
+                cursor = state.documents[state.documents.length - 1].id;
+                const cursorFilter: TurbopufferFilter = ["id", "Gt", cursor];
+                finalFilter = combinedFilter 
+                  ? ["And", [combinedFilter, cursorFilter]]
+                  : cursorFilter;
+                console.log("🔍 Forward pagination with cursor in filtered mode:", cursor);
+              } else if (page < state.currentPage && state.previousCursors.length > 0) {
+                // Going backward - use cursor from stack
+                const cursorIndex = page - 2; // page-2 because we want the cursor before the target page
+                if (cursorIndex >= 0 && cursorIndex < state.previousCursors.length) {
+                  cursor = state.previousCursors[cursorIndex];
+                  const cursorFilter: TurbopufferFilter = ["id", "Gt", cursor];
+                  finalFilter = combinedFilter 
+                    ? ["And", [combinedFilter, cursorFilter]]
+                    : cursorFilter;
+                  console.log("🔍 Backward pagination with cursor in filtered mode:", cursor);
+                } else if (page === 1) {
+                  // Going back to first page - use original filter only
+                  finalFilter = combinedFilter;
+                }
+              } else if (page === 1 || state.currentPage === 0) {
+                // First page or initial load - use original filter only
+                finalFilter = combinedFilter;
+                console.log("🔍 First page in filtered mode - no cursor");
+              }
+              
+              console.log("🔍 Sending filtered pagination query:", {
+                filters: finalFilter,
+                rank_by: ["id", "asc"],
+                top_k: limit,
+                currentPage: state.currentPage,
+                targetPage: page,
+                hasDocuments: state.documents.length > 0,
+                lastDocId: state.documents.length > 0 ? state.documents[state.documents.length - 1].id : null,
+                cursor: cursor,
+              });
+              
               const result = await documentService.queryDocuments(
                 state.currentNamespaceId,
                 {
-                  filters: combinedFilter,
-                  top_k: 1000,
+                  filters: finalFilter,
+                  top_k: limit,
                   include_attributes: includeAttributes,
                   rank_by: ["id", "asc"],
                 }
@@ -919,12 +1146,30 @@ export const useDocumentsStore = create<DocumentsState>()(
 
               documents = result.rows || [];
               queryResult = result;
-              // Preserve unfiltered count, set filtered count to doc length
-              totalCount = documents.length;
               
-              // Clear nextCursor in query mode since we're not paginating
+              // Get the last document ID as next cursor
+              const newNextCursor = documents.length > 0 ? documents[documents.length - 1].id : null;
+              
+              // Update page state in query mode
               set((state) => {
-                state.nextCursor = null;
+                // Update cursor stack for backward navigation
+                if (page > state.currentPage) {
+                  // Going forward - save the first document ID of current page for going back
+                  if (state.documents.length > 0) {
+                    const firstIdOfCurrentPage = state.documents[0].id;
+                    // Ensure the stack has the right size
+                    const newCursors = [...state.previousCursors];
+                    newCursors[state.currentPage - 1] = firstIdOfCurrentPage;
+                    state.previousCursors = newCursors;
+                  }
+                } else if (page === 1) {
+                  // Reset cursors when going to first page
+                  state.previousCursors = [];
+                }
+                
+                state.nextCursor = newNextCursor;
+                state.currentPage = page;
+                state.totalPages = totalPages;
               });
               
               console.log("📄 Query results:", {
@@ -942,42 +1187,101 @@ export const useDocumentsStore = create<DocumentsState>()(
                   }
                 );
                 totalCount = countResult.aggregations?.count || 0;
+                totalPages = Math.ceil(totalCount / limit);
                 console.log("📊 Total count:", totalCount);
               } else {
                 totalCount = state.totalCount;
+                totalPages = Math.ceil(totalCount / limit);
               }
 
-              // Get documents with simple listing
-              console.log("📄 Listing documents...");
+              // Get documents using ID-based cursor pagination
+              console.log("📄 Listing documents with cursor pagination...");
 
               const includeAttributes = state.visibleColumns.size > 0 
                 ? Array.from(state.visibleColumns).filter(col => col !== 'id' && col !== 'vector' && col !== '$dist')
                 : true;
 
-              const { documents: listDocs, nextCursor } =
-                await documentService.listDocuments(state.currentNamespaceId, {
-                  limit,
-                  cursor: loadMore ? state.nextCursor : undefined,
-                  includeAttributes: includeAttributes,
-                });
-
-              if (loadMore) {
-                // Append to existing documents
-                documents = [...state.documents, ...listDocs];
-              } else {
-                documents = listDocs;
+              // Build filters for cursor-based pagination
+              let paginationFilter: TurbopufferFilter | undefined = undefined;
+              let cursor: string | number | null = null;
+              
+              if (page > state.currentPage && state.documents.length > 0) {
+                // Going forward - use the last document ID from current page
+                cursor = state.documents[state.documents.length - 1].id;
+                paginationFilter = ["id", "Gt", cursor];
+                console.log("📄 Forward pagination with cursor:", cursor);
+              } else if (page < state.currentPage && state.previousCursors.length > 0) {
+                // Going backward - use cursor from stack
+                const cursorIndex = page - 2; // page-2 because we want the cursor before the target page
+                if (cursorIndex >= 0 && cursorIndex < state.previousCursors.length) {
+                  cursor = state.previousCursors[cursorIndex];
+                  paginationFilter = ["id", "Gt", cursor];
+                  console.log("📄 Backward pagination with cursor:", cursor);
+                } else if (page === 1) {
+                  // Going back to first page - no cursor needed
+                  cursor = null;
+                  paginationFilter = undefined;
+                }
+              } else if (page === 1 || state.currentPage === 0) {
+                // First page or initial load - no cursor needed
+                cursor = null;
+                paginationFilter = undefined;
+                console.log("📄 First page - no cursor");
               }
+              
+              console.log("📄 Sending pagination query:", {
+                filters: paginationFilter,
+                rank_by: ["id", "asc"],
+                top_k: limit,
+                currentPage: state.currentPage,
+                targetPage: page,
+                hasDocuments: state.documents.length > 0,
+                lastDocId: state.documents.length > 0 ? state.documents[state.documents.length - 1].id : null,
+              });
+              
+              const response = await documentService.queryDocuments(
+                state.currentNamespaceId,
+                {
+                  filters: paginationFilter,
+                  rank_by: ["id", "asc"],
+                  top_k: limit,
+                  include_attributes: includeAttributes,
+                }
+              );
 
-              queryResult = null;
+              documents = response.rows || [];
+              queryResult = response;
+              
+              // Get the last document ID as next cursor
+              const newNextCursor = documents.length > 0 ? documents[documents.length - 1].id : null;
+
               console.log("📄 Listed documents:", {
                 documentsCount: documents.length,
-                newDocsCount: listDocs.length,
-                nextCursor,
+                page,
+                cursor,
+                newNextCursor,
               });
 
-              // Store next cursor for pagination
+              // Update pagination state
               set((state) => {
-                state.nextCursor = nextCursor || null;
+                // Update cursor stack for backward navigation
+                if (page > state.currentPage) {
+                  // Going forward - save the first document ID of current page for going back
+                  if (state.documents.length > 0) {
+                    const firstIdOfCurrentPage = state.documents[0].id;
+                    // Ensure the stack has the right size
+                    const newCursors = [...state.previousCursors];
+                    newCursors[state.currentPage - 1] = firstIdOfCurrentPage;
+                    state.previousCursors = newCursors;
+                  }
+                } else if (page === 1) {
+                  // Reset cursors when going to first page
+                  state.previousCursors = [];
+                }
+                
+                state.nextCursor = newNextCursor;
+                state.currentPage = page;
+                state.totalPages = totalPages;
               });
             }
 
@@ -991,10 +1295,20 @@ export const useDocumentsStore = create<DocumentsState>()(
               })),
             });
 
+            console.log("📊 Setting documents state:", {
+              documentsCount: documents.length,
+              totalCount,
+              currentPage: page,
+              pageSize: state.pageSize,
+              totalPages: totalCount !== null ? Math.ceil(totalCount / state.pageSize) : null,
+            });
+            
             set((state) => {
               state.documents = documents;
               state.totalCount = totalCount;
+              state.totalPages = totalCount !== null ? Math.ceil(totalCount / state.pageSize) : null;
               state.lastQueryResult = queryResult;
+              state.currentPage = page;
 
               // Set unfilteredTotalCount only in browse mode
               if (!shouldUseQueryMode && totalCount !== null) {
@@ -1180,7 +1494,30 @@ export const useDocumentsStore = create<DocumentsState>()(
                 } else if (typeof value === "boolean") {
                   attr.type = "boolean";
                 } else if (Array.isArray(value)) {
-                  attr.type = "array";
+                  // Determine the specific array type based on elements
+                  let determinedType = "array"; // Default fallback
+                  
+                  if (value.length > 0) {
+                    // Find the first non-null element to determine the type
+                    const firstElement = value.find(el => el !== null && el !== undefined);
+                    if (firstElement !== undefined) {
+                      const elementType = typeof firstElement;
+                      if (elementType === 'number') {
+                        // Check if all numbers are integers
+                        const allIntegers = value.every(el => 
+                          el === null || el === undefined || Number.isInteger(el)
+                        );
+                        determinedType = allIntegers ? "[]int32" : "[]float64";
+                      } else if (elementType === 'string') {
+                        determinedType = "[]string";
+                      } else if (elementType === 'boolean') {
+                        determinedType = "[]bool";
+                      }
+                    }
+                  }
+                  
+                  attr.type = determinedType;
+                  
                   // Initialize arrayElements set if not exists
                   if (!attr.arrayElements) {
                     attr.arrayElements = new Set();
@@ -1434,6 +1771,10 @@ export const useDocumentsStore = create<DocumentsState>()(
           const state = get();
           set((state) => {
             state.isRefreshing = true;
+            // Reset to first page on refresh
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
           });
 
           // Clear all caches
@@ -1443,7 +1784,7 @@ export const useDocumentsStore = create<DocumentsState>()(
 
           try {
             await Promise.all([
-              state.loadDocuments(true, false, 1000),
+              state.loadDocuments(true, false, 1000, 1), // Force page 1
               state.discoverAttributes(true),
             ]);
           } finally {

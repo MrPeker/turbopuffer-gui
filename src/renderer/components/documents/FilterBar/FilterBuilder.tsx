@@ -10,6 +10,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MultiSelectInput } from "./MultiSelectInput";
+import { 
+  isArrayType,
+  isNumericType
+} from "@/renderer/utils/filterTypeConversion";
 
 interface SimpleFilter {
   id: string;
@@ -128,6 +132,8 @@ const FilterRow: React.FC<FilterRowProps> = ({
   const [multiSelectValue, setMultiSelectValue] = useState<(string | number)[]>(
     Array.isArray(filter.value) ? filter.value : []
   );
+  // Store the actual typed value from dropdown selection
+  const [actualValue, setActualValue] = useState<any>(null);
 
   const selectedFieldInfo = fields.find((f) => f.name === selectedField);
 
@@ -159,7 +165,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
     const type = selectedFieldInfo.type;
     
     // Specialized operators for array fields with clearer labels
-    if (type === "array") {
+    if (isArrayType(type)) {
       return [
         { value: "contains", label: arrayOperatorLabels.contains },
         { value: "not_equals", label: arrayOperatorLabels.not_equals },
@@ -168,7 +174,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
       ];
     } 
     // Operators for numeric fields
-    else if (type === "number") {
+    else if (type === "number" || isNumericType(type)) {
       return [
         { value: "equals", label: "Equals (=)" },
         { value: "not_equals", label: "Not equals (≠)" },
@@ -201,7 +207,8 @@ const FilterRow: React.FC<FilterRowProps> = ({
   }, [selectedFieldInfo]);
 
   const handleApply = () => {
-    const isArrayField = selectedFieldInfo?.type === "array";
+    const fieldType = selectedFieldInfo?.type;
+    const isArrayField = isArrayType(fieldType);
     
     // For array fields, use multi-select when appropriate
     const useMultiSelect =
@@ -211,30 +218,22 @@ const FilterRow: React.FC<FilterRowProps> = ({
     if (
       selectedField &&
       selectedOperator &&
-      (useMultiSelect ? multiSelectValue.length > 0 : filterValue)
+      (useMultiSelect ? multiSelectValue.length > 0 : filterValue || actualValue !== null)
     ) {
-      // Process value based on operator and field type
-      let processedValue: any = filterValue;
-
+      // Use the actual typed value if available (from dropdown selection),
+      // otherwise use the string value from manual input
+      let rawValue: any;
       if (useMultiSelect) {
-        // For array fields with multi-select operators
-        processedValue = multiSelectValue;
-      } else if (selectedOperator === "in" || selectedOperator === "not_in") {
-        // Handle comma-separated values for non-array fields
-        processedValue = filterValue
-          .split(",")
-          .map((v) => v.trim())
-          .filter((v) => v);
-      }
-      // Handle null value
-      else if (
-        filterValue.toLowerCase() === "null" &&
-        (selectedOperator === "equals" || selectedOperator === "not_equals")
-      ) {
-        processedValue = null;
+        rawValue = multiSelectValue;
+      } else if (actualValue !== null) {
+        // Use the actual typed value from dropdown
+        rawValue = actualValue;
+      } else {
+        // Use the string value from manual input
+        rawValue = filterValue;
       }
 
-      onUpdate(selectedField, selectedOperator, processedValue);
+      onUpdate(selectedField, selectedOperator, rawValue);
 
       // Reset new filter row
       if (isNew) {
@@ -242,6 +241,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
         setSelectedOperator("equals");
         setFilterValue("");
         setMultiSelectValue([]);
+        setActualValue(null);
       }
     }
   };
@@ -259,10 +259,12 @@ const FilterRow: React.FC<FilterRowProps> = ({
   // Auto-apply changes for existing filters
   const handleFieldChange = (newField: string) => {
     setSelectedField(newField);
+    // Clear actual value when field changes
+    setActualValue(null);
     if (!isNew) {
       // Reset operator based on field type
       const fieldInfo = fields.find((f) => f.name === newField);
-      const newOperator = fieldInfo?.type === "array" ? "contains" : "equals";
+      const newOperator = isArrayType(fieldInfo?.type) ? "contains" : "equals";
       setSelectedOperator(newOperator);
       // Clear values
       setFilterValue("");
@@ -344,7 +346,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
       </DropdownMenu>
 
       {/* Value Input */}
-      {selectedFieldInfo?.type === "array" &&
+      {isArrayType(selectedFieldInfo?.type) &&
       (selectedOperator === "in" || selectedOperator === "not_in") ? (
         <MultiSelectInput
           value={multiSelectValue}
@@ -353,7 +355,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
             handleValueChange();
           }}
           options={selectedFieldInfo.sampleValues.map((v) => ({
-            value: v,
+            value: v, // Preserve original type (number or string)
             label: String(v),
           }))}
           placeholder={getPlaceholder(selectedOperator)}
@@ -390,8 +392,15 @@ const FilterRow: React.FC<FilterRowProps> = ({
               <DropdownMenuItem
                 key={idx}
                 onClick={() => {
-                  setFilterValue(String(value));
-                  handleValueChange();
+                  // Store the actual typed value for later use
+                  setActualValue(value);
+                  // Set the display value
+                  const displayValue = String(value);
+                  setFilterValue(displayValue);
+                  // For existing filters, update immediately
+                  if (!isNew && selectedField && selectedOperator) {
+                    onUpdate(selectedField, selectedOperator, value);
+                  }
                 }}
               >
                 <span className="truncate">{String(value)}</span>
@@ -405,7 +414,11 @@ const FilterRow: React.FC<FilterRowProps> = ({
           value={filterValue}
           className="h-9"
           disabled={!selectedField || !selectedOperator}
-          onChange={(e) => setFilterValue(e.target.value)}
+          onChange={(e) => {
+            setFilterValue(e.target.value);
+            // Clear actual value when user types manually
+            setActualValue(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               handleApply();
@@ -424,7 +437,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
             disabled={
               !selectedField ||
               !selectedOperator ||
-              (selectedFieldInfo?.type === "array" &&
+              (isArrayType(selectedFieldInfo?.type) &&
               (selectedOperator === "in" || selectedOperator === "not_in")
                 ? multiSelectValue.length === 0
                 : !filterValue)

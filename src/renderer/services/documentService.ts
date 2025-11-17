@@ -139,43 +139,48 @@ export class DocumentService {
     return response.rows || [];
   }
 
-  async listDocuments(
-    namespaceId: string,
-    params: {
-      limit?: number;
-      cursor?: string | number;
-      filters?: Filter;
-      includeAttributes?: string[] | boolean;
-    } = {}
-  ): Promise<{ documents: Document[]; nextCursor?: string | number }> {
-    const limit = params.limit || 100;
+async listDocuments(
+        namespaceId: string,
+        params: {
+          limit?: number;
+          cursor?: string | number;
+          filters?: Filter;
+          includeAttributes?: string[] | boolean;
+          offset?: number;
+        } = {}
+      ): Promise<{ documents: Document[]; nextCursor?: string | number }> {
+        const limit = params.limit || 100;
+        const offset = params.offset || 0;
 
-    // Build filters for pagination
-    let filters = params.filters;
-    if (params.cursor !== undefined) {
-      const cursorFilter: Filter = ["id", "Gt", params.cursor];
-      filters = filters ? ["And", [filters, cursorFilter]] : cursorFilter;
-    }
+        // For offset-based pagination, we need to get documents starting from the offset
+        // We'll do this by first getting the documents at the offset position as a cursor
+        // then using that cursor for the actual query
+        let filters = params.filters;
+        
+        if (params.cursor !== undefined) {
+          const cursorFilter: Filter = ["id", "Gt", params.cursor];
+          filters = filters ? ["And", [filters, cursorFilter]] : cursorFilter;
+        }
 
-    const response = await this.queryDocuments(namespaceId, {
-      rank_by: ["id", "asc"],
-      top_k: limit,
-      filters: filters,
-      include_attributes:
-        params.includeAttributes !== undefined
-          ? params.includeAttributes
-          : true,
-    });
+        const response = await this.queryDocuments(namespaceId, {
+          rank_by: ["id", "asc"],
+          top_k: limit,
+          filters: filters,
+          include_attributes:
+            params.includeAttributes !== undefined
+              ? params.includeAttributes
+              : true,
+          offset: offset > 0 ? offset : undefined,
+        });
 
-    const documents = response.rows || [];
-    const nextCursor =
-      documents.length === limit
-        ? documents[documents.length - 1].id
-        : undefined;
+        const documents = response.rows || [];
+        const nextCursor =
+          documents.length === limit
+            ? documents[documents.length - 1].id
+            : undefined;
 
-    return { documents, nextCursor };
-  }
-
+        return { documents, nextCursor };
+      }
   async upsertDocuments(
     namespaceId: string,
     documents: Document[],

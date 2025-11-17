@@ -22,8 +22,9 @@ import { useConnection } from "@/renderer/contexts/ConnectionContext";
 import { useDocumentsStore } from "@/renderer/stores/documentsStore";
 import { useNamespace } from "@/renderer/contexts/NamespaceContext";
 import { useToast } from "@/hooks/use-toast";
+import { useInspector } from "@/renderer/components/layout/MainLayout";
 import { DocumentsTable } from "./DocumentsTable";
-import { DocumentViewer } from "./DocumentViewer";
+import { DocumentDetailsPanel } from "./DocumentDetailsPanel";
 import { DocumentUploadDialog } from "./DocumentUploadDialog";
 import { FilterBar } from "./FilterBar/FilterBar";
 import { RawQueryBar } from "./RawQueryBar";
@@ -34,6 +35,7 @@ export const DocumentsPage: React.FC = () => {
   const { selectedConnection } = useConnection();
   const { selectedNamespace, loadNamespaceById } = useNamespace();
   const { toast } = useToast();
+  const { setInspectorContent, setInspectorTitle, openInspector, closeInspector } = useInspector();
   const {
     documents,
     isLoading: loading,
@@ -53,19 +55,19 @@ export const DocumentsPage: React.FC = () => {
     nextCursor,
     resetInitialization,
     lastQueryResult,
+    unfilteredTotalCount,
   } = useDocumentsStore();
   
   // Subscribe to store state for filter dependencies
   const activeFilters = useDocumentsStore(state => state.activeFilters);
   const searchText = useDocumentsStore(state => state.searchText);
 
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(
-    null
-  );
   const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [pageSize, setPageSize] = useState(1000);
+  const [pageSize, setPageSize] = useState(100);
   const [isRawQueryMode, setIsRawQueryMode] = useState(false);
   const [initialRawQuery, setInitialRawQuery] = useState<string | undefined>(undefined);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | number | null>(null);
 
   // Auto-select namespace if URL has namespaceId but no namespace is selected
   useEffect(() => {
@@ -97,6 +99,8 @@ export const DocumentsPage: React.FC = () => {
         // Set namespace first
         if (documents.length === 0 || currentNamespaceId !== namespaceId) {
           await setNamespace(namespaceId);
+          // Reset to first page when changing namespaces
+          setCurrentPage(1);
         }
 
         // Initialize the client with the current connection
@@ -118,6 +122,8 @@ export const DocumentsPage: React.FC = () => {
 
   const handleRefresh = () => {
     refresh();
+    // Reset to first page on refresh
+    setCurrentPage(1);
   };
 
   const handleRetryConnection = async () => {
@@ -164,15 +170,35 @@ export const DocumentsPage: React.FC = () => {
       await deleteDocuments(Array.from(selectedDocuments));
       setSelectedDocuments(new Set());
       refresh();
+      // Reset to first page after deletion
+      setCurrentPage(1);
     }
   };
 
-  const handleLoadMore = () => {
-    loadDocuments(false, true, pageSize);
+  const handleDocumentClick = (document: Document) => {
+    setActiveDocumentId(document.id);
+    setInspectorTitle('Document Details');
+    setInspectorContent(
+      <DocumentDetailsPanel
+        document={document}
+        onClose={() => {
+          setActiveDocumentId(null);
+          closeInspector();
+        }}
+        onUpdate={() => {
+          refresh();
+          setActiveDocumentId(null);
+          closeInspector();
+        }}
+      />
+    );
+    openInspector();
   };
 
   const handleInitialLoad = () => {
     loadDocuments(false, false, pageSize);
+    // Reset to first page on initial load
+    setCurrentPage(1);
   };
 
   // Component to display raw query responses (like aggregations)
@@ -221,73 +247,79 @@ export const DocumentsPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold">Documents</h1>
-            <Button
-              variant={isRawQueryMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                if (!isRawQueryMode) {
-                  // Switching to raw mode - generate query from current filters
-                  const rawQuery = convertFiltersToRawQuery(
-                    useDocumentsStore.getState().activeFilters,
-                    useDocumentsStore.getState().searchText,
-                    useDocumentsStore.getState().attributes
-                  );
-                  setInitialRawQuery(rawQuery);
-                } else {
-                  // Switching back to filter mode - clear initial query
-                  setInitialRawQuery(undefined);
-                }
-                setIsRawQueryMode(!isRawQueryMode);
-              }}
-              className="gap-2"
-            >
-              <Code className="h-4 w-4" />
-              {isRawQueryMode ? "Raw Query" : "Query Mode"}
-            </Button>
+    <div className="flex flex-col h-full bg-tp-bg">
+      {/* Toolbar */}
+      <div className="px-3 py-2 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div>
+            <h1 className="text-sm font-bold uppercase tracking-wider text-tp-text">Documents</h1>
+            {selectedNamespace && (
+              <p className="text-xs text-tp-text-muted mt-0.5">
+                <span className="font-mono text-tp-accent">{selectedNamespace.id}</span>
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              <RefreshCw
-                className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowUploadDialog(true)}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => handleExport("json")}>
-                  Export as JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport("csv")}>
-                  Export as CSV
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <span className="text-tp-border-strong">│</span>
+          <Button
+            variant={isRawQueryMode ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              if (!isRawQueryMode) {
+                const rawQuery = convertFiltersToRawQuery(
+                  useDocumentsStore.getState().activeFilters,
+                  useDocumentsStore.getState().searchText,
+                  useDocumentsStore.getState().attributes
+                );
+                setInitialRawQuery(rawQuery);
+              } else {
+                setInitialRawQuery(undefined);
+              }
+              setIsRawQueryMode(!isRawQueryMode);
+            }}
+            className="h-7 gap-1.5 text-xs"
+          >
+            <Code className="h-3 w-3" />
+            {isRawQueryMode ? "Raw" : "Visual"}
+          </Button>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="h-7 text-xs"
+          >
+            <RefreshCw
+              className={`h-3 w-3 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowUploadDialog(true)}
+            className="h-7 text-xs"
+          >
+            <Upload className="h-3 w-3 mr-1.5" />
+            Upload
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 text-xs">
+                <Download className="h-3 w-3 mr-1.5" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => handleExport("json")}>
+                JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("csv")}>
+                CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -300,32 +332,36 @@ export const DocumentsPage: React.FC = () => {
           pageSize={pageSize}
           onPageSizeChange={(newSize) => {
             setPageSize(newSize);
+            // Reset to first page when page size changes
+            useDocumentsStore.getState().loadDocuments(false, false, newSize);
           }}
         />
       )}
 
       {/* Bulk Actions */}
       {!isRawQueryMode && selectedDocuments.size > 0 && (
-        <div className="px-4 py-2 bg-muted/50">
+        <div className="px-3 py-1.5 bg-tp-surface-alt border-b border-tp-border-subtle">
           <div className="flex items-center justify-between">
-            <span className="text-sm">
-              {selectedDocuments.size} document(s) selected
+            <span className="text-xs text-tp-text-muted">
+              {selectedDocuments.size} selected
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={handleDeleteSelected}
+                className="h-6 text-xs"
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected
+                <Trash2 className="h-3 w-3 mr-1" />
+                Delete
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedDocuments(new Set())}
+                className="h-6 text-xs"
               >
-                Clear Selection
+                Clear
               </Button>
             </div>
           </div>
@@ -334,22 +370,22 @@ export const DocumentsPage: React.FC = () => {
 
       {/* Error Display */}
       {error && (
-        <Alert variant="destructive" className="m-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>{error}</span>
+        <div className="mx-3 my-2 px-3 py-2 bg-tp-danger/10 border border-tp-danger/30 rounded-sm">
+          <div className="flex items-center gap-2 text-xs">
+            <AlertCircle className="h-3 w-3 text-tp-danger flex-shrink-0" />
+            <span className="flex-1 text-tp-text">{error}</span>
             {error.includes("Failed to") && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRetryConnection}
-                className="ml-4"
+                className="h-6 text-xs"
               >
-                Retry Connection
+                Retry
               </Button>
             )}
-          </AlertDescription>
-        </Alert>
+          </div>
+        </div>
       )}
 
       {/* Documents Table or Raw Response */}
@@ -361,26 +397,13 @@ export const DocumentsPage: React.FC = () => {
           <DocumentsTable
             documents={documents}
             loading={loading}
-            hasMore={!!nextCursor}
-            onLoadMore={handleLoadMore}
-            onDocumentClick={setSelectedDocument}
+            onDocumentClick={handleDocumentClick}
             selectedDocuments={new Set(Array.from(selectedDocuments).map(String))}
             onInitialLoad={handleInitialLoad}
+            activeDocumentId={activeDocumentId}
           />
         )}
       </div>
-
-      {/* Document Viewer Dialog */}
-      {selectedDocument && (
-        <DocumentViewer
-          document={selectedDocument}
-          onClose={() => setSelectedDocument(null)}
-          onUpdate={() => {
-            refresh();
-            setSelectedDocument(null);
-          }}
-        />
-      )}
 
       {/* Upload Dialog */}
       {showUploadDialog && (

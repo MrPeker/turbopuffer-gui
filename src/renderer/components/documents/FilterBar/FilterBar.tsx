@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Search,
-  Plus,
   X,
   Filter,
   ChevronDown,
-  Hash,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   Clock,
 } from "lucide-react";
@@ -29,42 +29,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { useDocumentsStore } from "@/renderer/stores/documentsStore";
 import { cn } from "@/lib/utils";
-import { MultiSelectInput } from "./MultiSelectInput";
 import { FilterBuilder } from "./FilterBuilder";
 import { FilterChip } from "./FilterChip";
 
-// Import SimpleFilter type from the documentsStore file
-interface SimpleFilter {
-  id: string;
-  attribute: string;
-  operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches";
-  value: any;
-  displayValue: string;
-}
-
-interface FilterHistoryEntry {
-  id: string;
-  name: string;
-  searchText: string;
-  filters: SimpleFilter[];
-  timestamp: number;
-  appliedCount: number;
-}
-
-interface RecentFilterEntry {
-  id: string;
-  searchText: string;
-  filters: SimpleFilter[];
-  timestamp: number;
-  description?: string;
-}
 
 interface FilterBarProps {
   className?: string;
@@ -83,6 +52,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     setSearchText,
     activeFilters,
     addFilter,
+    updateFilter,
     removeFilter,
     clearAllFilters,
     isLoading,
@@ -92,12 +62,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     toggleColumn,
     setVisibleColumns,
     loadSchemaAndInitColumns,
-    saveToFilterHistory,
-    applyFilterFromHistory,
-    deleteFilterFromHistory,
-    getNamespaceFilterHistory,
-    getNamespaceRecentHistory,
     applyRecentFilter,
+    currentPage,
+    totalPages,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -147,7 +114,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       fieldMap.set(attr.name, {
         name: attr.name,
         type: attr.type || "string",
-        sampleValues: attr.sampleValues || [],
+        sampleValues: [...(attr.sampleValues || [])], // Create a new array to avoid immutability issues
         count: attr.frequency || 0,
       });
     });
@@ -340,94 +307,94 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 py-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "flex flex-col gap-2 px-3 py-2 bg-tp-surface border-b border-tp-border-subtle",
         className
       )}
     >
       {/* Main Filter Row */}
-      <div className="flex items-center gap-2 px-4">
+      <div className="flex items-center gap-1.5">
         {/* Enhanced Search Input */}
-        <div className="relative w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative w-64">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-tp-text-muted" />
           <Input
             ref={searchInputRef}
             type="text"
-            placeholder="Search by ID..."
+            placeholder="search by id..."
             value={localSearchText}
             onChange={(e) => setLocalSearchText(e.target.value)}
-            className="pl-10 pr-10"
+            className="pl-7 pr-8 h-7 text-xs"
             disabled={isLoading}
           />
           {localSearchText && (
             <Button
               variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+              size="sm"
+              className="absolute right-0.5 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
               onClick={handleClearSearch}
               disabled={isLoading}
             >
-              <X className="h-3 w-3" />
+              <X className="h-2.5 w-2.5" />
             </Button>
           )}
         </div>
 
-        <Separator orientation="vertical" className="h-8" />
+        <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
 
         {/* Filter Toggle Button */}
         <Button
           variant="outline"
-          size="default"
-          className="gap-2 h-10"
+          size="sm"
+          className="gap-1 h-7"
           onClick={() => setIsFilterPopoverOpen(!isFilterPopoverOpen)}
         >
-          <Filter className="h-4 w-4" />
-          Filters
+          <Filter className="h-3 w-3" />
+          filters
           {activeFilters.length > 0 && (
-            <Badge variant="secondary" className="ml-1 px-1.5 min-w-[20px] h-5">
+            <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
               {activeFilters.length}
             </Badge>
           )}
           <ChevronDown
             className={cn(
-              "h-3 w-3 ml-1 transition-transform",
+              "h-2.5 w-2.5 ml-0.5 transition-transform",
               isFilterPopoverOpen && "rotate-180"
             )}
           />
         </Button>
-        
-        {/* Filter History - Simple dropdown without tabs */}
+
+        {/* Filter History */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              size="default"
-              className="gap-2 h-10"
+              size="sm"
+              className="gap-1 h-7"
             >
-              <Clock className="h-4 w-4" />
-              History
+              <Clock className="h-3 w-3" />
+              history
               {recentHistory.length > 0 && (
-                <Badge variant="secondary" className="ml-1 px-1.5 min-w-[20px] h-5">
+                <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
                   {recentHistory.length}
                 </Badge>
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-96 max-h-[400px] overflow-y-auto" align="start">
-            <DropdownMenuLabel>Recent Filters</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+          <DropdownMenuContent className="w-96 max-h-[400px] overflow-y-auto bg-tp-surface border-tp-border-strong" align="start">
+            <DropdownMenuLabel className="text-xs uppercase tracking-wider">recent filters</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-tp-border-subtle" />
             {recentHistory.length === 0 ? (
-              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                No filter history yet
+              <div className="px-2 py-4 text-center text-[11px] text-tp-text-muted">
+                no filter history yet
               </div>
             ) : (
               <>
                 {recentHistory.map((entry) => (
                   <DropdownMenuItem
                     key={entry.id}
-                    className="flex flex-col items-start py-2 cursor-pointer"
+                    className="flex flex-col items-start py-1.5 cursor-pointer text-xs"
                     onClick={() => applyRecentFilter(entry.id)}
                   >
-                    <div className="text-sm font-medium">
+                    <div className="text-xs font-medium text-tp-text">
                       {entry.description || (
                         <>
                           {entry.filters.length} filter{entry.filters.length !== 1 ? 's' : ''}
@@ -435,7 +402,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
                         </>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[10px] text-tp-text-faint font-mono">
                       {new Date(entry.timestamp).toLocaleString()}
                     </div>
                   </DropdownMenuItem>
@@ -448,30 +415,30 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         {/* Column Selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="default" className="gap-2 h-10">
-              <Eye className="h-4 w-4" />
-              Columns ({visibleColumns.size}/{availableFields.length})
-              <ChevronDown className="h-4 w-4 ml-2" />
+            <Button variant="outline" size="sm" className="gap-1 h-7">
+              <Eye className="h-3 w-3" />
+              columns ({visibleColumns.size}/{availableFields.length})
+              <ChevronDown className="h-3 w-3 ml-0.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56 max-h-96 overflow-y-auto">
-            <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+          <DropdownMenuContent className="w-56 max-h-96 overflow-y-auto bg-tp-surface border-tp-border-strong">
+            <DropdownMenuLabel className="text-xs uppercase tracking-wider">toggle columns</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-tp-border-subtle" />
             <DropdownMenuItem
               key="id"
               onClick={(e) => {
                 e.preventDefault();
                 toggleColumn("id");
-                // Reload documents with updated columns
                 setTimeout(() => loadDocuments(true, false, pageSize), 100);
               }}
+              className="text-xs"
             >
               <Checkbox
                 checked={visibleColumns.has("id")}
-                className="mr-2"
+                className="mr-1.5 h-3 w-3"
               />
               <span className="flex-1">id</span>
-              <Badge variant="outline" className="ml-2 text-xs">
+              <Badge variant="outline" className="ml-1.5">
                 required
               </Badge>
             </DropdownMenuItem>
@@ -483,34 +450,33 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
                   onClick={(e) => {
                     e.preventDefault();
                     toggleColumn(field.name);
-                    // Reload documents with updated columns
                     setTimeout(() => loadDocuments(true, false, pageSize), 100);
                   }}
+                  className="text-xs"
                 >
                   <Checkbox
                     checked={visibleColumns.has(field.name)}
-                    className="mr-2"
+                    className="mr-1.5 h-3 w-3"
                   />
-                  <span className="flex-1">
+                  <span className="flex-1 font-mono text-tp-text">
                     {field.name}
                     {(field.name.includes("vector") ||
                       field.name === "attributes" ||
                       field.name === "$dist") && (
-                      <Badge variant="outline" className="ml-2 text-xs">
+                      <Badge variant="outline" className="ml-1.5">
                         special
                       </Badge>
                     )}
                   </span>
                 </DropdownMenuItem>
               ))}
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="bg-tp-border-subtle" />
             <DropdownMenuItem
               onClick={(e) => {
                 e.preventDefault();
-                // Select all non-special columns
                 const newColumns = new Set<string>(['id']);
                 availableFields.forEach(field => {
-                  if (!field.name.includes('vector') && 
+                  if (!field.name.includes('vector') &&
                       !field.name.includes('embedding') &&
                       field.name !== '$dist' &&
                       field.name !== 'attributes' &&
@@ -520,11 +486,11 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
                   }
                 });
                 setVisibleColumns(newColumns);
-                // Reload documents with updated columns
                 setTimeout(() => loadDocuments(true, false, pageSize), 100);
               }}
+              className="text-xs"
             >
-              Reset to Default
+              reset to default
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -539,8 +505,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
             activeFilters={activeFilters}
             onAddFilter={addFilter}
             onUpdateFilter={(filterId, field, operator, value) => {
-              removeFilter(filterId);
-              addFilter(field, operator as any, value);
+              updateFilter(filterId, field, operator as any, value);
             }}
             onRemoveFilter={removeFilter}
           />
@@ -571,9 +536,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         </div>
       )}
 
-      {/* Document Count */}
+      {/* Document Count and Pagination */}
       <div className="flex items-center justify-between mt-1 px-4">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           {isLoading ? (
             <div className="flex items-center gap-2">
               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-muted-foreground" />
@@ -612,10 +577,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
             </span>
           )}
         </div>
-        
-        {/* Page Size Selector */}
+
+        {/* Page Size Selector and Pagination Controls */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Show:</span>
+          <span className="text-xs text-muted-foreground">Show:</span>
           <Select
             value={pageSize.toString()}
             onValueChange={(value) => {
@@ -637,6 +602,37 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
               <SelectItem value="1000">1000</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {Math.min(((currentPage - 1) * pageSize) + 1, totalCount || 0)} - {Math.min(currentPage * pageSize, totalCount || 0)} of {totalCount?.toLocaleString() || 0}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (currentPage > 1) {
+                  loadDocuments(false, false, pageSize, currentPage - 1);
+                }
+              }}
+              disabled={currentPage <= 1 || isLoading}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                loadDocuments(false, false, pageSize, currentPage + 1);
+              }}
+              disabled={currentPage >= (totalPages || 1) || isLoading}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

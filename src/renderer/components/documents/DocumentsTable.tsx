@@ -24,21 +24,19 @@ import { useDocumentsStore } from '@/renderer/stores/documentsStore';
 interface DocumentsTableProps {
   documents: any[];
   loading: boolean;
-  hasMore: boolean;
-  onLoadMore: () => void;
   onDocumentClick: (doc: any) => void;
   selectedDocuments: Set<string>;
   onInitialLoad?: () => void;
+  activeDocumentId?: string | number | null;
 }
 
 export const DocumentsTable: React.FC<DocumentsTableProps> = ({
   documents,
   loading,
-  hasMore,
-  onLoadMore,
   onDocumentClick,
   selectedDocuments,
   onInitialLoad,
+  activeDocumentId = null,
 }) => {
   const { setSelectedDocuments, visibleColumns, attributes } = useDocumentsStore();
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -110,17 +108,17 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
 
   const formatCellValue = (value: any, key: string, doc?: any): React.ReactNode => {
     if (value === null || value === undefined) {
-      return <span className="text-muted-foreground">null</span>;
+      return <span className="text-tp-text-faint italic">null</span>;
     }
 
     // Special handling for ID field - show with vector dimension if available
     if (key === 'id' && doc) {
       const vectorDim = doc.vector ? doc.vector.length : null;
       return (
-        <div className="flex items-center gap-2">
-          <span>{value}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-tp-accent">{value}</span>
           {vectorDim && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-tp-surface border-tp-border-strong">
               {vectorDim}D
             </Badge>
           )}
@@ -132,26 +130,24 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
     if (Array.isArray(value)) {
       if (key.includes('vector') || key.includes('embedding')) {
         return (
-          <Badge variant="secondary" className="font-mono text-xs">
-            {value.length}D vector
+          <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-tp-surface-alt border-tp-border-subtle">
+            [{value.length}D]
           </Badge>
         );
       }
-      
+
       // For non-vector arrays, show actual values if short enough
       const arrayStr = JSON.stringify(value);
       if (arrayStr.length <= 50) {
-        // Show the actual array values
         return (
-          <span className="font-mono text-xs">
+          <span className="text-tp-text-muted">
             {arrayStr}
           </span>
         );
       } else {
-        // For longer arrays, show count
         return (
-          <Badge variant="outline" className="font-mono text-xs">
-            [{value.length} items]
+          <Badge variant="outline" className="text-[10px] h-4 px-1">
+            [{value.length}]
           </Badge>
         );
       }
@@ -160,8 +156,8 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
     // Handle objects
     if (typeof value === 'object') {
       return (
-        <Badge variant="outline" className="font-mono text-xs">
-          {JSON.stringify(value).substring(0, 50)}...
+        <Badge variant="outline" className="text-[10px] h-4 px-1 max-w-xs truncate">
+          {JSON.stringify(value).substring(0, 40)}...
         </Badge>
       );
     }
@@ -169,16 +165,16 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
     // Handle booleans
     if (typeof value === 'boolean') {
       return (
-        <Badge variant={value ? 'default' : 'secondary'}>
+        <Badge variant={value ? 'default' : 'secondary'} className="text-[10px] h-4 px-1">
           {value.toString()}
         </Badge>
       );
     }
 
     // Handle long strings
-    if (typeof value === 'string' && value.length > 100) {
+    if (typeof value === 'string' && value.length > 80) {
       return (
-        <span className="truncate max-w-xs" title={value}>
+        <span className="truncate max-w-xs block" title={value}>
           {value}
         </span>
       );
@@ -194,10 +190,10 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
 
   if (documents.length === 0 && !loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full bg-tp-bg">
         <div className="text-center">
-          <p className="text-muted-foreground mb-4">No documents found</p>
-          <Button variant="outline" onClick={onInitialLoad || onLoadMore}>
+          <p className="text-xs text-tp-text-muted mb-3">no documents found</p>
+          <Button variant="outline" onClick={onInitialLoad} className="text-xs h-7">
             Load Documents
           </Button>
         </div>
@@ -210,75 +206,90 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
   const showLoadingOverlay = loading && !isInitialLoad && documents.length > 0;
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full relative bg-tp-bg">
       {/* Loading overlay for existing data */}
       {showLoadingOverlay && (
-        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-20 flex items-center justify-center">
-          <div className="flex items-center gap-2 bg-background/90 px-4 py-2 rounded-md border">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
-            <span className="text-sm text-muted-foreground">Updating results...</span>
+        <div className="absolute inset-0 bg-tp-bg/80 backdrop-blur-sm z-20 flex items-center justify-center">
+          <div className="flex items-center gap-2 bg-tp-surface px-3 py-2 border border-tp-border-subtle">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-tp-accent" />
+            <span className="text-xs text-tp-text-muted">updating...</span>
           </div>
         </div>
       )}
-      
+
       {/* Table */}
-      <div 
+      <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
         className="flex-1 overflow-auto"
       >
         <Table>
-          <TableHeader className="sticky top-0 bg-background z-10">
-            <TableRow>
-              <TableHead className="w-12">
+          <TableHeader className="sticky top-0 bg-tp-surface z-10 border-b border-tp-border-subtle">
+            <TableRow className="hover:bg-transparent">
+              <TableHead
+                className="w-12 h-9 px-4 text-xs font-bold text-tp-text-muted cursor-pointer"
+                onClick={() => !loading && toggleAllDocuments()}
+              >
                 <Checkbox
                   checked={isAllSelected}
                   indeterminate={isPartiallySelected || undefined}
                   onCheckedChange={() => toggleAllDocuments()}
                   disabled={loading}
+                  className="h-3 w-3 pointer-events-none"
                 />
               </TableHead>
               {Array.from(visibleColumns).filter(col => allColumns.includes(col)).map(column => (
-                <TableHead 
+                <TableHead
                   key={column}
-                  className="min-w-[100px]"
+                  className="min-w-[120px] h-9 px-4 text-xs font-bold text-tp-text-muted"
                   style={{ width: columnWidths[column] }}
                 >
                   {column}
                 </TableHead>
               ))}
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-16 h-8 px-4"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {documents.map((doc, index) => (
-              <TableRow 
+            {documents.map((doc, index) => {
+              const isActive = activeDocumentId !== null && doc.id === activeDocumentId;
+              return (
+              <TableRow
                 key={doc.id || index}
-                className="cursor-pointer hover:bg-muted/50"
+                className={`group cursor-pointer hover:bg-tp-surface-alt border-b border-tp-border-subtle/50 border-l-2 h-12 transition-all ${
+                  isActive ? 'border-l-tp-accent bg-tp-surface-alt' : 'border-l-transparent hover:border-l-tp-surface-alt'
+                }`}
                 onClick={() => onDocumentClick(doc)}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell
+                  className="py-3 pl-[14px] pr-4 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleDocumentSelection(doc.id);
+                  }}
+                >
                   <Checkbox
                     checked={selectedDocuments.has(doc.id)}
                     onCheckedChange={() => toggleDocumentSelection(doc.id)}
+                    className="h-3 w-3 pointer-events-none"
                   />
                 </TableCell>
                 {Array.from(visibleColumns).filter(col => allColumns.includes(col)).map(column => {
                   const value = doc[column] !== undefined ? doc[column] : doc.attributes?.[column];
                   return (
-                    <TableCell key={column}>
+                    <TableCell key={column} className="py-3 px-4 text-sm text-tp-text font-mono group-hover:text-tp-text">
                       {formatCellValue(value, column, doc)}
                     </TableCell>
                   );
                 })}
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreHorizontal className="h-3 w-3" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="text-sm">
                       <DropdownMenuItem onClick={() => onDocumentClick(doc)}>
                         View Details
                       </DropdownMenuItem>
@@ -291,7 +302,8 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {showSkeleton && (
               <>
                 {[...Array(10)].map((_, i) => (
@@ -311,16 +323,7 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
                 ))}
               </>
             )}
-            {/* Load More - placed at the end of table body */}
-            {hasMore && !loading && (
-              <TableRow>
-                <TableCell colSpan={visibleColumns.size + 2} className="text-center py-8">
-                  <Button variant="outline" onClick={onLoadMore}>
-                    Load More Documents
-                  </Button>
-                </TableCell>
-              </TableRow>
-            )}
+            
           </TableBody>
         </Table>
       </div>
