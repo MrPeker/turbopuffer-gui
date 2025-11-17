@@ -4,166 +4,213 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a third-party open-source Electron desktop client for Turbopuffer, a fast vector and full-text search engine. This GUI is not affiliated with Turbopuffer Inc. The application is built with:
+Third-party open-source Electron desktop GUI for Turbopuffer (vector and full-text search engine). Built with:
 
-- Electron 36.5.0 with TypeScript
-- React 18 with TypeScript (JSX support)
-- swc-react (React wrappers for Spectrum Web Components) for UI components
-- Vite as the build tool with React plugin
-- Electron Forge for packaging and distribution
-- ESLint for code linting
+- **Electron 36.5.0** - Multi-process architecture with security fuses
+- **React 19** with TypeScript
+- **Vite** - Build tool with separate configs for main/preload/renderer
+- **Radix UI + Tailwind CSS** - UI component library (shadcn/ui)
+- **Zustand** - State management with Immer middleware
+- **React Router 7** - HashRouter for Electron compatibility
+- **Turbopuffer SDK** (`@turbopuffer/turbopuffer`) - Official client library
 
 ## Development Commands
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run start
-
-# Package the application
-npm run package
-
-# Build distributables (Windows, macOS, Linux)
-npm run make
-
-# Run linting
-npm run lint
-
-# Fix linting issues
-npm run lint -- --fix
+npm install          # Install dependencies
+npm run start        # Start development server with hot reload
+npm run package      # Package application (without installer)
+npm run make         # Build distributables (Windows/macOS/Linux)
+npm run lint         # Run ESLint
+npm run lint -- --fix # Fix linting issues
 ```
 
-## Architecture
+## Architecture Overview
 
-The application follows Electron's multi-process architecture:
+### 1. Electron Multi-Process Architecture
 
-### Main Process (`src/main.ts`)
+**Main Process** (`src/main.ts` + `src/main/`)
+- Window lifecycle management
+- IPC handler registration via `src/main/ipc/*.ts`
+- Services: `credentialService` (encrypted storage), `settingsService`, `queryHistoryService`
+- DevTools open by default in development
 
-- Entry point for the Electron application
-- Manages BrowserWindow lifecycle
-- Handles platform-specific behaviors (macOS dock, Windows installer)
-- Currently configured with DevTools open by default
+**Preload Script** (`src/preload.ts`)
+- Bridges main ↔ renderer via `contextBridge.exposeInMainWorld('electronAPI', ...)`
+- Typed APIs: `ConnectionAPI`, `SettingsAPI`, `QueryHistoryAPI`, `AppAPI`
+- Never expose Node.js APIs directly
 
-### Preload Script (`src/preload.ts`)
+**Renderer Process** (`src/renderer/`)
+- React application with no Node.js access
+- All main process communication via `window.electronAPI.*`
 
-- Currently empty - implement secure IPC bridges here
-- Use `contextBridge` to expose APIs to the renderer process
-- Never expose Node.js APIs directly to renderer
+### 2. State Management Architecture
 
-### Renderer Process (`src/renderer.tsx`)
+The app uses a **hybrid state management** approach:
 
-- React-based frontend application
-- Uses swc-react component library (React wrappers for Spectrum Web Components)
-- No direct Node.js access (secure by default)
-- Communicate with main process through preload APIs
+**React Context** (for global, cross-cutting concerns):
+- `ConnectionContext` - Connection selection, test, save/delete
+- `NamespaceContext` - Current namespace selection, recent namespaces
+- `SettingsContext` - App settings (API logging, timeouts, retries)
 
-## Build Configuration
+**Zustand Stores** (for feature-specific state):
+- `documentsStore.ts` - Documents list, filters, pagination, attribute discovery
+  - Uses Immer for immutable updates
+  - Per-namespace caching for attributes and documents
+  - Filter history (saved + recent filters)
+  - Pagination with cursor-based navigation
 
-The project uses Vite with three separate configurations:
+**Important Pattern**: Zustand stores are scoped to the current connection + namespace. When these change, stores reset relevant state.
 
-- `vite.main.config.ts` - Main process build
-- `vite.preload.config.ts` - Preload script build
-- `vite.renderer.config.ts` - Renderer process build
+### 3. Service Layer Architecture
 
-Electron Forge handles packaging with security fuses enabled:
+**Renderer Services** (`src/renderer/services/`)
+- `turbopufferService.ts` - Singleton wrapper for Turbopuffer SDK
+  - Client initialization with region + API key
+  - Request logging (none/basic/detailed/verbose)
+  - Applies settings for timeout, retries, custom endpoints
+- `documentService.ts` - Document CRUD operations
+- `namespaceService.ts` - Namespace operations
+- `attributeDiscoveryService.ts` - Discovers available attributes from sample documents
+- `searchService.ts` - Search and filter operations
+- `settingsService.ts` - Settings CRUD via IPC
 
-- RunAsNode: disabled
-- Cookie encryption: enabled
-- Node options environment variable: disabled
-- Node CLI inspect arguments: disabled
-- Embedded ASAR integrity validation: enabled
-- Only load app from ASAR: enabled
+**Main Services** (`src/main/services/`)
+- `credentialService.ts` - Encrypted credential storage using Electron's `safeStorage`
+  - Stores API keys encrypted in OS keychain
+  - Connection metadata stored in `connections.json`
+- `settingsService.ts` - Settings persistence to `settings.json`
+- `queryHistoryService.ts` - Per-connection/namespace query history storage
 
-## Turbopuffer API Integration
+### 4. IPC Communication Pattern
 
-Turbopuffer is a vector and full-text search engine. Key API endpoints to implement:
+All IPC follows this pattern:
 
-- Authentication (`/auth`)
-- Vector/document writes (`/write`)
-- Search queries (`/query`)
-- Namespace management (`/namespaces`, `/delete-namespace`)
-- Schema management (`/schema`)
-- Data export (`/export`)
+1. **Renderer** calls `window.electronAPI.methodName(...)`
+2. **Preload** invokes `ipcRenderer.invoke('channel:name', ...)`
+3. **Main** handles via `ipcMain.handle('channel:name', async (event, ...) => {...})`
 
-API documentation is available in `turbopuffer-docs/api/`.
+Channels are namespaced: `connection:*`, `settings:*`, `queryHistory:*`, `app:*`
 
-## TypeScript Configuration
+### 5. Routing Architecture
 
-The project uses TypeScript with:
+Uses `HashRouter` (required for Electron file:// protocol):
 
-- Target: ESNext
-- Module: CommonJS
-- JSX: react-jsx (automatic runtime)
-- Strict null checks: enabled (via `noImplicitAny`)
-- Source maps: enabled
-- Module resolution: Node
-- DOM and ESNext libraries included
+```
+/connections              - ConnectionsPage
+/namespaces               - NamespacesPage (list all namespaces)
+/namespaces/:namespaceId  - DocumentsPage (view documents in namespace)
+/documents                - DocumentsPage (requires namespace context)
+/schema                   - SchemaPage
+/schema-designer          - StandaloneSchemaDesigner
+/settings                 - SettingsPage
+```
+
+**Layout**: All routes render inside `<MainLayout>` which provides:
+- Sidebar navigation
+- Status bar
+- Connection/namespace selection UI
+
+### 6. Data Flow Example: Loading Documents
+
+```
+DocumentsPage → useDocumentsStore() → store.loadDocuments()
+  ↓
+documentsStore.ts → documentService.queryDocuments()
+  ↓
+documentService.ts → turbopufferService.getClient().namespace(id).query()
+  ↓
+turbopufferService.ts → Turbopuffer SDK (initialized with API key + region)
+  ↓
+Turbopuffer API → Response
+  ↓
+documentsStore updates (via Immer): documents, totalCount, nextCursor
+  ↓
+DocumentsPage re-renders with new data
+```
+
+## UI Component System
+
+**Component Library**: shadcn/ui (Radix UI primitives + Tailwind CSS)
+- Components in `src/components/ui/` are pre-built shadcn components
+- Feature components in `src/renderer/components/`
+- Use Tailwind utility classes for styling
+- Theme configured via CSS variables in `src/renderer/index.css`
+
+**Tailwind Configuration** (`tailwind.config.js`):
+- HSL-based design tokens: `--border`, `--primary`, `--muted`, etc.
+- Dark mode: `class`-based (toggle via `next-themes`)
+- Custom sidebar color palette
+- Border radius via `--radius` variable
+
+**Important**: No custom CSS unless necessary. Use Tailwind utilities and shadcn components.
+
+## Filter System Architecture
+
+The filter system supports two modes:
+
+**1. Simple Filter Bar** (`FilterBar.tsx`, `FilterBuilder.tsx`):
+- Visual UI for building filters attribute-by-attribute
+- Converts to `SimpleFilter[]` in `documentsStore`
+- Converted to Turbopuffer filter syntax via `filterConversion.ts`
+
+**2. Raw Query Bar** (`RawQueryBar.tsx`):
+- Monaco editor for writing raw Turbopuffer filter JSON
+- Bypasses Simple Filter system
+- Directly sent to Turbopuffer API
+
+**Filter Type System**:
+- `SimpleFilter` - UI representation (attribute, operator, value, displayValue)
+- `TurbopufferFilter` - API representation (nested objects with operators)
+- Conversion utilities in `src/renderer/utils/filterConversion.ts`
+- Type checking in `src/renderer/utils/filterTypeConversion.ts`
 
 ## Security Considerations
 
-- Always use the preload script for IPC communication
-- Never enable `nodeIntegration` or disable `contextIsolation`
-- Validate all inputs from the renderer process
-- Use HTTPS for Turbopuffer API communication
-- API keys are encrypted using Electron's safeStorage API
-- Credentials are stored in OS-native keychains (macOS Keychain, Windows DPAPI, Linux Secret Service)
+- API keys encrypted using Electron's `safeStorage` (OS-native encryption)
+- Stored in OS keychain (macOS Keychain, Windows DPAPI, Linux Secret Service)
+- Connection metadata (names, regions) stored unencrypted in `connections.json`
+- Settings stored unencrypted in `settings.json`
+- Context isolation enabled, `nodeIntegration` disabled
+- All IPC communication validated in main process handlers
 
-## UI Component Library - swc-react
+## Build Configuration
 
-This project uses **swc-react**, React wrapper components for Spectrum Web Components (SWC), providing Adobe's Spectrum Design System in React.
+**Vite Configurations**:
+- `vite.main.config.ts` - Main process (Node.js environment)
+- `vite.preload.config.ts` - Preload script (limited Node.js)
+- `vite.renderer.config.ts` - Renderer (browser environment, React)
 
-### Architecture
+**Electron Forge** (`forge.config.ts`):
+- Makers: ZIP, Squirrel (Windows), DEB, RPM
+- Security fuses enabled (RunAsNode disabled, ASAR integrity validation, etc.)
+- Auto-unpack natives plugin for native modules
 
-- **swc-react**: React wrappers using @lit/react
-- **Spectrum Web Components**: Native Web Components built with Lit
-- **Adobe Spectrum**: Industry-standard design system
-- **Theme Provider**: Required wrapper for all components (`@swc-react/theme`)
+## Key Files to Understand
 
-### Required Setup
+- `src/renderer/stores/documentsStore.ts` - Central state for document viewing
+- `src/renderer/services/turbopufferService.ts` - API client management
+- `src/preload.ts` - Complete IPC surface area
+- `src/main/services/credentialService.ts` - Encrypted credential storage
+- `src/renderer/contexts/ConnectionContext.tsx` - Connection lifecycle
+- `src/renderer/utils/filterConversion.ts` - Filter transformation logic
 
-All components must be wrapped in Theme provider with required CSS imports:
+## Common Patterns
 
-- `@spectrum-web-components/theme/theme-light.js`
-- `@spectrum-web-components/theme/scale-medium.js`
+**Adding a new IPC handler**:
+1. Define types in `src/types/`
+2. Add handler in `src/main/ipc/` or inline in `src/main.ts`
+3. Expose in `src/preload.ts` via `contextBridge`
+4. Update `window.electronAPI` type declaration
+5. Call from renderer via `window.electronAPI.*`
 
-### Available Components (62 total)
+**Adding a new Zustand store**:
+1. Create in `src/renderer/stores/`
+2. Use `create()` with `devtools`, `subscribeWithSelector`, `immer` middleware
+3. Enable MapSet support: `enableMapSet()` if using Map/Set
+4. Export typed hooks: `const useMyStore = create<MyState>()(...))`
 
-#### Core UI Components
-
-- **Layout**: `accordion`, `card`, `divider`, `split-view`, `tabs`
-- **Navigation**: `breadcrumbs`, `menu`, `sidenav`, `top-nav`
-- **Actions**: `action-bar`, `action-button`, `action-group`, `action-menu`, `button`, `button-group`
-- **Feedback**: `alert-banner`, `alert-dialog`, `badge`, `illustrated-message`, `status-light`, `toast`, `tooltip`
-
-#### Form Components
-
-- **Input**: `checkbox`, `combobox`, `number-field`, `radio`, `search`, `slider`, `switch`, `textfield`
-- **Selection**: `picker`, `picker-button`, `tags`
-- **Support**: `field-group`, `field-label`, `help-text`, `contextual-help`
-
-#### Data Display
-
-- **Content**: `asset`, `avatar`, `icon`, `thumbnail`
-- **Tables**: `table`
-- **Progress**: `meter`, `progress-bar`, `progress-circle`
-
-#### Color Tools
-
-- **Pickers**: `color-area`, `color-field`, `color-wheel`, `color-slider`
-- **Display**: `color-handle`, `color-loupe`, `swatch`
-
-#### Overlays & Dialogs
-
-- **Containers**: `dialog`, `overlay`, `popover`, `tray`
-- **Utilities**: `dropzone`, `infield-button`, `underlay`
-
-### Development Guidelines
-
-1. **Import Strategy**: Import components individually (`@swc-react/button`, not barrel imports)
-2. **Type Safety**: Use exported TypeScript types (e.g., `ButtonType`) for event handlers
-3. **Theme Consistency**: Use Spectrum design tokens for colors, spacing, typography
-4. **Accessibility**: Built-in ARIA compliance and keyboard navigation
-5. **Performance**: Components are lazy-loaded and tree-shakeable
-6. **No Custom CSS**: Don't write custom CSS unless explicitly specified. The components should be enough
+**Adding a new route**:
+1. Create page component in `src/renderer/components/`
+2. Add route in `src/renderer/App.tsx` inside `<Route path="/" element={<MainLayout />}>`
+3. Use `HashRouter` compatible paths (no query params in routing)
