@@ -39,6 +39,8 @@ import { FilterChip } from "./FilterChip";
 import { VectorSearchInput } from "../VectorSearchInput";
 import { BM25ConfigPanel } from "../BM25ConfigPanel";
 import { RankingExpressionBuilder } from "../RankingExpressionBuilder";
+import { AggregationsPanel } from "../AggregationsPanel";
+import { AggregationResults } from "../AggregationResults";
 
 
 interface FilterBarProps {
@@ -88,6 +90,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     rankingExpression,
     setRankingMode,
     setRankingExpression,
+    aggregations,
+    setAggregations,
+    aggregationResults,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -697,6 +702,33 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
               }
             }}
             disabled={isLoading}
+          />
+        </div>
+      )}
+
+      {/* Aggregations Panel */}
+      <div className="px-3 pb-2">
+        <AggregationsPanel
+          availableAttributes={['id', ...attributes.map(attr => attr.name)]}
+          aggregations={aggregations}
+          onAggregationsChange={(aggs) => {
+            setAggregations(aggs);
+            if (aggs.length > 0) {
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+            }
+          }}
+          disabled={isLoading}
+        />
+      </div>
+
+      {/* Aggregation Results */}
+      {aggregationResults && aggregationResults.length > 0 && (
+        <div className="px-3 pb-2">
+          <AggregationResults
+            results={aggregationResults}
+            onClose={() => {
+              // Keep the results visible, user can clear aggregations to hide
+            }}
           />
         </div>
       )}

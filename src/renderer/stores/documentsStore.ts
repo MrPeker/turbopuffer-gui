@@ -86,6 +86,8 @@ interface DocumentsState {
   bm25Operator: 'sum' | 'max' | 'product';
   rankingMode: 'simple' | 'expression';
   rankingExpression: any | null; // RankingExprNode from RankingExpressionBuilder
+  aggregations: any[]; // AggregationConfig[] from AggregationsPanel
+  aggregationResults: any | null; // Parsed aggregation results from query
 
   // Cache
   attributesCache: Map<
@@ -129,6 +131,7 @@ interface DocumentsState {
   setBM25Config: (fields: { field: string; weight: number }[], operator: 'sum' | 'max' | 'product') => void;
   setRankingMode: (mode: 'simple' | 'expression') => void;
   setRankingExpression: (expression: any | null) => void;
+  setAggregations: (aggregations: any[]) => void;
 
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
@@ -218,6 +221,8 @@ export const useDocumentsStore = create<DocumentsState>()(
         bm25Operator: 'sum',
         rankingMode: 'simple',
         rankingExpression: null,
+        aggregations: [],
+        aggregationResults: null,
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -636,6 +641,15 @@ export const useDocumentsStore = create<DocumentsState>()(
           set((state) => {
             state.rankingExpression = expression;
             // Reset pagination when ranking expression changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setAggregations: (aggregations) =>
+          set((state) => {
+            state.aggregations = aggregations;
+            // Reset pagination when aggregations change
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
@@ -1305,6 +1319,15 @@ loadDocuments: async (
                 cursor: cursor,
               });
 
+              // Build aggregation query params
+              const aggregateBy = state.aggregations.length > 0
+                ? state.aggregations.map(agg => ({
+                    label: agg.name,
+                    aggregation: { Count: agg.groupBy },
+                    top_k: agg.topK || 10,
+                  }))
+                : undefined;
+
               const result = await documentService.queryDocuments(
                 state.currentNamespaceId,
                 {
@@ -1312,12 +1335,22 @@ loadDocuments: async (
                   top_k: limit,
                   include_attributes: includeAttributes,
                   rank_by: rankBy,
+                  aggregate_by: aggregateBy,
                 }
               );
 
               documents = result.rows || [];
               queryResult = result;
-              
+
+              // Parse aggregation results if present
+              const parsedAggregations = result.aggregations ? Object.entries(result.aggregations).map(([label, data]: [string, any]) => ({
+                label,
+                groups: (data.groups || []).map((group: any) => ({
+                  key: group.key,
+                  count: group.count,
+                })),
+              })) : [];
+
               // Get the last document ID as next cursor
               const newNextCursor = documents.length > 0 ? documents[documents.length - 1].id : null;
               
@@ -1337,10 +1370,11 @@ loadDocuments: async (
                   // Reset cursors when going to first page
                   state.previousCursors = [];
                 }
-                
+
                 state.nextCursor = newNextCursor;
                 state.currentPage = page;
                 state.totalPages = totalPages;
+                state.aggregationResults = parsedAggregations.length > 0 ? parsedAggregations : null;
               });
               
               console.log("📄 Query results:", {
