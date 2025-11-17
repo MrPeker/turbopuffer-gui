@@ -70,6 +70,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     sortAttribute,
     sortDirection,
     setSortAttribute,
+    searchMode,
+    searchField,
+    setSearchMode,
+    setSearchField,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -342,6 +346,60 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
             </Button>
           )}
         </div>
+
+        {/* Search Mode Toggle */}
+        <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
+          <Button
+            variant={searchMode === 'pattern' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-6 px-2 text-[10px]"
+            onClick={() => {
+              setSearchMode('pattern');
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
+            disabled={isLoading}
+          >
+            Pattern
+          </Button>
+          <Button
+            variant={searchMode === 'bm25' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-6 px-2 text-[10px]"
+            onClick={() => {
+              setSearchMode('bm25');
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
+            disabled={isLoading}
+          >
+            BM25
+          </Button>
+        </div>
+
+        {/* BM25 Field Selector */}
+        {searchMode === 'bm25' && (
+          <Select
+            value={searchField || "id"}
+            onValueChange={(value) => {
+              setSearchField(value);
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="h-7 w-[120px] text-xs">
+              <SelectValue placeholder="Field..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="id">ID</SelectItem>
+              {attributes
+                .filter(attr => attr.type === 'string')
+                .map((attr) => (
+                  <SelectItem key={attr.name} value={attr.name}>
+                    {attr.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
 

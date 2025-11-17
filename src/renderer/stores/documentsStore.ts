@@ -78,6 +78,8 @@ interface DocumentsState {
   isQueryMode: boolean;
   sortAttribute: string | null;
   sortDirection: 'asc' | 'desc';
+  searchMode: 'pattern' | 'bm25';
+  searchField: string | null;
 
   // Cache
   attributesCache: Map<
@@ -115,6 +117,8 @@ interface DocumentsState {
   setVisibleColumns: (columns: Set<string>) => void;
   toggleColumn: (column: string) => void;
   setSortAttribute: (attribute: string | null, direction: 'asc' | 'desc') => void;
+  setSearchMode: (mode: 'pattern' | 'bm25') => void;
+  setSearchField: (field: string | null) => void;
 
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
@@ -196,6 +200,8 @@ export const useDocumentsStore = create<DocumentsState>()(
         isQueryMode: false,
         sortAttribute: null,
         sortDirection: 'asc',
+        searchMode: 'pattern',
+        searchField: null,
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -233,6 +239,8 @@ export const useDocumentsStore = create<DocumentsState>()(
               state.isQueryMode = false;
               state.sortAttribute = null;
               state.sortDirection = 'asc';
+              state.searchMode = 'pattern';
+              state.searchField = null;
               state.error = null;
               // Reset client initialization state when changing namespace
               state.isClientInitialized = false;
@@ -552,6 +560,24 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.sortAttribute = attribute;
             state.sortDirection = direction;
             // Reset pagination when sort changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setSearchMode: (mode) =>
+          set((state) => {
+            state.searchMode = mode;
+            // Reset pagination when search mode changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setSearchField: (field) =>
+          set((state) => {
+            state.searchField = field;
+            // Reset pagination when search field changes
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
@@ -952,8 +978,9 @@ loadDocuments: async (
               // Build query filters
               const filters: TurbopufferFilter[] = [];
 
-              // Add text search filter across multiple fields
-              if (state.searchText.trim()) {
+              // Add text search filter across multiple fields (pattern mode only)
+              // BM25 mode uses rank_by instead of filters
+              if (state.searchText.trim() && state.searchMode === 'pattern') {
                 // Search across all string and array-of-string fields
                 const searchFields = state.attributes
                   .filter(attr => attr.type === 'string' || attr.type === '[]string')
@@ -1163,9 +1190,21 @@ loadDocuments: async (
                 console.log("🔍 First page in filtered mode - no cursor");
               }
               
+              // Determine rank_by based on search mode
+              let rankBy: any;
+              if (state.searchMode === 'bm25' && state.searchText.trim()) {
+                // BM25 full-text search mode
+                const searchField = state.searchField || 'id';
+                rankBy = [searchField, "BM25", state.searchText.trim()];
+              } else {
+                // Standard sorting mode
+                rankBy = [state.sortAttribute || "id", state.sortDirection];
+              }
+
               console.log("🔍 Sending filtered pagination query:", {
                 filters: finalFilter,
-                rank_by: [state.sortAttribute || "id", state.sortDirection],
+                rank_by: rankBy,
+                searchMode: state.searchMode,
                 top_k: limit,
                 currentPage: state.currentPage,
                 targetPage: page,
@@ -1173,14 +1212,14 @@ loadDocuments: async (
                 lastDocId: state.documents.length > 0 ? state.documents[state.documents.length - 1].id : null,
                 cursor: cursor,
               });
-              
+
               const result = await documentService.queryDocuments(
                 state.currentNamespaceId,
                 {
                   filters: finalFilter,
                   top_k: limit,
                   include_attributes: includeAttributes,
-                  rank_by: [state.sortAttribute || "id", state.sortDirection],
+                  rank_by: rankBy,
                 }
               );
 
