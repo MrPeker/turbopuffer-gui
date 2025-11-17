@@ -76,6 +76,8 @@ interface DocumentsState {
   searchText: string;
   activeFilters: SimpleFilter[];
   isQueryMode: boolean;
+  sortAttribute: string | null;
+  sortDirection: 'asc' | 'desc';
 
   // Cache
   attributesCache: Map<
@@ -112,7 +114,8 @@ interface DocumentsState {
   setSelectedDocuments: (selected: Set<string | number>) => void;
   setVisibleColumns: (columns: Set<string>) => void;
   toggleColumn: (column: string) => void;
-  
+  setSortAttribute: (attribute: string | null, direction: 'asc' | 'desc') => void;
+
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
   applyFilterFromHistory: (historyId: string) => void;
@@ -191,6 +194,8 @@ export const useDocumentsStore = create<DocumentsState>()(
         searchText: "",
         activeFilters: [],
         isQueryMode: false,
+        sortAttribute: null,
+        sortDirection: 'asc',
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -226,6 +231,8 @@ export const useDocumentsStore = create<DocumentsState>()(
               state.searchText = "";
               state.activeFilters = [];
               state.isQueryMode = false;
+              state.sortAttribute = null;
+              state.sortDirection = 'asc';
               state.error = null;
               // Reset client initialization state when changing namespace
               state.isClientInitialized = false;
@@ -539,7 +546,17 @@ export const useDocumentsStore = create<DocumentsState>()(
             }
             state.visibleColumns = newColumns;
           }),
-          
+
+        setSortAttribute: (attribute, direction) =>
+          set((state) => {
+            state.sortAttribute = attribute;
+            state.sortDirection = direction;
+            // Reset pagination when sort changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
         // Filter History Actions
         saveToFilterHistory: async (name) => {
           const state = get();
@@ -1148,7 +1165,7 @@ loadDocuments: async (
               
               console.log("🔍 Sending filtered pagination query:", {
                 filters: finalFilter,
-                rank_by: ["id", "asc"],
+                rank_by: [state.sortAttribute || "id", state.sortDirection],
                 top_k: limit,
                 currentPage: state.currentPage,
                 targetPage: page,
@@ -1163,7 +1180,7 @@ loadDocuments: async (
                   filters: finalFilter,
                   top_k: limit,
                   include_attributes: includeAttributes,
-                  rank_by: ["id", "asc"],
+                  rank_by: [state.sortAttribute || "id", state.sortDirection],
                 }
               );
 

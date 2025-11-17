@@ -8,6 +8,8 @@ import {
   ChevronRight,
   Eye,
   Clock,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +67,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     applyRecentFilter,
     currentPage,
     totalPages,
+    sortAttribute,
+    sortDirection,
+    setSortAttribute,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -337,6 +342,48 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
             </Button>
           )}
         </div>
+
+        <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
+
+        {/* Sort Controls */}
+        <Select
+          value={sortAttribute || "id"}
+          onValueChange={(value) => {
+            setSortAttribute(value, sortDirection);
+            setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+          }}
+          disabled={isLoading}
+        >
+          <SelectTrigger className="h-7 w-[140px] text-xs">
+            <SelectValue placeholder="Sort by..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="id">ID</SelectItem>
+            {attributes.map((attr) => (
+              <SelectItem key={attr.name} value={attr.name}>
+                {attr.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 w-7 p-0"
+          onClick={() => {
+            const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            setSortAttribute(sortAttribute || 'id', newDirection);
+            setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+          }}
+          disabled={isLoading}
+        >
+          {sortDirection === 'asc' ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )}
+        </Button>
 
         <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
 
