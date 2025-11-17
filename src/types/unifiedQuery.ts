@@ -283,7 +283,7 @@ export function createBM25Query(
 export function createVectorQuery(
   field: string,
   queryVector: number[],
-  topK: number = 10
+  topK = 10
 ): UnifiedQuery {
   const baseQuery = createEmptyQuery();
   baseQuery.search = {

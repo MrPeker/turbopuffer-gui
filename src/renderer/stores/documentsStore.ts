@@ -84,6 +84,8 @@ interface DocumentsState {
   vectorField: string | null;
   bm25Fields: { field: string; weight: number }[];
   bm25Operator: 'sum' | 'max' | 'product';
+  rankingMode: 'simple' | 'expression';
+  rankingExpression: any | null; // RankingExprNode from RankingExpressionBuilder
 
   // Cache
   attributesCache: Map<
@@ -125,6 +127,8 @@ interface DocumentsState {
   setSearchField: (field: string | null) => void;
   setVectorQuery: (vector: number[] | null, field: string) => void;
   setBM25Config: (fields: { field: string; weight: number }[], operator: 'sum' | 'max' | 'product') => void;
+  setRankingMode: (mode: 'simple' | 'expression') => void;
+  setRankingExpression: (expression: any | null) => void;
 
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
@@ -212,6 +216,8 @@ export const useDocumentsStore = create<DocumentsState>()(
         vectorField: null,
         bm25Fields: [],
         bm25Operator: 'sum',
+        rankingMode: 'simple',
+        rankingExpression: null,
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -612,6 +618,24 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.bm25Fields = fields;
             state.bm25Operator = operator;
             // Reset pagination when BM25 config changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setRankingMode: (mode) =>
+          set((state) => {
+            state.rankingMode = mode;
+            // Reset pagination when ranking mode changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setRankingExpression: (expression) =>
+          set((state) => {
+            state.rankingExpression = expression;
+            // Reset pagination when ranking expression changes
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
@@ -1224,9 +1248,23 @@ loadDocuments: async (
                 console.log("🔍 First page in filtered mode - no cursor");
               }
               
-              // Determine rank_by based on search mode
+              // Helper function to convert ranking expression to Turbopuffer format
+              const convertRankingExprToTurbopuffer = (node: any): any => {
+                if (!node) return null;
+                if (node.type === 'attribute') return node.attribute;
+                if (node.type === 'constant') return node.constant;
+                if (node.type === 'operator' && node.operator && node.operands) {
+                  return [node.operator, ...node.operands.map(convertRankingExprToTurbopuffer)];
+                }
+                return null;
+              };
+
+              // Determine rank_by based on ranking mode and search mode
               let rankBy: any;
-              if (state.searchMode === 'bm25' && state.searchText.trim()) {
+              if (state.rankingMode === 'expression' && state.rankingExpression) {
+                // Custom ranking expression mode
+                rankBy = convertRankingExprToTurbopuffer(state.rankingExpression);
+              } else if (state.searchMode === 'bm25' && state.searchText.trim()) {
                 // BM25 full-text search mode
                 if (state.bm25Fields.length > 1) {
                   // Multi-field BM25 with operator

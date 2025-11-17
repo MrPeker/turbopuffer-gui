@@ -77,9 +77,9 @@ function convertSearchToRankBy(search: SearchConfig): any {
       // Pattern search uses filters, not rank_by
       return null;
 
-    case 'bm25':
+    case 'bm25': {
       if (!search.bm25) return null;
-      const { fields, query, operator, lastAsPrefix, language } = search.bm25;
+      const { fields, query, operator } = search.bm25;
 
       // Single field BM25
       if (fields.length === 1) {
@@ -101,10 +101,12 @@ function convertSearchToRankBy(search: SearchConfig): any {
         return ['Product', ...fieldRanks];
       }
       return fieldRanks[0];
+    }
 
-    case 'vector':
+    case 'vector': {
       if (!search.vector) return null;
       return [search.vector.field, 'ANN', search.vector.queryVector];
+    }
 
     default:
       return null;
