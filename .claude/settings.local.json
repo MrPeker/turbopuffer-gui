@@ -21,7 +21,8 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm run check:*)",
       "Bash(npm run lint:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "mcp__zen__chat"
     ],
     "deny": []
   }
