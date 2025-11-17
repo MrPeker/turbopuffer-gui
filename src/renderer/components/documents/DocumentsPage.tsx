@@ -27,6 +27,7 @@ import { DocumentDetailsPanel } from "./DocumentDetailsPanel";
 import { DocumentUploadDialog } from "./DocumentUploadDialog";
 import { FilterBar } from "./FilterBar/FilterBar";
 import { RawQueryBar } from "./RawQueryBar";
+import { QueryPerformanceMetrics } from "./QueryPerformanceMetrics";
 import { convertFiltersToRawQuery } from "@/renderer/utils/filterConversion";
 
 export const DocumentsPage: React.FC = () => {
@@ -343,14 +344,17 @@ export const DocumentsPage: React.FC = () => {
         {documents.length === 0 && lastQueryResult && !loading && !error ? (
           <RawResponseViewer response={lastQueryResult} />
         ) : (
-          <DocumentsTable
-            documents={documents}
-            loading={loading}
-            onDocumentClick={handleDocumentClick}
-            selectedDocuments={new Set(Array.from(selectedDocuments).map(String))}
-            onInitialLoad={handleInitialLoad}
-            activeDocumentId={activeDocumentId}
-          />
+          <>
+            <DocumentsTable
+              documents={documents}
+              loading={loading}
+              onDocumentClick={handleDocumentClick}
+              selectedDocuments={new Set(Array.from(selectedDocuments).map(String))}
+              onInitialLoad={handleInitialLoad}
+              activeDocumentId={activeDocumentId}
+            />
+            <QueryPerformanceMetrics lastQueryResult={lastQueryResult} />
+          </>
         )}
       </div>
 
