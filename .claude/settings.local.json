@@ -23,7 +23,9 @@
       "Bash(npm run lint:*)",
       "Bash(npx prettier:*)",
       "mcp__zen__chat",
-      "Skill(frontend-design:frontend-design)"
+      "Skill(frontend-design:frontend-design)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

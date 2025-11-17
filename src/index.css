@@ -25,7 +25,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 220 10% 85%;
     --input: 220 10% 85%;
-    --ring: 200 55% 40%;
+    --ring: 210 65% 50%;
     --radius: 2px;
 
     /* Turbopuffer-specific tokens */
@@ -62,13 +62,13 @@
     --card-foreground: 210 20% 94%;
     --popover: 220 12% 12%;
     --popover-foreground: 210 20% 94%;
-    --primary: 200 65% 50%;
+    --primary: 210 65% 50%;
     --primary-foreground: 0 0% 100%;
     --secondary: 220 10% 16%;
     --secondary-foreground: 210 20% 94%;
     --muted: 220 10% 16%;
     --muted-foreground: 210 15% 65%;
-    --accent: 200 65% 50%;
+    --accent: 210 65% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 20% 94%;
@@ -85,7 +85,7 @@
     --tp-text: 210 20% 94%;
     --tp-text-muted: 210 15% 65%;
     --tp-text-faint: 210 12% 45%;
-    --tp-accent: 200 65% 50%;
+    --tp-accent: 210 65% 50%;
     --tp-accent-soft: 200 85% 40%;
     --tp-success: 142 70% 45%;
     --tp-warning: 38 92% 50%;

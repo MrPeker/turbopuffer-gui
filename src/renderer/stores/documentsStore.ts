@@ -937,9 +937,22 @@ loadDocuments: async (
 
               // Add text search filter across multiple fields
               if (state.searchText.trim()) {
-                // For now, search in ID field with glob pattern
-                // TODO: Implement full-text search across all fields
-                filters.push(["id", "Glob", `*${state.searchText.trim()}*`]);
+                // Search across all string and array-of-string fields
+                const searchFields = state.attributes
+                  .filter(attr => attr.type === 'string' || attr.type === '[]string')
+                  .map(attr => attr.name);
+
+                // Create glob search filters for each searchable field
+                const textSearchFilters: TurbopufferFilter[] = searchFields.map(field =>
+                  [field, "Glob", `*${state.searchText.trim()}*`] as TurbopufferFilter
+                );
+
+                // Combine with OR logic if multiple fields
+                if (textSearchFilters.length > 1) {
+                  filters.push(["Or", textSearchFilters] as TurbopufferFilter);
+                } else if (textSearchFilters.length === 1) {
+                  filters.push(textSearchFilters[0]);
+                }
               }
 
               // Add attribute filters

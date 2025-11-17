@@ -197,6 +197,7 @@ export const useNamespacesStore = create<NamespacesState>()(
             set((state) => {
               state.isClientInitialized = true;
               state.error = null;
+              state.initializationAttempts = 0; // Reset counter on success
             });
 
             return true;

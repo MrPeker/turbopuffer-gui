@@ -319,7 +319,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
           <Input
             ref={searchInputRef}
             type="text"
-            placeholder="search by id..."
+            placeholder="search all fields..."
             value={localSearchText}
             onChange={(e) => setLocalSearchText(e.target.value)}
             className="pl-7 pr-8 h-7 text-xs"
