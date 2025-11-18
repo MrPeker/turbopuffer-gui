@@ -12,12 +12,19 @@ import {
   ArrowDown,
   Calculator,
   BarChart3,
+  HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -335,6 +342,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
   const totalDocCount = unfilteredTotalCount || totalCount || documents.length;
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div
       className={cn(
         "flex flex-col gap-2 px-3 py-2 bg-tp-surface border-b border-tp-border-subtle",
@@ -370,44 +378,83 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
 
         {/* Search Mode Toggle */}
         <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] text-muted-foreground uppercase tracking-wider px-1">Search</span>
+          <div className="flex items-center gap-1 px-1">
+            <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Search</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-2.5 w-2.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help transition-colors" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p className="text-xs">Choose how to search your documents:</p>
+                <ul className="text-xs mt-1 space-y-0.5 list-disc list-inside">
+                  <li><strong>Pattern</strong>: Glob/regex matching (e.g., *.tsx)</li>
+                  <li><strong>BM25</strong>: Full-text search with ranking</li>
+                  <li><strong>Vector</strong>: Semantic similarity search</li>
+                </ul>
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
-            <Button
-              variant={searchMode === 'pattern' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setSearchMode('pattern');
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-            >
-              Pattern
-            </Button>
-            <Button
-              variant={searchMode === 'bm25' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setSearchMode('bm25');
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-            >
-              BM25
-            </Button>
-            <Button
-              variant={searchMode === 'vector' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setSearchMode('vector');
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-            >
-              Vector
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={searchMode === 'pattern' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => {
+                    setSearchMode('pattern');
+                    setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+                  }}
+                  disabled={isLoading}
+                >
+                  Pattern
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                <p>Glob or regex pattern matching</p>
+                <p className="text-muted-foreground mt-0.5">Examples: *.tsx, user-*, /src/**</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={searchMode === 'bm25' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => {
+                    setSearchMode('bm25');
+                    setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+                  }}
+                  disabled={isLoading}
+                >
+                  BM25
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                <p>Full-text search with relevance ranking</p>
+                <p className="text-muted-foreground mt-0.5">Best for keyword searches across text fields</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={searchMode === 'vector' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => {
+                    setSearchMode('vector');
+                    setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+                  }}
+                  disabled={isLoading}
+                >
+                  Vector
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                <p>Semantic similarity search using embeddings</p>
+                <p className="text-muted-foreground mt-0.5">Find conceptually similar documents</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -495,26 +542,39 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       {/* Row 2: Utility Controls (Filters, History, Aggregations, Columns) */}
       <div className="flex items-center gap-1.5">
         {/* Filter Toggle Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1 h-7"
-          onClick={() => setIsFilterPopoverOpen(!isFilterPopoverOpen)}
-        >
-          <Filter className="h-3 w-3" />
-          filters
-          {activeFilters.length > 0 && (
-            <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
-              {activeFilters.length}
-            </Badge>
-          )}
-          <ChevronDown
-            className={cn(
-              "h-2.5 w-2.5 ml-0.5 transition-transform",
-              isFilterPopoverOpen && "rotate-180"
-            )}
-          />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 h-7"
+              onClick={() => setIsFilterPopoverOpen(!isFilterPopoverOpen)}
+            >
+              <Filter className="h-3 w-3" />
+              filters
+              {activeFilters.length > 0 && (
+                <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
+                  {activeFilters.length}
+                </Badge>
+              )}
+              <ChevronDown
+                className={cn(
+                  "h-2.5 w-2.5 ml-0.5 transition-transform",
+                  isFilterPopoverOpen && "rotate-180"
+                )}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs max-w-sm">
+            <p className="font-medium">Filter documents by attributes</p>
+            <p className="text-muted-foreground mt-1">
+              Build filters by selecting a field (like <code className="text-[10px] bg-muted px-1 rounded">id</code> or <code className="text-[10px] bg-muted px-1 rounded">description</code>), an operator, and a value.
+            </p>
+            <p className="text-muted-foreground mt-1">
+              Example: <code className="text-[10px] bg-muted px-1 rounded">status = active</code>
+            </p>
+          </TooltipContent>
+        </Tooltip>
 
         {/* Filter History */}
         <DropdownMenu>
@@ -903,6 +963,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         </div>
       </div>
     </div>
+    </TooltipProvider>
   );
 };
 

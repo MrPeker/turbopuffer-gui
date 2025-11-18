@@ -14,14 +14,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { 
-  MoreHorizontal, 
-  Trash2, 
+import {
+  MoreHorizontal,
+  Trash2,
   ArrowRight,
   RefreshCw,
-  CheckCircle,
-  XCircle,
-  Clock,
   TestTube,
   Star,
   Copy,
@@ -31,11 +28,10 @@ import { cn } from '@/lib/utils';
 
 interface ConnectionListProps {
   connections: Connection[];
-  connectedCount: number;
-  totalCount: number;
+  onTestResult?: (result: 'testing' | 'success' | 'error', connection: Connection, error?: string) => void;
 }
 
-export function ConnectionList({ connections, connectedCount, totalCount }: ConnectionListProps) {
+export function ConnectionList({ connections, onTestResult }: ConnectionListProps) {
   const navigate = useNavigate();
   const { deleteConnection, testConnection, setDefaultConnection } = useConnections();
   const [deletingConnection, setDeletingConnection] = useState<string | null>(null);
@@ -49,10 +45,17 @@ export function ConnectionList({ connections, connectedCount, totalCount }: Conn
   const handleTest = async (e: React.MouseEvent, connection: Connection) => {
     e.stopPropagation();
     setTestingConnection(connection.id);
+
+    // Show testing state
+    onTestResult?.('testing', connection);
+
     try {
       await testConnection(connection.id);
+      onTestResult?.('success', connection);
     } catch (error) {
       console.error('Failed to test connection:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect';
+      onTestResult?.('error', connection, errorMessage);
     } finally {
       setTestingConnection(null);
     }
@@ -85,41 +88,6 @@ export function ConnectionList({ connections, connectedCount, totalCount }: Conn
     navigator.clipboard.writeText(text);
   };
 
-  const getStatusConfig = (connection: Connection, isTesting: boolean) => {
-    if (isTesting) {
-      return {
-        icon: RefreshCw,
-        color: 'text-tp-accent',
-        label: 'testing',
-        badgeVariant: 'secondary' as const
-      };
-    }
-
-    switch (connection.testStatus) {
-      case 'success':
-        return {
-          icon: CheckCircle,
-          color: 'text-tp-success',
-          label: 'connected',
-          badgeVariant: 'default' as const
-        };
-      case 'failed':
-        return {
-          icon: XCircle,
-          color: 'text-tp-danger',
-          label: 'failed',
-          badgeVariant: 'destructive' as const
-        };
-      default:
-        return {
-          icon: Clock,
-          color: 'text-tp-text-muted',
-          label: 'unknown',
-          badgeVariant: 'secondary' as const
-        };
-    }
-  };
-
   const getProviderPrefix = (provider: string) => {
     return provider.toUpperCase();
   };
@@ -132,7 +100,6 @@ export function ConnectionList({ connections, connectedCount, totalCount }: Conn
             <TableRow className="border-b border-tp-border-subtle hover:bg-transparent">
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">connection</TableHead>
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">region</TableHead>
-              <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">status</TableHead>
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">last used</TableHead>
               <TableHead className="h-9 px-4 w-[60px]"></TableHead>
             </TableRow>
@@ -140,15 +107,13 @@ export function ConnectionList({ connections, connectedCount, totalCount }: Conn
           <TableBody>
             {connections.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={5} className="h-24 text-center text-xs text-tp-text-muted">
+                <TableCell colSpan={4} className="h-24 text-center text-xs text-tp-text-muted">
                   no connections found
                 </TableCell>
               </TableRow>
             ) : (
               connections.map((connection) => {
                 const isTesting = testingConnection === connection.id;
-                const statusConfig = getStatusConfig(connection, isTesting);
-                const StatusIcon = statusConfig.icon;
 
                 return (
                   <TableRow
@@ -175,12 +140,6 @@ export function ConnectionList({ connections, connectedCount, totalCount }: Conn
                         <span className="text-sm text-tp-text">{connection.region.location}</span>
                         <span className="text-xs text-tp-text-faint font-mono ml-1">({connection.region.id})</span>
                       </div>
-                    </TableCell>
-                    <TableCell className="py-3 px-4">
-                      <Badge variant={statusConfig.badgeVariant} className="gap-1">
-                        <StatusIcon className={cn("h-2.5 w-2.5", isTesting && "animate-spin")} />
-                        {statusConfig.label}
-                      </Badge>
                     </TableCell>
                     <TableCell className="py-3 px-4 text-sm text-tp-text-muted font-mono">
                       {new Date(connection.lastUsed).toLocaleDateString()}
@@ -253,25 +212,6 @@ export function ConnectionList({ connections, connectedCount, totalCount }: Conn
           </TableBody>
         </Table>
       </div>
-
-      {connections.length > 0 && (
-        <div className="flex items-center justify-between px-4 py-2.5 text-[11px] text-tp-text-muted font-mono bg-tp-surface border-t border-tp-border-subtle">
-          <div className="font-medium">
-            showing {connections.length} of {totalCount}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-tp-success"></span>
-              <span className="font-medium">{connectedCount}</span> connected
-            </span>
-            <span className="text-tp-border-strong/60">│</span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-tp-danger"></span>
-              <span className="font-medium">{totalCount - connectedCount}</span> disconnected
-            </span>
-          </div>
-        </div>
-      )}
 
       <Dialog open={!!deleteDialogConnection} onOpenChange={(open) => !open && setDeleteDialogConnection(null)}>
         <DialogContent className="bg-tp-surface border-tp-border-strong">

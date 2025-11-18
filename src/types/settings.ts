@@ -1,5 +1,4 @@
 export interface ConnectionSettings {
-  defaultConnectionId: string | null;
   requestTimeout: number; // in seconds
   retryAttempts: number;
 }
@@ -23,7 +22,6 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   connection: {
-    defaultConnectionId: null,
     requestTimeout: 30,
     retryAttempts: 3,
   },

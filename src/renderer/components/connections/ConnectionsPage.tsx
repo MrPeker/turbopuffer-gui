@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { NewConnectionDialog } from './NewConnectionDialog';
 import { ConnectionList } from './ConnectionList';
+import { ConnectionTestBanner } from './ConnectionTestBanner';
 import { useConnections } from '../../contexts/ConnectionContext';
 import { PageHeader } from '../layout/PageHeader';
+import type { Connection } from '@/types/connection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +24,11 @@ export function ConnectionsPage() {
   const { connections, loadConnections, isLoading } = useConnections();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [testResult, setTestResult] = useState<{
+    result: 'testing' | 'success' | 'error';
+    connection: Connection;
+    error?: string;
+  } | null>(null);
 
   const filteredConnections = connections.filter(conn =>
     conn.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -31,8 +38,6 @@ export function ConnectionsPage() {
   const handleRefresh = () => {
     loadConnections();
   };
-
-  const connectedCount = connections.filter(c => c.testStatus === 'success').length;
 
   if (isLoading) {
     return (
@@ -55,7 +60,6 @@ export function ConnectionsPage() {
               <TableRow>
                 <TableHead className="w-[30%]">Connection Name</TableHead>
                 <TableHead>Region</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Last Used</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
@@ -65,7 +69,6 @@ export function ConnectionsPage() {
                 <TableRow key={i}>
                   <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                 </TableRow>
@@ -122,7 +125,7 @@ export function ConnectionsPage() {
     <div className="flex flex-col h-full bg-tp-bg">
       <PageHeader
         title="Connections"
-        description={`${connections.length} total • ${connectedCount} active`}
+        description={`${connections.length} connection${connections.length !== 1 ? 's' : ''}`}
         actions={
           <>
             <div className="relative">
@@ -147,11 +150,19 @@ export function ConnectionsPage() {
         }
       />
 
+      <ConnectionTestBanner
+        result={testResult?.result || null}
+        connection={testResult?.connection || null}
+        error={testResult?.error}
+        onDismiss={() => setTestResult(null)}
+      />
+
       <div className="flex-1 overflow-auto">
         <ConnectionList
           connections={filteredConnections}
-          connectedCount={connectedCount}
-          totalCount={connections.length}
+          onTestResult={(result, connection, error) => {
+            setTestResult({ result, connection, error });
+          }}
         />
       </div>
 

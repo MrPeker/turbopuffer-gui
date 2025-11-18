@@ -10,7 +10,6 @@ export interface Connection {
   id: string;
   name: string;
   region: TurbopufferRegion;
-  isDefault: boolean;
   lastUsed: Date;
   createdAt: Date;
   testStatus?: 'success' | 'failed' | 'testing';
@@ -28,7 +27,6 @@ export interface ConnectionFormData {
   name: string;
   regionId: string;
   apiKey: string;
-  isDefault?: boolean;
 }
 
 export interface TestConnectionResult {
@@ -67,6 +65,5 @@ export type ConnectionAPI = {
   testConnectionDirect: (connectionData: { regionId: string; apiKey: string }) => Promise<TestConnectionResult>;
   deleteConnection: (connectionId: string) => Promise<void>;
   getRegions: () => Promise<TurbopufferRegion[]>;
-  setDefaultConnection: (connectionId: string) => Promise<void>;
   getConnectionForUse: (connectionId: string) => Promise<ConnectionWithKey>;
 };
