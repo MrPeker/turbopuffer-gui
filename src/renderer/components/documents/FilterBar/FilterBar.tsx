@@ -341,7 +341,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         className
       )}
     >
-      {/* Row 1: Search and Filter Controls */}
+      {/* Row 1: Primary Operations (Search + Rank) */}
       <div className="flex items-center gap-1.5">
         {/* Enhanced Search Input */}
         <div className="relative w-64">
@@ -413,6 +413,87 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
 
         <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
 
+        {/* Ranking Mode Toggle */}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider px-1">Rank</span>
+          <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
+            <Button
+              variant={rankingMode === 'simple' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setRankingMode('simple');
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+              disabled={isLoading}
+              title="Simple sorting by attribute"
+            >
+              <ArrowUp className="h-3 w-3 mr-0.5" />
+              Sort
+            </Button>
+            <Button
+              variant={rankingMode === 'expression' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setRankingMode('expression');
+              }}
+              disabled={isLoading}
+              title="Custom ranking expression"
+            >
+              <Calculator className="h-3 w-3 mr-0.5" />
+              Expr
+            </Button>
+          </div>
+        </div>
+
+        {/* Simple Sort Controls */}
+        {rankingMode === 'simple' && (
+          <>
+            <Select
+              value={sortAttribute || "id"}
+              onValueChange={(value) => {
+                setSortAttribute(value, sortDirection);
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="h-7 w-[140px] text-xs">
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="id">ID</SelectItem>
+                {attributes.map((attr) => (
+                  <SelectItem key={attr.name} value={attr.name}>
+                    {attr.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => {
+                const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                setSortAttribute(sortAttribute || 'id', newDirection);
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+              disabled={isLoading}
+            >
+              {sortDirection === 'asc' ? (
+                <ArrowUp className="h-3 w-3" />
+              ) : (
+                <ArrowDown className="h-3 w-3" />
+              )}
+            </Button>
+          </>
+        )}
+      </div>
+
+      {/* Row 2: Utility Controls (Filters, History, Aggregations, Columns) */}
+      <div className="flex items-center gap-1.5">
         {/* Filter Toggle Button */}
         <Button
           variant="outline"
@@ -589,87 +670,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {/* Row 2: Ranking and Sort Controls */}
-      <div className="flex items-center gap-1.5">
-        {/* Ranking Mode Toggle */}
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] text-muted-foreground uppercase tracking-wider px-1">Rank</span>
-          <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
-            <Button
-              variant={rankingMode === 'simple' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setRankingMode('simple');
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-              title="Simple sorting by attribute"
-            >
-              <ArrowUp className="h-3 w-3 mr-0.5" />
-              Sort
-            </Button>
-            <Button
-              variant={rankingMode === 'expression' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setRankingMode('expression');
-              }}
-              disabled={isLoading}
-              title="Custom ranking expression"
-            >
-              <Calculator className="h-3 w-3 mr-0.5" />
-              Expr
-            </Button>
-          </div>
-        </div>
-
-        {/* Simple Sort Controls */}
-        {rankingMode === 'simple' && (
-          <>
-            <Select
-              value={sortAttribute || "id"}
-              onValueChange={(value) => {
-                setSortAttribute(value, sortDirection);
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="h-7 w-[140px] text-xs">
-                <SelectValue placeholder="Sort by..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="id">ID</SelectItem>
-                {attributes.map((attr) => (
-                  <SelectItem key={attr.name} value={attr.name}>
-                    {attr.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => {
-                const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                setSortAttribute(sortAttribute || 'id', newDirection);
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-            >
-              {sortDirection === 'asc' ? (
-                <ArrowUp className="h-3 w-3" />
-              ) : (
-                <ArrowDown className="h-3 w-3" />
-              )}
-            </Button>
-          </>
-        )}
       </div>
 
       {/* BM25 Configuration Panel */}
