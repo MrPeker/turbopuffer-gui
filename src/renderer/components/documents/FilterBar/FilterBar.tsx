@@ -11,6 +11,7 @@ import {
   ArrowUp,
   ArrowDown,
   Calculator,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
+  const [isAggregationsOpen, setIsAggregationsOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Subscribe to store for currentNamespaceId changes
@@ -367,77 +369,82 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         </div>
 
         {/* Search Mode Toggle */}
-        <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
-          <Button
-            variant={searchMode === 'pattern' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[10px]"
-            onClick={() => {
-              setSearchMode('pattern');
-              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-            }}
-            disabled={isLoading}
-          >
-            Pattern
-          </Button>
-          <Button
-            variant={searchMode === 'bm25' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[10px]"
-            onClick={() => {
-              setSearchMode('bm25');
-              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-            }}
-            disabled={isLoading}
-          >
-            BM25
-          </Button>
-          <Button
-            variant={searchMode === 'vector' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[10px]"
-            onClick={() => {
-              setSearchMode('vector');
-              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-            }}
-            disabled={isLoading}
-          >
-            Vector
-          </Button>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider px-1">Search</span>
+          <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
+            <Button
+              variant={searchMode === 'pattern' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setSearchMode('pattern');
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+              disabled={isLoading}
+            >
+              Pattern
+            </Button>
+            <Button
+              variant={searchMode === 'bm25' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setSearchMode('bm25');
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+              disabled={isLoading}
+            >
+              BM25
+            </Button>
+            <Button
+              variant={searchMode === 'vector' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setSearchMode('vector');
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+              disabled={isLoading}
+            >
+              Vector
+            </Button>
+          </div>
         </div>
-
 
         <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
 
         {/* Ranking Mode Toggle */}
-        <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
-          <Button
-            variant={rankingMode === 'simple' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[10px]"
-            onClick={() => {
-              setRankingMode('simple');
-              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-            }}
-            disabled={isLoading}
-            title="Simple sorting by attribute"
-          >
-            <ArrowUp className="h-3 w-3 mr-0.5" />
-            Sort
-          </Button>
-          <Button
-            variant={rankingMode === 'expression' ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-[10px]"
-            onClick={() => {
-              setRankingMode('expression');
-            }}
-            disabled={isLoading}
-            title="Custom ranking expression"
-          >
-            <Calculator className="h-3 w-3 mr-0.5" />
-            Expr
-          </Button>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider px-1">Rank</span>
+          <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
+            <Button
+              variant={rankingMode === 'simple' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setRankingMode('simple');
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+              disabled={isLoading}
+              title="Simple sorting by attribute"
+            >
+              <ArrowUp className="h-3 w-3 mr-0.5" />
+              Sort
+            </Button>
+            <Button
+              variant={rankingMode === 'expression' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setRankingMode('expression');
+              }}
+              disabled={isLoading}
+              title="Custom ranking expression"
+            >
+              <Calculator className="h-3 w-3 mr-0.5" />
+              Expr
+            </Button>
+          </div>
         </div>
 
         {/* Simple Sort Controls */}
@@ -557,6 +564,28 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Aggregations Toggle Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1 h-7"
+          onClick={() => setIsAggregationsOpen(!isAggregationsOpen)}
+        >
+          <BarChart3 className="h-3 w-3" />
+          aggregations
+          {aggregations.length > 0 && (
+            <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
+              {aggregations.length}
+            </Badge>
+          )}
+          <ChevronDown
+            className={cn(
+              "h-2.5 w-2.5 ml-0.5 transition-transform",
+              isAggregationsOpen && "rotate-180"
+            )}
+          />
+        </Button>
 
         {/* Column Selector */}
         <DropdownMenu>
@@ -707,19 +736,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       )}
 
       {/* Aggregations Panel */}
-      <div className="px-3 pb-2">
-        <AggregationsPanel
-          availableAttributes={['id', ...attributes.map(attr => attr.name)]}
-          aggregations={aggregations}
-          onAggregationsChange={(aggs) => {
-            setAggregations(aggs);
-            if (aggs.length > 0) {
-              setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
-            }
-          }}
-          disabled={isLoading}
-        />
-      </div>
+      {isAggregationsOpen && (
+        <div className="px-3 pb-2">
+          <AggregationsPanel
+            availableAttributes={['id', ...attributes.map(attr => attr.name)]}
+            aggregations={aggregations}
+            onAggregationsChange={(aggs) => {
+              setAggregations(aggs);
+              if (aggs.length > 0) {
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+              }
+            }}
+            disabled={isLoading}
+          />
+        </div>
+      )}
 
       {/* Aggregation Results */}
       {aggregationResults && aggregationResults.length > 0 && (
