@@ -20,7 +20,6 @@ import {
   ArrowRight,
   RefreshCw,
   TestTube,
-  Star,
   Copy,
   Database
 } from 'lucide-react';
@@ -33,7 +32,7 @@ interface ConnectionListProps {
 
 export function ConnectionList({ connections, onTestResult }: ConnectionListProps) {
   const navigate = useNavigate();
-  const { deleteConnection, testConnection, setDefaultConnection } = useConnections();
+  const { deleteConnection, testConnection } = useConnections();
   const [deletingConnection, setDeletingConnection] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
   const [deleteDialogConnection, setDeleteDialogConnection] = useState<Connection | null>(null);
@@ -58,15 +57,6 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
       onTestResult?.('error', connection, errorMessage);
     } finally {
       setTestingConnection(null);
-    }
-  };
-
-  const handleSetDefault = async (e: React.MouseEvent, connection: Connection) => {
-    e.stopPropagation();
-    try {
-      await setDefaultConnection(connection.id);
-    } catch (error) {
-      console.error('Failed to set default connection:', error);
     }
   };
 
@@ -125,12 +115,6 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
                       <div className="flex items-center gap-2">
                         <Database className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />
                         <span className="text-sm text-tp-text font-medium">{connection.name}</span>
-                        {connection.isDefault && (
-                          <Badge variant="outline" className="ml-1 gap-1">
-                            <Star className="h-2.5 w-2.5 fill-current" />
-                            default
-                          </Badge>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell className="py-3 px-4">
@@ -169,17 +153,6 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
                           >
                             <TestTube className="h-3 w-3 mr-1.5" />
                             test connection
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => handleSetDefault(e, connection)}
-                            disabled={connection.isDefault}
-                            className="text-sm"
-                          >
-                            <Star className={cn(
-                              "h-3 w-3 mr-1.5",
-                              connection.isDefault && "fill-current"
-                            )} />
-                            {connection.isDefault ? 'default' : 'set as default'}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={(e) => {

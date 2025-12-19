@@ -34,14 +34,6 @@ export function setupConnectionHandlers() {
     return credentialService.getRegions();
   });
 
-  ipcMain.handle('connection:setDefault', async (event, connectionId) => {
-    try {
-      await credentialService.setDefaultConnection(connectionId);
-    } catch (error) {
-      throw new Error(`Failed to set default connection: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  });
-
   ipcMain.handle('connection:getForUse', async (event, connectionId) => {
     try {
       return await credentialService.getConnectionForUse(connectionId);

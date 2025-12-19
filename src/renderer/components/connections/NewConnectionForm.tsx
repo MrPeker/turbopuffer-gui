@@ -17,7 +17,7 @@ export function NewConnectionForm() {
     name: "",
     regionId: TURBOPUFFER_REGIONS[0].id,
     apiKey: "",
-    isDefault: true,
+    isReadOnly: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,14 +122,19 @@ export function NewConnectionForm() {
           </div>
 
           <div>
-            <input
-              type="checkbox"
-              checked={formData.isDefault}
-              onChange={(e) =>
-                setFormData({ ...formData, isDefault: e.target.checked })
-              }
-            />
-            <label>Set as default connection</label>
+            <label>
+              <input
+                type="checkbox"
+                checked={formData.isReadOnly}
+                onChange={(e) =>
+                  setFormData({ ...formData, isReadOnly: e.target.checked })
+                }
+              />
+              {" "}Read-Only Mode
+            </label>
+            <p>
+              Prevent write operations (upsert, delete, schema changes)
+            </p>
           </div>
 
           {testResult && (

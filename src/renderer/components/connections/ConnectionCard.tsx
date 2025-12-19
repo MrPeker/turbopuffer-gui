@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  Star,
   MoreVertical,
   TestTube,
   Trash2,
@@ -30,7 +29,7 @@ interface ConnectionCardProps {
 
 export function ConnectionCard({ connection }: ConnectionCardProps) {
   const navigate = useNavigate();
-  const { deleteConnection, testConnection, setDefaultConnection } = useConnections();
+  const { deleteConnection, testConnection } = useConnections();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -48,15 +47,6 @@ export function ConnectionCard({ connection }: ConnectionCardProps) {
       console.error('Failed to test connection:', error);
     } finally {
       setIsTesting(false);
-    }
-  };
-
-  const handleSetDefault = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await setDefaultConnection(connection.id);
-    } catch (error) {
-      console.error('Failed to set default connection:', error);
     }
   };
 
@@ -138,20 +128,10 @@ export function ConnectionCard({ connection }: ConnectionCardProps) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-foreground truncate">{connection.name}</h3>
-                  {connection.isDefault && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge variant="outline" className="text-xs px-2 py-0.5 bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-300">
-                            <Star className="h-3 w-3 mr-1 fill-current" />
-                            Default
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Default connection</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  {connection.isReadOnly && (
+                    <Badge variant="secondary" className="text-xs">
+                      READ ONLY
+                    </Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -173,18 +153,8 @@ export function ConnectionCard({ connection }: ConnectionCardProps) {
                   <TestTube className="h-4 w-4 mr-2" />
                   Test Connection
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={handleSetDefault} 
-                  disabled={connection.isDefault}
-                >
-                  <Star className={cn(
-                    "h-4 w-4 mr-2",
-                    connection.isDefault && "fill-current text-yellow-500"
-                  )} />
-                  {connection.isDefault ? 'Default Connection' : 'Set as Default'}
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowDeleteDialog(true);

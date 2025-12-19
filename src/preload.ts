@@ -21,13 +21,10 @@ const connectionAPI: ConnectionAPI = {
   deleteConnection: (connectionId: string) => 
     ipcRenderer.invoke('connection:delete', connectionId),
   
-  getRegions: () => 
+  getRegions: () =>
     ipcRenderer.invoke('connection:regions'),
-  
-  setDefaultConnection: (connectionId: string) => 
-    ipcRenderer.invoke('connection:setDefault', connectionId),
-  
-  getConnectionForUse: (connectionId: string) => 
+
+  getConnectionForUse: (connectionId: string) =>
     ipcRenderer.invoke('connection:getForUse', connectionId),
 };
 

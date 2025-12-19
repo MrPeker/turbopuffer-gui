@@ -7,20 +7,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { 
-  CheckCircle, 
-  XCircle, 
-  RefreshCw, 
-  Database, 
-  Eye, 
-  EyeOff, 
+import {
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Database,
+  Eye,
+  EyeOff,
   Shield,
   ExternalLink,
-  Star,
   FlaskConical
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,7 +46,6 @@ export function NewConnectionDialog({
     name: "",
     regionId: TURBOPUFFER_REGIONS[0].id,
     apiKey: "",
-    isDefault: false,
   });
 
   const resetForm = () => {
@@ -56,7 +53,6 @@ export function NewConnectionDialog({
       name: "",
       regionId: TURBOPUFFER_REGIONS[0].id,
       apiKey: "",
-      isDefault: false,
     });
     setTestResult(null);
     setShowApiKey(false);
@@ -203,17 +199,6 @@ export function NewConnectionDialog({
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="isDefault"
-              checked={formData.isDefault}
-              onCheckedChange={(checked) => setFormData({ ...formData, isDefault: !!checked })}
-            />
-            <Label htmlFor="isDefault" className="cursor-pointer">
-              Set as default connection
-            </Label>
           </div>
 
           {testResult && (

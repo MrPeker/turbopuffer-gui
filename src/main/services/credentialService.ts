@@ -74,21 +74,14 @@ export class CredentialService {
     // Encrypt the API key
     const encryptedApiKey = this.encryptString(connectionData.apiKey);
 
-    // If this is set as default, unset other defaults
-    if (connectionData.isDefault) {
-      connections.forEach(conn => {
-        conn.isDefault = false;
-      });
-    }
-
     const newConnection: StoredConnection = {
       id: uuidv4(),
       name: connectionData.name,
       region,
       apiKeyEncrypted: encryptedApiKey,
-      isDefault: connectionData.isDefault || false,
       lastUsed: new Date(),
       createdAt: new Date(),
+      isReadOnly: connectionData.isReadOnly ?? false,
     };
 
     connections.push(newConnection);
@@ -162,28 +155,12 @@ export class CredentialService {
   async deleteConnection(connectionId: string): Promise<void> {
     const connections = await this.loadStoredConnections();
     const filteredConnections = connections.filter(c => c.id !== connectionId);
-    
+
     if (connections.length === filteredConnections.length) {
       throw new Error('Connection not found');
     }
 
     await this.saveStoredConnections(filteredConnections);
-  }
-
-  async setDefaultConnection(connectionId: string): Promise<void> {
-    const connections = await this.loadStoredConnections();
-    
-    const connectionToSetDefault = connections.find(c => c.id === connectionId);
-    if (!connectionToSetDefault) {
-      throw new Error('Connection not found');
-    }
-
-    // Unset all defaults and set the new one
-    connections.forEach(conn => {
-      conn.isDefault = conn.id === connectionId;
-    });
-
-    await this.saveStoredConnections(connections);
   }
 
   getRegions(): TurbopufferRegion[] {
@@ -201,10 +178,10 @@ export class CredentialService {
         name: string;
         region: TurbopufferRegion;
         apiKeyEncrypted: string;
-        isDefault: boolean;
         lastUsed: string;
         createdAt: string;
         testStatus?: 'success' | 'failed' | 'testing';
+        isReadOnly?: boolean;
       }
       
       return connections.map((conn: StoredConnectionData) => ({

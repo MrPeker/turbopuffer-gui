@@ -13,6 +13,7 @@ export interface Connection {
   lastUsed: Date;
   createdAt: Date;
   testStatus?: 'success' | 'failed' | 'testing';
+  isReadOnly?: boolean;
 }
 
 export interface ConnectionWithKey extends Connection {
@@ -27,6 +28,7 @@ export interface ConnectionFormData {
   name: string;
   regionId: string;
   apiKey: string;
+  isReadOnly?: boolean;
 }
 
 export interface TestConnectionResult {

@@ -1,20 +1,27 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { Connection, ConnectionFormData, TestConnectionResult } from '../../types/connection';
+import { Turbopuffer } from '@turbopuffer/turbopuffer';
 import { turbopufferService } from '../services/turbopufferService';
 import { settingsService } from '../services/settingsService';
+import { permissionService } from '../services/permissionService';
 
 interface ConnectionContextType {
   connections: Connection[];
   isLoading: boolean;
   error: string | null;
+  activeConnectionId: string | null;
+  turbopufferClient: Turbopuffer | null;
+  clientError: Error | null;
+  isActiveConnectionReadOnly: boolean;
   loadConnections: () => Promise<void>;
   saveConnection: (connection: ConnectionFormData) => Promise<Connection>;
   deleteConnection: (connectionId: string) => Promise<void>;
   testConnection: (connectionId: string) => Promise<TestConnectionResult>;
-  setDefaultConnection: (connectionId: string) => Promise<void>;
   getConnectionById: (connectionId: string) => Connection | undefined;
   getDelimiterPreference: (connectionId: string) => string;
   setDelimiterPreference: (connectionId: string, delimiter: string) => void;
+  setActiveConnection: (connectionId: string) => Promise<void>;
+  clearActiveConnection: () => void;
 }
 
 const ConnectionContext = createContext<ConnectionContextType | undefined>(undefined);
@@ -24,6 +31,10 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [delimiterPreferences, setDelimiterPreferences] = useState<Record<string, string>>({});
+  const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
+  const [turbopufferClient, setTurbopufferClient] = useState<Turbopuffer | null>(null);
+  const [clientError, setClientError] = useState<Error | null>(null);
+  const [isActiveConnectionReadOnly, setIsActiveConnectionReadOnly] = useState(false);
 
   const loadConnections = async () => {
     setIsLoading(true);
@@ -92,18 +103,6 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     return connections.find(c => c.id === connectionId);
   };
 
-  const setDefaultConnection = async (connectionId: string) => {
-    setError(null);
-    try {
-      await window.electronAPI.setDefaultConnection(connectionId);
-      await loadConnections();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to set default connection';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
-  };
-
   // Load connections on mount
   useEffect(() => {
     loadConnections();
@@ -124,20 +123,69 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('delimiterPreferences', JSON.stringify(updated));
   };
 
+  const setActiveConnection = async (connectionId: string) => {
+    setClientError(null);
+    setTurbopufferClient(null);
+
+    try {
+      // Get the connection details with decrypted API key
+      const connectionDetails = await window.electronAPI.getConnectionForUse(connectionId);
+
+      // Get the connection metadata to check read-only status
+      const connection = getConnectionById(connectionId);
+      const readOnly = connection?.isReadOnly ?? false;
+
+      // Update permission service
+      permissionService.setReadOnly(readOnly);
+      setIsActiveConnectionReadOnly(readOnly);
+
+      // Initialize the Turbopuffer client
+      await turbopufferService.initializeClient(
+        connectionDetails.apiKey,
+        connectionDetails.region
+      );
+
+      const client = turbopufferService.getClient();
+      if (!client) {
+        throw new Error('Failed to initialize Turbopuffer client');
+      }
+
+      setActiveConnectionId(connectionId);
+      setTurbopufferClient(client);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to initialize connection');
+      setClientError(error);
+      throw error;
+    }
+  };
+
+  const clearActiveConnection = () => {
+    setActiveConnectionId(null);
+    setTurbopufferClient(null);
+    setClientError(null);
+    setIsActiveConnectionReadOnly(false);
+    permissionService.setReadOnly(false);
+  };
+
   return (
     <ConnectionContext.Provider
       value={{
         connections,
         isLoading,
         error,
+        activeConnectionId,
+        turbopufferClient,
+        clientError,
+        isActiveConnectionReadOnly,
         loadConnections,
         saveConnection,
         deleteConnection,
         testConnection,
         getConnectionById,
-        setDefaultConnection,
         getDelimiterPreference,
         setDelimiterPreference,
+        setActiveConnection,
+        clearActiveConnection,
       }}
     >
       {children}
