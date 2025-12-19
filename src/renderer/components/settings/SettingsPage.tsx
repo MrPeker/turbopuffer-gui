@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Settings2, Database, Globe, Download, Upload, RotateCcw, Info } from 'lucide-react';
+import { Settings2, Database, Globe, Download, Upload, RotateCcw, Info, Palette } from 'lucide-react';
 import { PageHeader } from '../layout/PageHeader';
 import { ConnectionSettings } from './ConnectionSettings';
 import { ApiSettings } from './ApiSettings';
+import { AppearanceSettings } from './AppearanceSettings';
 import { ExportImportSettings } from './ExportImportSettings';
 import { AboutSection } from './AboutSection';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-type SettingsSection = 'connection' | 'api' | 'export-import' | 'about';
+type SettingsSection = 'connection' | 'api' | 'appearance' | 'export-import' | 'about';
 
 interface SettingsSidebarItem {
   id: SettingsSection;
@@ -29,6 +30,12 @@ const sidebarItems: SettingsSidebarItem[] = [
     label: 'api settings',
     icon: <Globe className="h-3 w-3" />,
     description: 'endpoints • logging',
+  },
+  {
+    id: 'appearance',
+    label: 'appearance',
+    icon: <Palette className="h-3 w-3" />,
+    description: 'font size • theme',
   },
   {
     id: 'export-import',
@@ -86,6 +93,7 @@ export function SettingsPage() {
           <div className="max-w-2xl">
             {activeSection === 'connection' && <ConnectionSettings />}
             {activeSection === 'api' && <ApiSettings />}
+            {activeSection === 'appearance' && <AppearanceSettings />}
             {activeSection === 'export-import' && <ExportImportSettings />}
             {activeSection === 'about' && <AboutSection />}
           </div>

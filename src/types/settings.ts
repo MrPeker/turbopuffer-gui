@@ -11,6 +11,7 @@ export interface ApiSettings {
 export interface AppearanceSettings {
   theme: 'light' | 'dark' | 'system';
   sidebarCollapsed: boolean;
+  fontSize: number; // percentage: 80, 90, 100, 110, 125, etc.
 }
 
 export interface Settings {
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: Settings = {
   appearance: {
     theme: 'system',
     sidebarCollapsed: false,
+    fontSize: 100,
   },
   version: '1.0.0',
 };

@@ -7,7 +7,8 @@ class SettingsService {
 
   async loadSettings(): Promise<Settings> {
     try {
-      this.settings = await window.electronAPI.loadSettings();
+      const loadedSettings = await window.electronAPI.loadSettings();
+      this.settings = this.migrateSettings(loadedSettings);
       this.notifyListeners();
       return this.settings;
     } catch (error) {
@@ -15,6 +16,16 @@ class SettingsService {
       this.settings = DEFAULT_SETTINGS;
       return this.settings;
     }
+  }
+
+  private migrateSettings(settings: Settings): Settings {
+    return {
+      ...settings,
+      appearance: {
+        ...settings.appearance,
+        fontSize: settings.appearance.fontSize ?? DEFAULT_SETTINGS.appearance.fontSize,
+      },
+    };
   }
 
   async saveSettings(settings: Settings): Promise<void> {
@@ -116,6 +127,10 @@ class SettingsService {
         document.documentElement.classList.remove('dark');
       }
     }
+
+    // Apply font size
+    const fontSizePercent = settings.appearance.fontSize ?? 100;
+    document.documentElement.style.fontSize = `${fontSizePercent}%`;
 
     // Apply other settings as needed
     // Request timeout and retry attempts will be used by turbopufferService
