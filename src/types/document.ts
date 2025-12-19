@@ -11,6 +11,7 @@ export interface DocumentsQueryParams {
   filters?: Filter;
   include_attributes?: string[] | boolean;
   aggregate_by?: Record<string, AggregateFunction>;
+  group_by?: string[]; // NEW: Optional group-by attributes for grouped aggregations
   vector_encoding?: 'float' | 'base64';
   consistency?: {
     level: 'strong' | 'eventual';
@@ -43,9 +44,15 @@ export type FilterOp =
 
 export type AggregateFunction = ['Count', string];
 
+// NEW: Type for grouped aggregation results
+export interface AggregationGroup {
+  [key: string]: any; // Group keys (e.g., color: "blue", size: "large") + aggregation values
+}
+
 export interface DocumentsQueryResponse {
   rows?: Document[];
   aggregations?: Record<string, number>;
+  aggregation_groups?: AggregationGroup[]; // NEW: Optional grouped aggregation results
   billing?: {
     billable_logical_bytes_queried: number;
     billable_logical_bytes_returned: number;

@@ -6,6 +6,7 @@ import type {
   Document,
   Filter as TurbopufferFilter,
   DocumentsQueryResponse,
+  AggregationGroup,
 } from "../../types/document";
 import type { DiscoveredAttribute } from "../../types/attributeDiscovery";
 import type { TurbopufferRegion } from "../../types/connection";
@@ -78,7 +79,7 @@ interface DocumentsState {
   isQueryMode: boolean;
   sortAttribute: string | null;
   sortDirection: 'asc' | 'desc';
-  searchMode: 'pattern' | 'bm25' | 'vector';
+  queryMode: 'browse' | 'bm25' | 'vector';
   searchField: string | null;
   vectorQuery: number[] | null;
   vectorField: string | null;
@@ -88,6 +89,11 @@ interface DocumentsState {
   rankingExpression: any | null; // RankingExprNode from RankingExpressionBuilder
   aggregations: any[]; // AggregationConfig[] from AggregationsPanel
   aggregationResults: any | null; // Parsed aggregation results from query
+
+  // NEW: Grouped Aggregations State
+  groupByAttributes: string[]; // NEW: Selected attributes for grouping
+  aggregationGroups: AggregationGroup[] | null; // NEW: Grouped aggregation results
+  isGroupedQuery: boolean; // NEW: Flag indicating if current query uses grouping
 
   // Cache
   attributesCache: Map<
@@ -125,13 +131,14 @@ interface DocumentsState {
   setVisibleColumns: (columns: Set<string>) => void;
   toggleColumn: (column: string) => void;
   setSortAttribute: (attribute: string | null, direction: 'asc' | 'desc') => void;
-  setSearchMode: (mode: 'pattern' | 'bm25' | 'vector') => void;
+  setQueryMode: (mode: 'browse' | 'bm25' | 'vector') => void;
   setSearchField: (field: string | null) => void;
   setVectorQuery: (vector: number[] | null, field: string) => void;
   setBM25Config: (fields: { field: string; weight: number }[], operator: 'sum' | 'max' | 'product') => void;
   setRankingMode: (mode: 'simple' | 'expression') => void;
   setRankingExpression: (expression: any | null) => void;
   setAggregations: (aggregations: any[]) => void;
+  setGroupByAttributes: (attributes: string[]) => void; // NEW: Set group-by attributes
 
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
@@ -213,7 +220,7 @@ export const useDocumentsStore = create<DocumentsState>()(
         isQueryMode: false,
         sortAttribute: null,
         sortDirection: 'asc',
-        searchMode: 'pattern',
+        queryMode: 'browse',
         searchField: null,
         vectorQuery: null,
         vectorField: null,
@@ -223,6 +230,9 @@ export const useDocumentsStore = create<DocumentsState>()(
         rankingExpression: null,
         aggregations: [],
         aggregationResults: null,
+        groupByAttributes: [], // NEW: No grouping by default
+        aggregationGroups: null, // NEW: No grouped results initially
+        isGroupedQuery: false, // NEW: Not a grouped query by default
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -260,12 +270,15 @@ export const useDocumentsStore = create<DocumentsState>()(
               state.isQueryMode = false;
               state.sortAttribute = null;
               state.sortDirection = 'asc';
-              state.searchMode = 'pattern';
+              state.queryMode = 'browse';
               state.searchField = null;
               state.vectorQuery = null;
               state.vectorField = null;
               state.bm25Fields = [];
               state.bm25Operator = 'sum';
+              state.groupByAttributes = []; // NEW: Reset grouping
+              state.aggregationGroups = null; // NEW: Clear grouped results
+              state.isGroupedQuery = false; // NEW: Reset grouped query flag
               state.error = null;
               // Reset client initialization state when changing namespace
               state.isClientInitialized = false;
@@ -317,7 +330,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             // Debounce the search
             searchDebounceTimer = setTimeout(() => {
               get().logFilterChange();
-              get().loadDocuments(true, false, 1000, 1); // Force page 1
+              get().loadDocuments(true, false, get().pageSize, 1); // Force page 1
             }, DEBOUNCE_DELAY);
           }),
 
@@ -422,9 +435,9 @@ export const useDocumentsStore = create<DocumentsState>()(
 
           // Log the filter change
           setTimeout(() => get().logFilterChange(), 100);
-          
+
           // Automatically load documents when filter is added - force page 1
-          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+          setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
         },
 
         updateFilter: (filterId, attribute, operator, rawValue) => {
@@ -496,9 +509,9 @@ export const useDocumentsStore = create<DocumentsState>()(
 
           // Log the filter change
           setTimeout(() => get().logFilterChange(), 100);
-          
+
           // Automatically load documents when filter is updated - force page 1
-          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+          setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
         },
 
         removeFilter: (filterId) =>
@@ -515,9 +528,9 @@ export const useDocumentsStore = create<DocumentsState>()(
 
             // Log the filter change
             setTimeout(() => get().logFilterChange(), 100);
-            
+
             // Automatically load documents when filter is removed - force page 1
-            setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+            setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
           }),
 
         clearFilters: () =>
@@ -536,9 +549,9 @@ export const useDocumentsStore = create<DocumentsState>()(
 
             // Log the filter change (empty filters)
             setTimeout(() => get().logFilterChange(), 100);
-            
+
             // Trigger immediate load - force page 1
-            setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+            setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
           }),
 
         clearAllFilters: () =>
@@ -556,7 +569,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             }
 
             // Automatically load documents when all filters are cleared - force page 1
-            setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+            setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
           }),
 
         setSelectedDocuments: (selected) =>
@@ -590,10 +603,10 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.nextCursor = null;
           }),
 
-        setSearchMode: (mode) =>
+        setQueryMode: (mode) =>
           set((state) => {
-            state.searchMode = mode;
-            // Reset pagination when search mode changes
+            state.queryMode = mode;
+            // Reset pagination when query mode changes
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
@@ -653,6 +666,21 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
+          }),
+
+        // NEW: Set group-by attributes for grouped aggregations
+        setGroupByAttributes: (attributes) =>
+          set((state) => {
+            state.groupByAttributes = attributes;
+            state.isGroupedQuery = attributes.length > 0;
+            // Reset pagination when grouping changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+            // Clear previous grouped results when grouping changes
+            if (attributes.length === 0) {
+              state.aggregationGroups = null;
+            }
           }),
 
         // Filter History Actions
@@ -745,9 +773,9 @@ export const useDocumentsStore = create<DocumentsState>()(
           } catch (error) {
             console.error('Failed to update filter count:', error);
           }
-          
+
           // Load documents with the applied filters - force page 1
-          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+          setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
         },
         
         deleteFilterFromHistory: async (historyId) => {
@@ -831,7 +859,7 @@ export const useDocumentsStore = create<DocumentsState>()(
           });
 
           // Load documents with the applied filters - force page 1
-          setTimeout(() => get().loadDocuments(true, false, 1000, 1), 0);
+          setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
         },
         
         logFilterChange: async () => {
@@ -1050,9 +1078,9 @@ loadDocuments: async (
               // Build query filters
               const filters: TurbopufferFilter[] = [];
 
-              // Add text search filter across multiple fields (pattern mode only)
+              // Add text search filter across multiple fields (browse mode only)
               // BM25 mode uses rank_by instead of filters
-              if (state.searchText.trim() && state.searchMode === 'pattern') {
+              if (state.searchText.trim() && state.queryMode === 'browse') {
                 // Search across all string and array-of-string fields
                 const searchFields = state.attributes
                   .filter(attr => attr.type === 'string' || attr.type === '[]string')
@@ -1278,7 +1306,7 @@ loadDocuments: async (
               if (state.rankingMode === 'expression' && state.rankingExpression) {
                 // Custom ranking expression mode
                 rankBy = convertRankingExprToTurbopuffer(state.rankingExpression);
-              } else if (state.searchMode === 'bm25' && state.searchText.trim()) {
+              } else if (state.queryMode === 'bm25' && state.searchText.trim()) {
                 // BM25 full-text search mode
                 if (state.bm25Fields.length > 1) {
                   // Multi-field BM25 with operator
@@ -1298,7 +1326,7 @@ loadDocuments: async (
                   const searchField = state.searchField || 'id';
                   rankBy = [searchField, "BM25", state.searchText.trim()];
                 }
-              } else if (state.searchMode === 'vector' && state.vectorQuery && state.vectorQuery.length > 0) {
+              } else if (state.queryMode === 'vector' && state.vectorQuery && state.vectorQuery.length > 0) {
                 // Vector search mode (ANN)
                 const vectorField = state.vectorField || 'vector';
                 rankBy = [vectorField, "ANN", state.vectorQuery];
@@ -1310,7 +1338,7 @@ loadDocuments: async (
               console.log("🔍 Sending filtered pagination query:", {
                 filters: finalFilter,
                 rank_by: rankBy,
-                searchMode: state.searchMode,
+                queryMode: state.queryMode,
                 top_k: limit,
                 currentPage: state.currentPage,
                 targetPage: page,
@@ -1320,23 +1348,29 @@ loadDocuments: async (
               });
 
               // Build aggregation query params
-              const aggregateBy = state.aggregations.length > 0
-                ? state.aggregations.map(agg => ({
-                    label: agg.name,
-                    aggregation: { Count: agg.groupBy },
-                    top_k: agg.topK || 10,
-                  }))
+              const hasAggregations = state.aggregations.length > 0;
+              const aggregateBy = hasAggregations
+                ? { [state.aggregations[0].name]: ["Count"] }
                 : undefined;
 
+              // IMPORTANT: When aggregate_by is set, rank_by and include_attributes CANNOT be specified
               const result = await documentService.queryDocuments(
                 state.currentNamespaceId,
-                {
-                  filters: finalFilter,
-                  top_k: limit,
-                  include_attributes: includeAttributes,
-                  rank_by: rankBy,
-                  aggregate_by: aggregateBy,
-                }
+                hasAggregations
+                  ? {
+                      // Aggregation mode: ONLY aggregate_by, group_by, filters, and top_k
+                      filters: finalFilter,
+                      top_k: limit,
+                      aggregate_by: aggregateBy,
+                      ...(state.groupByAttributes.length > 0 && { group_by: state.groupByAttributes }),
+                    }
+                  : {
+                      // Normal mode: rank_by, include_attributes, filters, and top_k
+                      filters: finalFilter,
+                      top_k: limit,
+                      include_attributes: includeAttributes,
+                      rank_by: rankBy,
+                    }
               );
 
               documents = result.rows || [];
@@ -1350,6 +1384,9 @@ loadDocuments: async (
                   count: group.count,
                 })),
               })) : [];
+
+              // NEW: Store grouped aggregation results if present
+              const aggregationGroups = result.aggregation_groups || null;
 
               // Get the last document ID as next cursor
               const newNextCursor = documents.length > 0 ? documents[documents.length - 1].id : null;
@@ -1375,6 +1412,7 @@ loadDocuments: async (
                 state.currentPage = page;
                 state.totalPages = totalPages;
                 state.aggregationResults = parsedAggregations.length > 0 ? parsedAggregations : null;
+                state.aggregationGroups = aggregationGroups; // NEW: Store grouped aggregation results
               });
               
               console.log("📄 Query results:", {
@@ -1958,7 +1996,7 @@ loadDocuments: async (
             state.attributesCache.clear();
 
             // Optionally, reload documents immediately
-            await state.loadDocuments(true, false, 1000);
+            await state.loadDocuments(true, false, state.pageSize);
 
             set((state) => {
               state.isLoading = false;
@@ -1993,7 +2031,7 @@ loadDocuments: async (
 
           try {
             await Promise.all([
-              state.loadDocuments(true, false, 1000, 1), // Force page 1
+              state.loadDocuments(true, false, state.pageSize, 1), // Force page 1
               state.discoverAttributes(true),
             ]);
           } finally {

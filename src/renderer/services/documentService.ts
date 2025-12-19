@@ -9,6 +9,7 @@ import type {
   Filter,
 } from "../../types/document";
 import { turbopufferService } from "./turbopufferService";
+import { permissionService } from "./permissionService";
 
 export class DocumentService {
   private client: Turbopuffer | null = null;
@@ -82,6 +83,7 @@ export class DocumentService {
         filters: params.filters,
         include_attributes: params.include_attributes,
         aggregate_by: params.aggregate_by,
+        group_by: params.group_by, // NEW: Pass group_by parameter
         vector_encoding: params.vector_encoding,
         consistency: params.consistency,
       });
@@ -89,6 +91,7 @@ export class DocumentService {
       console.log("📥 API Response Received:", {
         rowsCount: result.rows?.length || 0,
         hasAggregations: !!result.aggregations,
+        hasAggregationGroups: !!result.aggregation_groups, // NEW: Log grouped results
         hasBilling: !!result.billing,
         hasPerformance: !!result.performance,
       });
@@ -111,6 +114,7 @@ export class DocumentService {
       return {
         rows: result.rows || [],
         aggregations: result.aggregations,
+        aggregation_groups: result.aggregation_groups, // NEW: Include grouped results
         billing: result.billing,
         performance: result.performance,
       };
@@ -186,6 +190,8 @@ async listDocuments(
     documents: Document[],
     distanceMetric: "cosine_distance" | "euclidean_squared" = "cosine_distance"
   ): Promise<DocumentWriteResponse> {
+    permissionService.checkWritePermission();
+
     if (!this.client) {
       throw new Error("Turbopuffer client not initialized");
     }
@@ -246,6 +252,8 @@ async listDocuments(
     documentId: string | number,
     attributes: Record<string, any>
   ): Promise<DocumentWriteResponse> {
+    permissionService.checkWritePermission();
+
     if (!this.client) {
       throw new Error("Turbopuffer client not initialized");
     }
@@ -277,6 +285,8 @@ async listDocuments(
     namespaceId: string,
     documentIds: (string | number)[]
   ): Promise<DocumentWriteResponse> {
+    permissionService.checkWritePermission();
+
     if (!this.client) {
       throw new Error("Turbopuffer client not initialized");
     }
@@ -300,6 +310,8 @@ async listDocuments(
     namespaceId: string,
     filter: Filter
   ): Promise<DocumentWriteResponse> {
+    permissionService.checkWritePermission();
+
     if (!this.client) {
       throw new Error("Turbopuffer client not initialized");
     }
