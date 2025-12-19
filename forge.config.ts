@@ -11,33 +11,41 @@ import * as dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
+// Build configuration from environment variables
+const signingIdentity = process.env.APPLE_SIGNING_IDENTITY;
+const macUpdateUrl = process.env.MAC_UPDATE_MANIFEST_URL;
+
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     icon: './assets/icon',
     appBundleId: 'com.peker.turbopuffer',
     appCategoryType: 'public.app-category.developer-tools',
-    osxSign: {
-      identity: 'Developer ID Application: MEHMET ALI PEKER (WPHS3MKJH2)',
-      'hardened-runtime': true,
-      'gatekeeper-assess': false,
-      entitlements: 'entitlements.plist',
-      'entitlements-inherit': 'entitlements.plist'
-    },
-    osxNotarize: {
-      tool: 'notarytool',
-      appleId: process.env.APPLE_ID,
-      appleIdPassword: process.env.APPLE_ID_PASSWORD,
-      teamId: process.env.APPLE_TEAM_ID
-    }
+    ...(signingIdentity && {
+      osxSign: {
+        identity: signingIdentity,
+        'hardened-runtime': true,
+        'gatekeeper-assess': false,
+        entitlements: 'entitlements.plist',
+        'entitlements-inherit': 'entitlements.plist'
+      }
+    }),
+    ...(process.env.APPLE_ID && process.env.APPLE_ID_PASSWORD && process.env.APPLE_TEAM_ID && {
+      osxNotarize: {
+        tool: 'notarytool',
+        appleId: process.env.APPLE_ID,
+        appleIdPassword: process.env.APPLE_ID_PASSWORD,
+        teamId: process.env.APPLE_TEAM_ID
+      }
+    })
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}), 
+    new MakerSquirrel({}),
     new MakerZIP({
-      macUpdateManifestBaseUrl: 'https://example.com/'
-    }, ['darwin']), 
-    new MakerRpm({}), 
+      ...(macUpdateUrl && { macUpdateManifestBaseUrl: macUpdateUrl })
+    }, ['darwin']),
+    new MakerRpm({}),
     new MakerDeb({})
   ],
   plugins: [

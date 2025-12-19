@@ -35,5 +35,8 @@ export default defineConfig({
     rollupOptions: {
       external: ['undici']
     }
+  },
+  server: {
+    port: 9184
   }
 });
