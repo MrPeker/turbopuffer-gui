@@ -1,10 +1,11 @@
 import { Turbopuffer } from '@turbopuffer/turbopuffer';
-import type { 
-  Namespace, 
-  NamespaceListParams, 
+import type {
+  Namespace,
+  NamespaceListParams,
   NamespaceSchema,
-  NamespacesResponse 
+  NamespacesResponse
 } from '../../types/namespace';
+import { permissionService } from './permissionService';
 
 export class NamespaceService {
   private client: Turbopuffer | null = null;
@@ -55,6 +56,8 @@ export class NamespaceService {
   }
 
   async createNamespace(namespaceId: string): Promise<void> {
+    permissionService.checkWritePermission();
+
     if (!this.client) {
       throw new Error('Turbopuffer client not initialized');
     }
@@ -108,6 +111,8 @@ export class NamespaceService {
   }
 
   async deleteNamespace(namespaceId: string): Promise<void> {
+    permissionService.checkWritePermission();
+
     if (!this.client) {
       throw new Error('Turbopuffer client not initialized');
     }
@@ -139,6 +144,8 @@ export class NamespaceService {
   }
 
   async updateNamespaceSchema(namespaceId: string, schema: NamespaceSchema): Promise<{ status?: number } | void> {
+    permissionService.checkWritePermission();
+
     if (!this.client) {
       throw new Error('Turbopuffer client not initialized');
     }

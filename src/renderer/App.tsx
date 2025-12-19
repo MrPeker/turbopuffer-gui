@@ -4,7 +4,6 @@ import { ConnectionProvider } from './contexts/ConnectionContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { ConnectionGuard } from './components/layout/ConnectionGuard';
-import { NamespaceGuard } from './components/layout/NamespaceGuard';
 import { NavigationLogger } from './components/layout/NavigationLogger';
 import { ConnectionsPage } from './components/connections/ConnectionsPage';
 import { NamespacesPage } from './components/namespaces/NamespacesPage';
@@ -41,24 +40,10 @@ export function App() {
                   {/* Namespace-scoped routes */}
                   <Route path="namespaces/:namespaceId">
                     {/* Documents view */}
-                    <Route
-                      path="documents"
-                      element={
-                        <NamespaceGuard>
-                          <DocumentsPage />
-                        </NamespaceGuard>
-                      }
-                    />
+                    <Route path="documents" element={<DocumentsPage />} />
 
                     {/* Schema view */}
-                    <Route
-                      path="schema"
-                      element={
-                        <NamespaceGuard>
-                          <SchemaPage />
-                        </NamespaceGuard>
-                      }
-                    />
+                    <Route path="schema" element={<SchemaPage />} />
                   </Route>
                 </Route>
 

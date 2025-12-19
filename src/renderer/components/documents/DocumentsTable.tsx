@@ -209,10 +209,12 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
     <div className="flex flex-col h-full relative bg-tp-bg">
       {/* Loading overlay for existing data */}
       {showLoadingOverlay && (
-        <div className="absolute inset-0 bg-tp-bg/80 backdrop-blur-sm z-20 flex items-center justify-center">
-          <div className="flex items-center gap-2 bg-tp-surface px-3 py-2 border border-tp-border-subtle">
-            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-tp-accent" />
-            <span className="text-xs text-tp-text-muted">updating...</span>
+        <div className="absolute inset-0 bg-tp-bg/90 z-20 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-1 bg-tp-surface px-4 py-2 border border-tp-border-subtle">
+            <div className="h-0.5 w-24 bg-tp-border-subtle overflow-hidden">
+              <div className="h-full w-1/3 bg-tp-accent animate-pulse" />
+            </div>
+            <span className="text-xs text-tp-text-muted font-mono">updating...</span>
           </div>
         </div>
       )}
@@ -305,23 +307,16 @@ export const DocumentsTable: React.FC<DocumentsTableProps> = ({
               );
             })}
             {showSkeleton && (
-              <>
-                {[...Array(10)].map((_, i) => (
-                  <TableRow key={`skeleton-${i}`}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-4" />
-                    </TableCell>
-                    {Array.from(visibleColumns).filter(col => allColumns.includes(col)).map(column => (
-                      <TableCell key={column}>
-                        <Skeleton className="h-4 w-[80%]" />
-                      </TableCell>
-                    ))}
-                    <TableCell>
-                      <Skeleton className="h-8 w-8" />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </>
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={visibleColumns.size + 2} className="h-48 text-center">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="h-0.5 w-32 bg-tp-border-subtle overflow-hidden">
+                      <div className="h-full w-1/3 bg-tp-accent animate-pulse" />
+                    </div>
+                    <span className="text-xs text-tp-text-muted font-mono">loading documents...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
             )}
             
           </TableBody>

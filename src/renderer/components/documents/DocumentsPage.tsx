@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,11 +29,14 @@ import { DocumentUploadDialog } from "./DocumentUploadDialog";
 import { FilterBar } from "./FilterBar/FilterBar";
 import { RawQueryBar } from "./RawQueryBar";
 import { QueryPerformanceMetrics } from "./QueryPerformanceMetrics";
+import { AggregationGroupsTable } from "./AggregationGroupsTable"; // NEW: Import grouped results table
 import { convertFiltersToRawQuery } from "@/renderer/utils/filterConversion";
+import { ConnectionErrorState, NamespaceNotFoundState } from "../shared/ErrorStates";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const DocumentsPage: React.FC = () => {
   const { connectionId, namespaceId } = useParams<{ connectionId: string; namespaceId: string }>();
-  const { getConnectionById } = useConnections();
+  const { getConnectionById, turbopufferClient, clientError, setActiveConnection, isActiveConnectionReadOnly } = useConnections();
   const connection = connectionId ? getConnectionById(connectionId) : null;
   const { toast } = useToast();
   const { setInspectorContent, setInspectorTitle, openInspector, closeInspector } = useInspector();
@@ -56,11 +60,18 @@ export const DocumentsPage: React.FC = () => {
     resetInitialization,
     lastQueryResult,
     unfilteredTotalCount,
+    groupByAttributes, // NEW: Get group-by attributes
+    aggregationGroups, // NEW: Get grouped results
+    isGroupedQuery, // NEW: Flag for grouped query
+    aggregations, // NEW: Get aggregations config
   } = useDocumentsStore();
-  
+
   // Subscribe to store state for filter dependencies
   const activeFilters = useDocumentsStore(state => state.activeFilters);
   const searchText = useDocumentsStore(state => state.searchText);
+
+  // Check if we're in aggregation mode (with or without grouping)
+  const isAggregationMode = aggregations.length > 0;
 
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [pageSize, setPageSize] = useState(100);
@@ -68,37 +79,94 @@ export const DocumentsPage: React.FC = () => {
   const [initialRawQuery, setInitialRawQuery] = useState<string | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeDocumentId, setActiveDocumentId] = useState<string | number | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
-  // Single effect to handle initialization and loading
+  // Track initialization to prevent infinite loops
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const [lastInitKey, setLastInitKey] = useState<string>('');
+
+  // Initialize connection when connectionId changes
   useEffect(() => {
-    const initializeAndLoad = async () => {
-      if (namespaceId && connection) {
-        // Set connection ID first
-        setConnectionId(connection.id);
-
-        // Set namespace first
-        if (documents.length === 0 || currentNamespaceId !== namespaceId) {
-          await setNamespace(namespaceId);
-          // Reset to first page when changing namespaces
-          setCurrentPage(1);
-        }
-
-        // Initialize the client with the current connection
-        const initialized = await initializeClient(
-          connection.id,
-          connection.region
-        );
-
-        if (initialized) {
-          // Load documents with current page size
-          // Always load when refreshing
-          loadDocuments(isRefreshing, false, pageSize);
+    const initConnection = async () => {
+      if (connectionId) {
+        try {
+          await setActiveConnection(connectionId);
+        } catch (err) {
+          // Error is already set in context
+          console.error('Failed to initialize connection:', err);
         }
       }
     };
 
+    initConnection();
+  }, [connectionId]); // Removed setActiveConnection from deps to prevent loop
+
+  // Single effect to handle initialization and loading
+  useEffect(() => {
+    // Create a unique key for this initialization
+    const initKey = `${connectionId}-${namespaceId}-${pageSize}-${!!turbopufferClient}`;
+
+    // Only proceed if we have a turbopuffer client
+    if (!turbopufferClient) {
+      console.log('⏭️ Waiting for turbopuffer client...');
+      // Reset initialization when client is not ready
+      if (hasInitialized) {
+        setHasInitialized(false);
+      }
+      return;
+    }
+
+    // Skip if we've already initialized with these exact params
+    if (hasInitialized && lastInitKey === initKey) {
+      console.log('⏭️ Skipping re-initialization - already initialized:', initKey);
+      return;
+    }
+
+    const initializeAndLoad = async () => {
+      if (!namespaceId || !connectionId) {
+        console.log('⏭️ Skipping - missing namespace or connection ID');
+        return;
+      }
+
+      console.log('🚀 Starting initialization:', initKey);
+
+      // Wait for connection to be loaded from storage
+      if (!connection) {
+        console.log('⏭️ Waiting for connection to load...');
+        return;
+      }
+
+      // Set connection ID first
+      setConnectionId(connectionId);
+
+      // Set namespace if it changed
+      if (currentNamespaceId !== namespaceId) {
+        console.log('📁 Namespace changed, setting new namespace');
+        await setNamespace(namespaceId);
+        // Reset to first page when changing namespaces
+        setCurrentPage(1);
+      }
+
+      // Initialize the client with the current connection
+      const initialized = await initializeClient(
+        connectionId,
+        connection.region
+      );
+
+      if (initialized) {
+        console.log('✅ Client initialized, loading documents');
+        // Load documents with current page size
+        await loadDocuments(false, false, pageSize);
+
+        // Mark as initialized with this specific key
+        setHasInitialized(true);
+        setLastInitKey(initKey);
+        console.log('✅ Initialization complete:', initKey);
+      }
+    };
+
     initializeAndLoad();
-  }, [namespaceId, connection, pageSize, isRefreshing]);
+  }, [namespaceId, connectionId, pageSize, !!turbopufferClient, !!connection]); // Include connection availability
 
   const handleRefresh = () => {
     refresh();
@@ -121,6 +189,19 @@ export const DocumentsPage: React.FC = () => {
   };
 
   const handleExport = async (format: "json" | "csv") => {
+    // Check if there are documents to export
+    const docsToExport = selectedDocuments.size > 0 ? selectedDocuments.size : documents.length;
+
+    if (docsToExport === 0) {
+      toast({
+        title: "No documents to export",
+        description: "Load some documents first before exporting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsExporting(true);
     try {
       const exportIds =
         selectedDocuments.size > 0
@@ -129,12 +210,14 @@ export const DocumentsPage: React.FC = () => {
 
       await exportDocuments(format, exportIds);
 
-      toast.success("Export successful", {
-        description: `Documents exported as ${format.toUpperCase()}`,
-      });
+      // Success - no toast, the file download is the feedback
+      setIsExporting(false);
     } catch (error) {
-      toast.error("Export failed", {
-        description: error instanceof Error ? error.message : "Unknown error",
+      setIsExporting(false);
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
       });
     }
   };
@@ -180,6 +263,31 @@ export const DocumentsPage: React.FC = () => {
     // Reset to first page on initial load
     setCurrentPage(1);
   };
+
+  // Early return: Connection error from context
+  if (clientError) {
+    return <ConnectionErrorState error={clientError} />;
+  }
+
+  // Early return: Client not ready yet (still initializing)
+  if (!turbopufferClient) {
+    return (
+      <div className="flex flex-col h-full bg-tp-bg">
+        <div className="px-3 py-2 border-b border-tp-border-subtle bg-tp-surface">
+          <Skeleton className="h-5 w-32" />
+        </div>
+        <div className="flex-1 p-4 space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  // Early return: Namespace not found (404 error from store)
+  if (error && error.includes('404') && namespaceId) {
+    return <NamespaceNotFoundState namespaceId={namespaceId} connectionId={connectionId} />;
+  }
 
   // Component to display raw query responses (like aggregations)
   const RawResponseViewer: React.FC<{ response: any }> = ({ response }) => (
@@ -228,20 +336,66 @@ export const DocumentsPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-tp-bg relative">
-      {/* Toolbar */}
-      <div className="px-3 py-2 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div>
-            <h1 className="text-sm font-bold uppercase tracking-wider text-tp-text">Documents</h1>
-            {namespaceId && (
-              <p className="text-xs text-tp-text-muted mt-0.5">
-                <span className="font-mono text-tp-accent">{namespaceId}</span>
-              </p>
-            )}
-          </div>
-          <span className="text-tp-border-strong">│</span>
+      {/* Toolbar - Tier 3: Document Actions */}
+      <div className="px-3 py-1.5 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between">
+        {/* Page Title */}
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-xs font-semibold uppercase tracking-wider text-tp-text">Documents</h1>
+          {namespaceId && (
+            <>
+              <span className="text-tp-text-muted">•</span>
+              <span className="text-xs font-mono text-tp-accent">{namespaceId}</span>
+            </>
+          )}
+        </div>
+
+        {/* Document Actions - Tier 3 (subtle) */}
+        <div className="flex items-center gap-1">
           <Button
-            variant={isRawQueryMode ? "default" : "ghost"}
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className="h-3 w-3 mr-1" />
+            refresh
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowUploadDialog(true)}
+            disabled={isActiveConnectionReadOnly}
+            className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            <Upload className="h-3 w-3 mr-1" />
+            upload
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                <Download className="h-3 w-3 mr-1" />
+                export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-tp-surface border-tp-border-strong">
+              <DropdownMenuItem onClick={() => handleExport("json")} className="text-sm">
+                <Download className="h-3 w-3 mr-1.5" />
+                json
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("csv")} className="text-sm">
+                <Download className="h-3 w-3 mr-1.5" />
+                csv
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Separator orientation="vertical" className="h-4 mx-0.5" />
+          <Button
+            variant={isRawQueryMode ? "secondary" : "ghost"}
             size="sm"
             onClick={() => {
               if (!isRawQueryMode) {
@@ -256,50 +410,11 @@ export const DocumentsPage: React.FC = () => {
               }
               setIsRawQueryMode(!isRawQueryMode);
             }}
-            className="h-7 gap-1.5 text-xs"
+            className="h-6 text-[10px]"
           >
-            <Code className="h-3 w-3" />
-            {isRawQueryMode ? "Raw" : "Visual"}
+            <Code className="h-3 w-3 mr-1" />
+            {isRawQueryMode ? "raw" : "visual"}
           </Button>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="h-7 text-xs"
-          >
-            <RefreshCw
-              className={`h-3 w-3 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowUploadDialog(true)}
-            className="h-7 text-xs"
-          >
-            <Upload className="h-3 w-3 mr-1.5" />
-            Upload
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 text-xs">
-                <Download className="h-3 w-3 mr-1.5" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport("json")}>
-                JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("csv")}>
-                CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 
@@ -338,12 +453,27 @@ export const DocumentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Documents Table or Raw Response */}
+      {/* Documents Table or Aggregation Results */}
       <div className="flex-1 overflow-hidden">
-        {/* Show raw response if no documents but we have query results */}
-        {documents.length === 0 && lastQueryResult && !loading && !error ? (
+        {/* Priority 1: Show grouped aggregations table when grouping is enabled */}
+        {isGroupedQuery && aggregationGroups && aggregationGroups.length > 0 ? (
+          <>
+            <AggregationGroupsTable
+              groups={aggregationGroups}
+              groupByAttributes={groupByAttributes}
+            />
+            <QueryPerformanceMetrics lastQueryResult={lastQueryResult} />
+          </>
+        ) :
+        /* Priority 2: Show aggregation results when in aggregation mode (Count without grouping) */
+        isAggregationMode && lastQueryResult ? (
+          <RawResponseViewer response={lastQueryResult} />
+        ) :
+        /* Priority 3: Show raw response if no documents but we have query results */
+        documents.length === 0 && lastQueryResult && !loading && !error ? (
           <RawResponseViewer response={lastQueryResult} />
         ) : (
+          /* Priority 4: Show documents table (default) */
           <>
             <DocumentsTable
               documents={documents}
@@ -390,6 +520,8 @@ export const DocumentsPage: React.FC = () => {
                 variant="destructive"
                 size="sm"
                 onClick={handleDeleteSelected}
+                disabled={isActiveConnectionReadOnly}
+                title={isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
                 className="h-7 text-xs"
               >
                 <Trash2 className="h-3 w-3 mr-1.5" />

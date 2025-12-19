@@ -1,30 +1,27 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Search,
-  X,
-  Filter,
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  Calculator,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Eye,
   Clock,
-  ArrowUp,
-  ArrowDown,
-  Calculator,
-  BarChart3,
-  HelpCircle,
+  Eye,
+  Filter,
+  Loader2,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -36,9 +33,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDocumentsStore } from "@/renderer/stores/documentsStore";
 import { cn } from "@/lib/utils";
@@ -49,7 +46,7 @@ import { BM25ConfigPanel } from "../BM25ConfigPanel";
 import { RankingExpressionBuilder } from "../RankingExpressionBuilder";
 import { AggregationsPanel } from "../AggregationsPanel";
 import { AggregationResults } from "../AggregationResults";
-
+import { GroupBySelector } from "./GroupBySelector"; // NEW: Import GroupBySelector
 
 interface FilterBarProps {
   className?: string;
@@ -57,9 +54,9 @@ interface FilterBarProps {
   onPageSizeChange?: (size: number) => void;
 }
 
-
-
-export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000, onPageSizeChange }) => {
+export const FilterBar: React.FC<FilterBarProps> = (
+  { className, pageSize = 1000, onPageSizeChange },
+) => {
   const {
     documents,
     totalCount,
@@ -84,9 +81,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     sortAttribute,
     sortDirection,
     setSortAttribute,
-    searchMode,
+    queryMode,
     searchField,
-    setSearchMode,
+    setQueryMode,
     setSearchField,
     vectorQuery,
     vectorField,
@@ -106,22 +103,45 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
   const [localSearchText, setLocalSearchText] = useState(searchText);
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
   const [isAggregationsOpen, setIsAggregationsOpen] = useState(false);
+  const [showBM25Advanced, setShowBM25Advanced] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  
+
+  // BM25 mode state
+  const [localBM25Fields, setLocalBM25Fields] = useState<string[]>(
+    bm25Fields.map((f) => f.field),
+  );
+  const [localBM25Operator, setLocalBM25Operator] = useState<
+    "sum" | "max" | "product"
+  >(
+    bm25Operator,
+  );
+
+  // Vector mode state
+  const [localVectorInput, setLocalVectorInput] = useState<string>(
+    vectorQuery ? JSON.stringify(vectorQuery) : "",
+  );
+  const [localVectorField, setLocalVectorField] = useState<string>(
+    vectorField || "embedding",
+  );
+
   // Subscribe to store for currentNamespaceId changes
-  const currentNamespaceId = useDocumentsStore(state => state.currentNamespaceId);
-  
+  const currentNamespaceId = useDocumentsStore((state) =>
+    state.currentNamespaceId
+  );
+
   // Subscribe directly to recentFilterHistory from store
-  const recentFilterHistory = useDocumentsStore(state => state.recentFilterHistory);
-  
+  const recentFilterHistory = useDocumentsStore((state) =>
+    state.recentFilterHistory
+  );
+
   // Get filter history reactively
   const recentHistory = useMemo(() => {
     if (!currentNamespaceId) return [];
     const history = recentFilterHistory.get(currentNamespaceId) || [];
-    console.log('🔄 FilterBar: Computing recent history', {
+    console.log("🔄 FilterBar: Computing recent history", {
       currentNamespaceId,
       historyCount: history.length,
-      mapSize: recentFilterHistory.size
+      mapSize: recentFilterHistory.size,
     });
     return history;
   }, [currentNamespaceId, recentFilterHistory]);
@@ -307,6 +327,66 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     return () => clearTimeout(timer);
   }, [localSearchText, setSearchText]);
 
+  // Sync BM25 fields with store
+  useEffect(() => {
+    setLocalBM25Fields(bm25Fields.map((f) => f.field));
+  }, [bm25Fields]);
+
+  // Sync BM25 operator with store
+  useEffect(() => {
+    setLocalBM25Operator(bm25Operator);
+  }, [bm25Operator]);
+
+  // Apply BM25 config when changed
+  useEffect(() => {
+    if (queryMode === "bm25") {
+      const fields = localBM25Fields.map((field) => ({ field, weight: 1.0 }));
+
+      // Only update if values have actually changed (avoid infinite loop)
+      const fieldsChanged =
+        fields.length !== bm25Fields.length ||
+        fields.some((f, i) => f.field !== bm25Fields[i]?.field);
+      const operatorChanged = localBM25Operator !== bm25Operator;
+
+      if (fieldsChanged || operatorChanged) {
+        setBM25Config(fields, localBM25Operator);
+      }
+    }
+  }, [localBM25Fields, localBM25Operator, queryMode, bm25Fields, bm25Operator]);
+
+  // Sync vector input with store
+  useEffect(() => {
+    setLocalVectorInput(vectorQuery ? JSON.stringify(vectorQuery) : "");
+  }, [vectorQuery]);
+
+  // Sync vector field with store
+  useEffect(() => {
+    setLocalVectorField(vectorField || "embedding");
+  }, [vectorField]);
+
+  // Apply vector query when changed
+  useEffect(() => {
+    if (queryMode === "vector" && localVectorInput.trim()) {
+      try {
+        const parsed = JSON.parse(localVectorInput);
+        if (
+          Array.isArray(parsed) && parsed.every((n) => typeof n === "number")
+        ) {
+          setVectorQuery(parsed, localVectorField);
+        }
+      } catch (e) {
+        // Invalid JSON, ignore
+      }
+    }
+  }, [localVectorInput, localVectorField, queryMode]);
+
+  // Reset BM25 advanced panel when switching modes
+  useEffect(() => {
+    if (queryMode !== "bm25") {
+      setShowBM25Advanced(false);
+    }
+  }, [queryMode]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -314,8 +394,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       if ((e.ctrlKey || e.metaKey) && e.key === "f" && !isFilterPopoverOpen) {
         e.preventDefault();
         setIsFilterPopoverOpen(true);
-      }
-      // / to focus search when not in input
+      } // / to focus search when not in input
       else if (
         e.key === "/" &&
         !["INPUT", "TEXTAREA"].includes((e.target as Element).tagName)
@@ -335,246 +414,398 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
     searchInputRef.current?.focus();
   };
 
-
-  const hasActiveFiltersOrSearch =
-    activeFilters.length > 0 || searchText.length > 0;
+  const hasActiveFiltersOrSearch = activeFilters.length > 0 ||
+    searchText.length > 0;
   const filteredCount = documents.length;
   const totalDocCount = unfilteredTotalCount || totalCount || documents.length;
 
   return (
-    <TooltipProvider delayDuration={300}>
     <div
       className={cn(
         "flex flex-col gap-2 px-3 py-2 bg-tp-surface border-b border-tp-border-subtle",
-        className
+        className,
       )}
     >
-      {/* Row 1: Primary Operations (Search + Rank) */}
-      <div className="flex items-center gap-1.5">
-        {/* Enhanced Search Input */}
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-tp-text-muted" />
-          <Input
-            ref={searchInputRef}
-            type="text"
-            placeholder="search all fields..."
-            value={localSearchText}
-            onChange={(e) => setLocalSearchText(e.target.value)}
-            className="pl-7 pr-8 h-7 text-xs"
+      {/* Row 1: Query Mode & Search */}
+      <div className="flex items-start gap-2">
+        {/* Query Mode Selector - Tier 1 Primary (FIRST) */}
+        <div className="flex items-center gap-1 p-1 bg-muted/30">
+          <Button
+            variant={queryMode === "browse" ? "default" : "ghost"}
+            size="sm"
+            className={queryMode === "browse"
+              ? "h-8 px-3 text-xs font-medium"
+              : "h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"}
+            onClick={() => {
+              setQueryMode("browse");
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
             disabled={isLoading}
-          />
-          {localSearchText && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-0.5 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
-              onClick={handleClearSearch}
-              disabled={isLoading}
-            >
-              <X className="h-2.5 w-2.5" />
-            </Button>
-          )}
+            title="Browse all documents with filters and sorting"
+          >
+            browse
+          </Button>
+          <Button
+            variant={queryMode === "bm25" ? "default" : "ghost"}
+            size="sm"
+            className={queryMode === "bm25"
+              ? "h-8 px-3 text-xs font-medium"
+              : "h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"}
+            onClick={() => {
+              setQueryMode("bm25");
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
+            disabled={isLoading}
+            title="Full-text search (BM25 ranking)"
+          >
+            full-text
+          </Button>
+          <Button
+            variant={queryMode === "vector" ? "default" : "ghost"}
+            size="sm"
+            className={queryMode === "vector"
+              ? "h-8 px-3 text-xs font-medium"
+              : "h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"}
+            onClick={() => {
+              setQueryMode("vector");
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
+            disabled={isLoading}
+            title="Vector similarity search (ANN)"
+          >
+            vector
+          </Button>
         </div>
 
-        {/* Search Mode Toggle */}
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1 px-1">
-            <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Search</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="h-2.5 w-2.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help transition-colors" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs">
-                <p className="text-xs">Choose how to search your documents:</p>
-                <ul className="text-xs mt-1 space-y-0.5 list-disc list-inside">
-                  <li><strong>Pattern</strong>: Glob/regex matching (e.g., *.tsx)</li>
-                  <li><strong>BM25</strong>: Full-text search with ranking</li>
-                  <li><strong>Vector</strong>: Semantic similarity search</li>
-                </ul>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
+        <Separator orientation="vertical" className="h-10 bg-tp-border" />
+
+        {/* Mode-Specific Interfaces */}
+        {queryMode === "browse" && (
+          <div className="flex flex-col gap-1.5 flex-1">
+            <div className="relative w-full">
+              <Search className="absolute w-3 h-3 -translate-y-1/2 left-2 top-1/2 text-tp-text-muted" />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search all fields..."
+                value={localSearchText}
+                onChange={(e) => setLocalSearchText(e.target.value)}
+                className="h-8 pr-8 text-xs pl-7"
+                disabled={isLoading}
+              />
+              {localSearchText && (
                 <Button
-                  variant={searchMode === 'pattern' ? 'default' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => {
-                    setSearchMode('pattern');
-                    setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-                  }}
+                  className="absolute right-0.5 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                  onClick={handleClearSearch}
                   disabled={isLoading}
                 >
-                  Pattern
+                  <X className="w-3 h-3" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                <p>Glob or regex pattern matching</p>
-                <p className="text-muted-foreground mt-0.5">Examples: *.tsx, user-*, /src/**</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
+              )}
+            </div>
+          </div>
+        )}
+
+        {queryMode === "bm25" && (
+          <div className="flex flex-col gap-1.5 flex-1">
+            <div className="relative w-full">
+              <Search className="absolute w-3 h-3 -translate-y-1/2 left-2 top-1/2 text-tp-text-muted" />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Full-text search..."
+                value={localSearchText}
+                onChange={(e) => setLocalSearchText(e.target.value)}
+                className="h-8 pr-8 text-xs pl-7"
+                disabled={isLoading}
+              />
+              {localSearchText && (
                 <Button
-                  variant={searchMode === 'bm25' ? 'default' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => {
-                    setSearchMode('bm25');
-                    setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-                  }}
+                  className="absolute right-0.5 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                  onClick={handleClearSearch}
                   disabled={isLoading}
                 >
-                  BM25
+                  <X className="w-3 h-3" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                <p>Full-text search with relevance ranking</p>
-                <p className="text-muted-foreground mt-0.5">Best for keyword searches across text fields</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground">Fields:</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-6 text-xs">
+                    {localBM25Fields.length > 0
+                      ? `${localBM25Fields.length} field${
+                        localBM25Fields.length > 1 ? "s" : ""
+                      }`
+                      : "All fields"}
+                    <ChevronDown className="w-3 h-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56">
+                  {availableFields.slice(0, 20).map((field) => (
+                    <DropdownMenuItem
+                      key={field.name}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setLocalBM25Fields((prev) =>
+                          prev.includes(field.name)
+                            ? prev.filter((f) => f !== field.name)
+                            : [...prev, field.name]
+                        );
+                      }}
+                    >
+                      <Checkbox
+                        checked={localBM25Fields.includes(field.name)}
+                        className="mr-2"
+                      />
+                      {field.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Separator orientation="vertical" className="h-4" />
+              <RadioGroup
+                value={localBM25Operator}
+                onValueChange={(value) =>
+                  setLocalBM25Operator(value as "sum" | "max" | "product")}
+                className="flex items-center gap-3"
+              >
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="sum" id="op-sum" className="w-3 h-3" />
+                  <Label
+                    htmlFor="op-sum"
+                    className="text-[10px] text-muted-foreground cursor-pointer"
+                  >
+                    Any field
+                  </Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem
+                    value="product"
+                    id="op-product"
+                    className="w-3 h-3"
+                  />
+                  <Label
+                    htmlFor="op-product"
+                    className="text-[10px] text-muted-foreground cursor-pointer"
+                  >
+                    All fields
+                  </Label>
+                </div>
+              </RadioGroup>
+              <Separator orientation="vertical" className="h-4" />
+              <Button
+                variant={showBM25Advanced ? "secondary" : "ghost"}
+                size="sm"
+                className="h-6 text-[10px]"
+                onClick={() => setShowBM25Advanced(!showBM25Advanced)}
+              >
+                {showBM25Advanced ? "Hide" : "Show"} Advanced
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {queryMode === "vector" && (
+          <div className="flex flex-col gap-1.5 flex-1">
+            <div className="flex items-center gap-2">
+              <Textarea
+                placeholder="Enter vector: [1.2, 3.4, 5.6, ...]"
+                value={localVectorInput}
+                onChange={(e) => setLocalVectorInput(e.target.value)}
+                className="w-full h-8 max-w-md text-xs resize-none min-h-8"
+                disabled={isLoading}
+              />
+              {localVectorInput && (
                 <Button
-                  variant={searchMode === 'vector' ? 'default' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => {
-                    setSearchMode('vector');
-                    setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-                  }}
+                  className="w-6 h-6 p-0"
+                  onClick={() => setLocalVectorInput("")}
                   disabled={isLoading}
                 >
-                  Vector
+                  <X className="w-3 h-3" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                <p>Semantic similarity search using embeddings</p>
-                <p className="text-muted-foreground mt-0.5">Find conceptually similar documents</p>
-              </TooltipContent>
-            </Tooltip>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground">
+                Vector field:
+              </span>
+              <Select
+                value={localVectorField}
+                onValueChange={setLocalVectorField}
+              >
+                <SelectTrigger className="w-32 h-6 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableFields
+                    .filter((f) =>
+                      f.name.toLowerCase().includes("vector") ||
+                      f.name.toLowerCase().includes("embedding")
+                    )
+                    .map((field) => (
+                      <SelectItem key={field.name} value={field.name}>
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  {availableFields.filter((f) =>
+                        f.name.toLowerCase().includes("vector") ||
+                        f.name.toLowerCase().includes("embedding")
+                      ).length === 0 && (
+                    <SelectItem value="embedding">embedding</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        )}
 
-        <Separator orientation="vertical" className="h-6 bg-tp-border-strong" />
-
-        {/* Ranking Mode Toggle */}
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] text-muted-foreground uppercase tracking-wider px-1">Rank</span>
-          <div className="flex items-center gap-0.5 border border-tp-border rounded-md p-0.5">
-            <Button
-              variant={rankingMode === 'simple' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setRankingMode('simple');
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-              title="Simple sorting by attribute"
-            >
-              <ArrowUp className="h-3 w-3 mr-0.5" />
-              Sort
-            </Button>
-            <Button
-              variant={rankingMode === 'expression' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                setRankingMode('expression');
-              }}
-              disabled={isLoading}
-              title="Custom ranking expression"
-            >
-              <Calculator className="h-3 w-3 mr-0.5" />
-              Expr
-            </Button>
-          </div>
-        </div>
-
-        {/* Simple Sort Controls */}
-        {rankingMode === 'simple' && (
-          <>
-            <Select
-              value={sortAttribute || "id"}
-              onValueChange={(value) => {
+        {/* Unified Order Controls - Tier 2 */}
+        <div className="flex items-center gap-1">
+          <Select
+            value={rankingMode === "expression"
+              ? "custom"
+              : (sortAttribute || "id")}
+            onValueChange={(value) => {
+              if (value === "custom") {
+                setRankingMode("expression");
+              } else if (value === "relevance") {
+                setRankingMode("simple");
+              } else if (value === "similarity") {
+                setRankingMode("simple");
+              } else {
                 setSortAttribute(value, sortDirection);
+                setRankingMode("simple");
                 setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="h-7 w-[140px] text-xs">
-                <SelectValue placeholder="Sort by..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="id">ID</SelectItem>
-                {attributes.map((attr) => (
-                  <SelectItem key={attr.name} value={attr.name}>
-                    {attr.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              }
+            }}
+            disabled={isLoading}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* Browse Mode */}
+              {queryMode === "browse" && (
+                <>
+                  <SelectItem value="id">id</SelectItem>
+                  {attributes.map((attr) => (
+                    <SelectItem key={attr.name} value={attr.name}>
+                      {attr.name}
+                    </SelectItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <SelectItem value="custom">Custom expression...</SelectItem>
+                </>
+              )}
 
+              {/* BM25 Mode */}
+              {queryMode === "bm25" && (
+                <>
+                  <SelectItem value="relevance">Relevance (BM25)</SelectItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[10px] px-2 py-1.5 text-muted-foreground">
+                    Then by:
+                  </DropdownMenuLabel>
+                  <SelectItem value="id">id</SelectItem>
+                  {attributes.map((attr) => (
+                    <SelectItem key={attr.name} value={attr.name}>
+                      {attr.name}
+                    </SelectItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <SelectItem value="custom">Custom expression...</SelectItem>
+                </>
+              )}
+
+              {/* Vector Mode */}
+              {queryMode === "vector" && (
+                <>
+                  <SelectItem value="similarity">
+                    Similarity (distance)
+                  </SelectItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[10px] px-2 py-1.5 text-muted-foreground">
+                    Then by:
+                  </DropdownMenuLabel>
+                  <SelectItem value="id">id</SelectItem>
+                  {attributes.map((attr) => (
+                    <SelectItem key={attr.name} value={attr.name}>
+                      {attr.name}
+                    </SelectItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <SelectItem value="custom">Custom expression...</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
+
+          {/* Direction Toggle - only show when not using relevance/similarity/custom */}
+          {rankingMode === "simple" &&
+            sortAttribute !== "relevance" &&
+            sortAttribute !== "similarity" && (
             <Button
               variant="outline"
               size="sm"
-              className="h-7 w-7 p-0"
+              className="h-[2rem] px-2 text-xs font-mono leading-none"
               onClick={() => {
-                const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                setSortAttribute(sortAttribute || 'id', newDirection);
+                const newDirection = sortDirection === "asc" ? "desc" : "asc";
+                setSortAttribute(sortAttribute || "id", newDirection);
                 setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
               }}
               disabled={isLoading}
+              title={`Toggle sort direction (currently ${sortDirection.toUpperCase()})`}
             >
-              {sortDirection === 'asc' ? (
-                <ArrowUp className="h-3 w-3" />
-              ) : (
-                <ArrowDown className="h-3 w-3" />
-              )}
+              {sortDirection === "asc"
+                ? (
+                  <>
+                    ASC <ArrowUp className="w-3 h-3 ml-1" />
+                  </>
+                )
+                : (
+                  <>
+                    DESC <ArrowDown className="w-3 h-3 ml-1" />
+                  </>
+                )}
             </Button>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Row 2: Utility Controls (Filters, History, Aggregations, Columns) */}
       <div className="flex items-center gap-1.5">
         {/* Filter Toggle Button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1 h-7"
-              onClick={() => setIsFilterPopoverOpen(!isFilterPopoverOpen)}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1 h-7"
+          onClick={() => setIsFilterPopoverOpen(!isFilterPopoverOpen)}
+        >
+          <Filter className="w-3 h-3" />
+          filters
+          {activeFilters.length > 0 && (
+            <Badge
+              variant="secondary"
+              className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]"
             >
-              <Filter className="h-3 w-3" />
-              filters
-              {activeFilters.length > 0 && (
-                <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
-                  {activeFilters.length}
-                </Badge>
-              )}
-              <ChevronDown
-                className={cn(
-                  "h-2.5 w-2.5 ml-0.5 transition-transform",
-                  isFilterPopoverOpen && "rotate-180"
-                )}
-              />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs max-w-sm">
-            <p className="font-medium">Filter documents by attributes</p>
-            <p className="text-muted-foreground mt-1">
-              Build filters by selecting a field (like <code className="text-[10px] bg-muted px-1 rounded">id</code> or <code className="text-[10px] bg-muted px-1 rounded">description</code>), an operator, and a value.
-            </p>
-            <p className="text-muted-foreground mt-1">
-              Example: <code className="text-[10px] bg-muted px-1 rounded">status = active</code>
-            </p>
-          </TooltipContent>
-        </Tooltip>
+              {activeFilters.length}
+            </Badge>
+          )}
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 ml-0.5 transition-transform",
+              isFilterPopoverOpen && "rotate-180",
+            )}
+          />
+        </Button>
 
         {/* Filter History */}
         <DropdownMenu>
@@ -584,45 +815,57 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
               size="sm"
               className="gap-1 h-7"
             >
-              <Clock className="h-3 w-3" />
+              <Clock className="w-3 h-3" />
               history
               {recentHistory.length > 0 && (
-                <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
+                <Badge
+                  variant="secondary"
+                  className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]"
+                >
                   {recentHistory.length}
                 </Badge>
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-96 max-h-[400px] overflow-y-auto bg-tp-surface border-tp-border-strong" align="start">
-            <DropdownMenuLabel className="text-xs uppercase tracking-wider">recent filters</DropdownMenuLabel>
+          <DropdownMenuContent
+            className="w-96 max-h-[400px] overflow-y-auto bg-tp-surface border-tp-border-strong"
+            align="start"
+          >
+            <DropdownMenuLabel className="text-xs tracking-wider uppercase">
+              recent filters
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-tp-border-subtle" />
-            {recentHistory.length === 0 ? (
-              <div className="px-2 py-4 text-center text-[11px] text-tp-text-muted">
-                no filter history yet
-              </div>
-            ) : (
-              <>
-                {recentHistory.map((entry) => (
-                  <DropdownMenuItem
-                    key={entry.id}
-                    className="flex flex-col items-start py-1.5 cursor-pointer text-xs"
-                    onClick={() => applyRecentFilter(entry.id)}
-                  >
-                    <div className="text-xs font-medium text-tp-text">
-                      {entry.description || (
-                        <>
-                          {entry.filters.length} filter{entry.filters.length !== 1 ? 's' : ''}
-                          {entry.searchText && ` + search "${entry.searchText}"`}
-                        </>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-tp-text-faint font-mono">
-                      {new Date(entry.timestamp).toLocaleString()}
-                    </div>
-                  </DropdownMenuItem>
-                ))}
-              </>
-            )}
+            {recentHistory.length === 0
+              ? (
+                <div className="px-2 py-4 text-center text-[11px] text-tp-text-muted">
+                  no filter history yet
+                </div>
+              )
+              : (
+                <>
+                  {recentHistory.map((entry) => (
+                    <DropdownMenuItem
+                      key={entry.id}
+                      className="flex flex-col items-start py-1.5 cursor-pointer text-xs"
+                      onClick={() => applyRecentFilter(entry.id)}
+                    >
+                      <div className="text-xs font-medium text-tp-text">
+                        {entry.description || (
+                          <>
+                            {entry.filters.length}{" "}
+                            filter{entry.filters.length !== 1 ? "s" : ""}
+                            {entry.searchText &&
+                              ` + search "${entry.searchText}"`}
+                          </>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-tp-text-faint font-mono">
+                        {new Date(entry.timestamp).toLocaleString()}
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -633,17 +876,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
           className="gap-1 h-7"
           onClick={() => setIsAggregationsOpen(!isAggregationsOpen)}
         >
-          <BarChart3 className="h-3 w-3" />
+          <BarChart3 className="w-3 h-3" />
           aggregations
           {aggregations.length > 0 && (
-            <Badge variant="secondary" className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]">
+            <Badge
+              variant="secondary"
+              className="ml-0.5 px-1 min-w-[16px] h-4 text-[9px]"
+            >
               {aggregations.length}
             </Badge>
           )}
           <ChevronDown
             className={cn(
-              "h-2.5 w-2.5 ml-0.5 transition-transform",
-              isAggregationsOpen && "rotate-180"
+              "h-3 w-3 ml-0.5 transition-transform",
+              isAggregationsOpen && "rotate-180",
             )}
           />
         </Button>
@@ -651,14 +897,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         {/* Column Selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1 h-7">
-              <Eye className="h-3 w-3" />
-              columns ({visibleColumns.size}/{availableFields.length})
-              <ChevronDown className="h-3 w-3 ml-0.5" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 font-mono text-xs"
+            >
+              <Eye className="w-3 h-3 mr-1" />
+              {visibleColumns.size}/{availableFields.length}
+              <ChevronDown className="w-3 h-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56 max-h-96 overflow-y-auto bg-tp-surface border-tp-border-strong">
-            <DropdownMenuLabel className="text-xs uppercase tracking-wider">toggle columns</DropdownMenuLabel>
+          <DropdownMenuContent className="w-56 overflow-y-auto max-h-96 bg-tp-surface border-tp-border-strong">
+            <DropdownMenuLabel className="text-xs tracking-wider uppercase">
+              toggle columns
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-tp-border-subtle" />
             <DropdownMenuItem
               key="id"
@@ -679,14 +931,17 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
               </Badge>
             </DropdownMenuItem>
             {availableFields
-              .filter(field => field.name !== "id")
+              .filter((field) => field.name !== "id")
               .map((field) => (
                 <DropdownMenuItem
                   key={field.name}
                   onClick={(e) => {
                     e.preventDefault();
                     toggleColumn(field.name);
-                    setTimeout(() => loadDocuments(true, false, pageSize), 100);
+                    setTimeout(
+                      () => loadDocuments(true, false, pageSize),
+                      100,
+                    );
                   }}
                   className="text-xs"
                 >
@@ -710,13 +965,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
             <DropdownMenuItem
               onClick={(e) => {
                 e.preventDefault();
-                const newColumns = new Set<string>(['id']);
-                availableFields.forEach(field => {
-                  if (!field.name.includes('vector') &&
-                      !field.name.includes('embedding') &&
-                      field.name !== '$dist' &&
-                      field.name !== 'attributes' &&
-                      field.name !== 'long_text'
+                const newColumns = new Set<string>(["id"]);
+                availableFields.forEach((field) => {
+                  if (
+                    !field.name.includes("vector") &&
+                    !field.name.includes("embedding") &&
+                    field.name !== "$dist" &&
+                    field.name !== "attributes" &&
+                    field.name !== "long_text"
                   ) {
                     newColumns.add(field.name);
                   }
@@ -732,25 +988,31 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         </DropdownMenu>
       </div>
 
-      {/* BM25 Configuration Panel */}
-      {searchMode === 'bm25' && (
+      {/* BM25 Configuration Panel - Advanced Mode */}
+      {queryMode === "bm25" && showBM25Advanced && (
         <div className="px-3 pb-2">
           <BM25ConfigPanel
             availableFields={attributes
-              .filter(attr => attr.type === 'string')
-              .map(attr => attr.name)}
+              .filter((attr) => attr.type === "string")
+              .map((attr) => attr.name)}
             selectedFields={bm25Fields}
             onFieldsChange={(fields) => {
               setBM25Config(fields, bm25Operator);
               if (searchText.trim() && fields.length > 0) {
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+                setTimeout(
+                  () => loadDocuments(true, false, pageSize, 1),
+                  100,
+                );
               }
             }}
             operator={bm25Operator}
             onOperatorChange={(op) => {
               setBM25Config(bm25Fields, op);
               if (searchText.trim() && bm25Fields.length > 0) {
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+                setTimeout(
+                  () => loadDocuments(true, false, pageSize, 1),
+                  100,
+                );
               }
             }}
             disabled={isLoading}
@@ -759,7 +1021,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       )}
 
       {/* Vector Search Input */}
-      {searchMode === 'vector' && (
+      {queryMode === "vector" && (
         <div className="px-3 pb-2">
           <VectorSearchInput
             onVectorChange={(vector, field) => {
@@ -768,26 +1030,55 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
                 setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
               }
             }}
-            vectorFields={attributes
-              .filter(attr => attr.name.toLowerCase().includes('vector') || attr.name.toLowerCase().includes('embedding'))
-              .map(attr => attr.name)
-              .concat(['vector']) // Add default 'vector' field
+            vectorFields={
+              attributes
+                .filter((attr) =>
+                  attr.name.toLowerCase().includes("vector") ||
+                  attr.name.toLowerCase().includes("embedding")
+                )
+                .map((attr) => attr.name)
+                .concat(["vector"]) // Add default 'vector' field
             }
             disabled={isLoading}
           />
         </div>
       )}
 
-      {/* Ranking Expression Builder */}
-      {rankingMode === 'expression' && (
-        <div className="px-3 pb-2">
+      {/* Custom Ranking Expression Builder - Collapsible */}
+      {rankingMode === "expression" && (
+        <div className="p-3 mx-3 mb-2 border rounded-md bg-muted/30 border-border">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Calculator className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium">
+                Custom Ranking Expression
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setRankingMode("simple");
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }}
+            >
+              Switch to simple
+            </Button>
+          </div>
           <RankingExpressionBuilder
-            availableAttributes={['id', ...attributes.map(attr => attr.name)]}
+            availableAttributes={[
+              "id",
+              ...attributes.map((attr) => attr.name),
+            ]}
             expression={rankingExpression}
             onExpressionChange={(expr) => {
               setRankingExpression(expr);
               if (expr) {
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+                setTimeout(
+                  () => loadDocuments(true, false, pageSize, 1),
+                  100,
+                );
               }
             }}
             disabled={isLoading}
@@ -799,16 +1090,27 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       {isAggregationsOpen && (
         <div className="px-3 pb-2">
           <AggregationsPanel
-            availableAttributes={['id', ...attributes.map(attr => attr.name)]}
+            availableAttributes={[
+              "id",
+              ...attributes.map((attr) => attr.name),
+            ]}
             aggregations={aggregations}
             onAggregationsChange={(aggs) => {
               setAggregations(aggs);
               if (aggs.length > 0) {
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 100);
+                setTimeout(
+                  () => loadDocuments(true, false, pageSize, 1),
+                  100,
+                );
               }
             }}
             disabled={isLoading}
           />
+
+          {/* NEW: Group By Selector */}
+          <div className="mt-2">
+            <GroupBySelector />
+          </div>
         </div>
       )}
 
@@ -827,7 +1129,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       {/* Enhanced Filter Builder */}
       {isFilterPopoverOpen && (
         <div className="mx-4 my-1">
-          <FilterBuilder 
+          <FilterBuilder
             fields={availableFields}
             activeFilters={activeFilters}
             onAddFilter={addFilter}
@@ -842,8 +1144,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
       {/* Active Filters Row */}
       {activeFilters.length > 0 && !isFilterPopoverOpen && (
         <div className="flex items-center gap-2 px-4">
-          <span className="text-sm text-muted-foreground">Active filters:</span>
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
+          <span className="text-sm text-muted-foreground">
+            Active filters:
+          </span>
+          <div className="flex flex-wrap items-center flex-1 gap-2">
             {activeFilters.map((filter) => (
               <FilterChip
                 key={filter.id}
@@ -863,107 +1167,106 @@ export const FilterBar: React.FC<FilterBarProps> = ({ className, pageSize = 1000
         </div>
       )}
 
-      {/* Document Count and Pagination */}
-      <div className="flex items-center justify-between mt-1 px-4">
-        <div className="text-xs text-muted-foreground">
-          {isLoading ? (
+      {/* Results Summary & Pagination */}
+      <div className="flex items-center justify-between gap-2 px-4 mt-1 text-xs text-muted-foreground">
+        {isLoading
+          ? (
             <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-muted-foreground" />
+              <Loader2 className="w-3 h-3 animate-spin" />
               <span>Loading documents...</span>
             </div>
-          ) : (
-            <span>
-              Showing{" "}
-              {hasActiveFiltersOrSearch ? (
-                <>
-                  <span className="font-medium text-foreground">
-                    {filteredCount >= 1000
-                      ? "1000+"
-                      : filteredCount.toLocaleString()}
-                  </span>
-                  <span> matching</span>
-                  {unfilteredTotalCount && (
+          )
+          : (
+            <>
+              {/* Left: Document count */}
+              <div className="flex items-center gap-1.5">
+                {hasActiveFiltersOrSearch
+                  ? (
                     <>
-                      <span> of </span>
+                      <span className="font-medium text-foreground">
+                        {filteredCount >= 1000
+                          ? "1000+"
+                          : filteredCount.toLocaleString()}
+                      </span>
+                      <span>matching</span>
+                      {unfilteredTotalCount && (
+                        <>
+                          <span>•</span>
+                          <span className="font-medium text-foreground">
+                            {totalDocCount.toLocaleString()}
+                          </span>
+                          <span>total</span>
+                        </>
+                      )}
+                    </>
+                  )
+                  : (
+                    <>
                       <span className="font-medium text-foreground">
                         {totalDocCount.toLocaleString()}
                       </span>
-                      <span> total</span>
+                      <span>documents</span>
                     </>
                   )}
-                </>
-              ) : (
-                <>
-                  <span className="font-medium text-foreground">
-                    {totalDocCount.toLocaleString()}
-                  </span>
-                  <span> total</span>
-                </>
-              )}
-              <span> documents</span>
-            </span>
+              </div>
+
+              {/* Right: Page controls */}
+              <div className="flex items-center gap-2">
+                <span>Page {currentPage} of {totalPages || 1}</span>
+                <span>•</span>
+                <Select
+                  value={pageSize.toString()}
+                  onValueChange={(value) => {
+                    const newSize = Number(value);
+                    if (onPageSizeChange) {
+                      onPageSizeChange(newSize);
+                    }
+                    loadDocuments(false, false, newSize);
+                  }}
+                >
+                  <SelectTrigger className="w-16 h-6 py-0 text-xs bg-transparent border-0 hover:bg-muted">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="250">250</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
+                    <SelectItem value="1000">1000</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>per page</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (currentPage > 1) {
+                      loadDocuments(false, false, pageSize, currentPage - 1);
+                    }
+                  }}
+                  disabled={currentPage <= 1 || isLoading}
+                  className="w-6 h-6 p-0"
+                  title="Previous page"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    loadDocuments(false, false, pageSize, currentPage + 1);
+                  }}
+                  disabled={currentPage >= (totalPages || 1) || isLoading}
+                  className="w-6 h-6 p-0"
+                  title="Next page"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </>
           )}
-        </div>
-
-        {/* Page Size Selector and Pagination Controls */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Show:</span>
-          <Select
-            value={pageSize.toString()}
-            onValueChange={(value) => {
-              const newSize = Number(value);
-              if (onPageSizeChange) {
-                onPageSizeChange(newSize);
-              }
-              loadDocuments(false, false, newSize);
-            }}
-          >
-            <SelectTrigger className="w-24 h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
-              <SelectItem value="250">250</SelectItem>
-              <SelectItem value="500">500</SelectItem>
-              <SelectItem value="1000">1000</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Pagination Controls */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {Math.min(((currentPage - 1) * pageSize) + 1, totalCount || 0)} - {Math.min(currentPage * pageSize, totalCount || 0)} of {totalCount?.toLocaleString() || 0}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (currentPage > 1) {
-                  loadDocuments(false, false, pageSize, currentPage - 1);
-                }
-              }}
-              disabled={currentPage <= 1 || isLoading}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                loadDocuments(false, false, pageSize, currentPage + 1);
-              }}
-              disabled={currentPage >= (totalPages || 1) || isLoading}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
       </div>
     </div>
-    </TooltipProvider>
   );
 };
 

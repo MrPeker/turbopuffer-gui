@@ -53,11 +53,13 @@ import { useToast } from '@/hooks/use-toast';
 import { namespaceService } from '@/renderer/services/namespaceService';
 import { turbopufferService } from '@/renderer/services/turbopufferService';
 import { SchemaAttributeCard, AddAttributeDialog } from './shared';
-import type { 
-  NamespaceSchema, 
-  AttributeSchema, 
-  AttributeType, 
-  VectorType 
+import { ConnectionErrorState, NamespaceNotFoundState } from '../shared/ErrorStates';
+import { Skeleton } from '@/components/ui/skeleton';
+import type {
+  NamespaceSchema,
+  AttributeSchema,
+  AttributeType,
+  VectorType
 } from '@/types/namespace';
 
 interface SchemaAttribute {
@@ -78,7 +80,7 @@ interface IndexBuildingStatus {
 export const SchemaPage: React.FC = () => {
   const navigate = useNavigate();
   const { connectionId, namespaceId } = useParams<{ connectionId: string; namespaceId: string }>();
-  const { getConnectionById } = useConnections();
+  const { getConnectionById, turbopufferClient, clientError, setActiveConnection, isActiveConnectionReadOnly } = useConnections();
   const connection = connectionId ? getConnectionById(connectionId) : null;
   const { toast } = useToast();
   
@@ -87,6 +89,7 @@ export const SchemaPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [indexBuildingStatus, setIndexBuildingStatus] = useState<IndexBuildingStatus>({});
+  const [error, setError] = useState<Error | null>(null);
   const [showAddAttribute, setShowAddAttribute] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState<SchemaAttribute | null>(null);
   const [newAttribute, setNewAttribute] = useState<Partial<SchemaAttribute>>({
@@ -101,25 +104,39 @@ export const SchemaPage: React.FC = () => {
   });
 
   // Load schema when namespace changes
+  // Initialize connection when connectionId changes
   useEffect(() => {
-    if (namespaceId && connection) {
+    const initConnection = async () => {
+      if (connectionId) {
+        try {
+          await setActiveConnection(connectionId);
+        } catch (err) {
+          // Error is already set in context
+          console.error('Failed to initialize connection:', err);
+        }
+      }
+    };
+
+    initConnection();
+  }, [connectionId, setActiveConnection]);
+
+  useEffect(() => {
+    if (namespaceId && connection && turbopufferClient) {
       loadSchema();
     }
-  }, [namespaceId, connection]);
+  }, [namespaceId, connection, turbopufferClient]);
 
   const loadSchema = async () => {
-    if (!namespaceId || !connection) return;
+    if (!namespaceId || !connection || !turbopufferClient) return;
 
     setLoading(true);
+    setError(null);
     try {
-      // Get connection details with decrypted API key
-      const connectionDetails = await window.electronAPI.getConnectionForUse(connection.id);
-
-      // Initialize client
-      await turbopufferService.initializeClient(connectionDetails.apiKey, connectionDetails.region);
+      // Set the client for namespaceService
+      namespaceService.setClient(turbopufferClient);
 
       const schema = await namespaceService.getNamespaceSchema(namespaceId);
-      
+
       // Convert schema to our internal format
       const schemaAttributes: SchemaAttribute[] = Object.entries(schema).map(([name, attributeSchema]) => ({
         name,
@@ -130,11 +147,13 @@ export const SchemaPage: React.FC = () => {
 
       setAttributes(schemaAttributes);
       setHasChanges(false);
-    } catch (error) {
-      console.error('Failed to load schema:', error);
+    } catch (err) {
+      console.error('Failed to load schema:', err);
+      const error = err instanceof Error ? err : new Error('Failed to load namespace schema');
+      setError(error);
       toast({
         title: 'Error loading schema',
-        description: error instanceof Error ? error.message : 'Failed to load namespace schema',
+        description: error.message,
         variant: 'destructive',
       });
     } finally {
@@ -317,6 +336,31 @@ export const SchemaPage: React.FC = () => {
     setHasChanges(true);
   };
 
+  // Early return: Connection error from context
+  if (clientError) {
+    return <ConnectionErrorState error={clientError} />;
+  }
+
+  // Early return: Client not ready yet (still initializing)
+  if (!turbopufferClient) {
+    return (
+      <div className="flex flex-col h-full bg-tp-bg">
+        <div className="px-3 py-2 border-b border-tp-border-subtle bg-tp-surface">
+          <Skeleton className="h-5 w-24" />
+        </div>
+        <div className="flex-1 p-4 space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  // Early return: Namespace not found (404 error)
+  if (error && (error.message.includes('404') || error.message.includes('not found')) && namespaceId) {
+    return <NamespaceNotFoundState namespaceId={namespaceId} connectionId={connectionId} />;
+  }
+
   return (
     <>
       <div className="flex flex-col h-full bg-tp-bg">
@@ -340,7 +384,8 @@ export const SchemaPage: React.FC = () => {
             </Button>
             <Button
               onClick={handleSaveSchema}
-              disabled={!hasChanges || saving}
+              disabled={!hasChanges || saving || isActiveConnectionReadOnly}
+              title={isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
               size="sm"
             >
               {saving ? (
@@ -381,6 +426,8 @@ export const SchemaPage: React.FC = () => {
                 </div>
                 <Button
                   onClick={() => setShowAddAttribute(true)}
+                  disabled={isActiveConnectionReadOnly}
+                  title={isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
                   size="sm"
                 >
                   <Plus className="h-3 w-3 mr-1" />

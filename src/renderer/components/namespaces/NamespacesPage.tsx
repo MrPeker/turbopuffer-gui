@@ -39,7 +39,7 @@ import {
 export function NamespacesPage() {
   const navigate = useNavigate();
   const { connectionId } = useParams<{ connectionId: string }>();
-  const { getDelimiterPreference, setDelimiterPreference, getConnectionById } = useConnections();
+  const { getDelimiterPreference, setDelimiterPreference, getConnectionById, isActiveConnectionReadOnly } = useConnections();
 
   // Zustand store
   const {
@@ -190,7 +190,8 @@ export function NamespacesPage() {
             </Button>
             <Button
               onClick={() => setIsCreateDialogOpen(true)}
-              disabled={isLoading}
+              disabled={isLoading || isActiveConnectionReadOnly}
+              title={isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
               size="sm"
             >
               <Plus className="h-3 w-3 mr-1" />
@@ -371,7 +372,12 @@ export function NamespacesPage() {
                   : 'create your first namespace to store vectors'}
               </p>
               {!searchTerm && (
-                <Button onClick={() => setIsCreateDialogOpen(true)} size="sm">
+                <Button
+                  onClick={() => setIsCreateDialogOpen(true)}
+                  disabled={isActiveConnectionReadOnly}
+                  title={isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
+                  size="sm"
+                >
                   <Plus className="h-3 w-3 mr-1.5" />
                   create namespace
                 </Button>
