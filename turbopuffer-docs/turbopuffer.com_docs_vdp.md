@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/vdp"
 title: "Vulnerability Disclosure"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 # Vulnerability Disclosure
 
@@ -130,14 +70,6 @@ action is initiated by a third party against you in connection with activities
 conducted under this policy, we will take steps to make it known that your
 actions were conducted in compliance with this policy.
 
-On this page
-
-- [In Scope](https://turbopuffer.com/docs/vdp#in-scope)
-- [Out of Scope](https://turbopuffer.com/docs/vdp#out-of-scope)
-- [How to Report](https://turbopuffer.com/docs/vdp#how-to-report)
-- [Program Policy](https://turbopuffer.com/docs/vdp#program-policy)
-- [Safe Harbor](https://turbopuffer.com/docs/vdp#safe-harbor)
-
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
 [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
@@ -148,11 +80,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")

@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/fts"
 title: "Full-Text Search Guide"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 # Full-Text Search Guide
 
@@ -252,7 +192,7 @@ print(result.rows)
 ### Custom tokenization
 
 When turbopuffer's built-in tokenizers aren't sufficient, use the
-`pre_tokenized_array` [tokenizer](https://turbopuffer.com/docs/fts#tokenizers)
+`pre_tokenized_array` [tokenizer](https://turbopuffer.com/docs/fts/#tokenizers)
 to perform client side tokenization using arbitrary logic.
 
 python
@@ -337,7 +277,8 @@ Other languages can be supported by [contacting us](https://turbopuffer.com/cont
 
 ### Tokenizers
 
-- `word_v2` (default for new namespaces)
+- `word_v3` (default for new namespaces)
+- `word_v2`
 - `word_v1`
 - `word_v0`
 - `pre_tokenized_array`
@@ -345,6 +286,8 @@ Other languages can be supported by [contacting us](https://turbopuffer.com/cont
 The default tokenizer is periodically upgraded. If your application relies
 on specific tokenization behavior, you should explicitly specify a tokenizer
 in the [schema](https://turbopuffer.com/docs/write#param-full_text_search).
+
+The word\_v3 tokenizer uses [Unicode v17.0 text segmentation rules](https://www.unicode.org/reports/tr29/tr29-47.html) for accurate segmentation across most languages, scripts, and emojis. Recommended for most use cases.
 
 The `word_v2` tokenizer forms tokens from ideographic codepoints, contiguous
 sequences of alphanumeric codepoints, and sequences of emoji codepoints that
@@ -384,7 +327,7 @@ The default value, `1.2`, means that increasing term frequency in a document
 boosts heavily to start but quickly results in diminishing returns.
 
 - `b` controls document length normalization. When `b` is `0.0`, documents are
-treated equally regardless of length, which allows long articles tend to
+treated equally regardless of length, which allows long articles to
 dominate due to sheer volume of terms. When `b` is `1.0`, documents are
 boosted or penalized based on the ratio of their length to the average
 document length in the corpus.
@@ -401,15 +344,6 @@ required only if your corpus consists of extremely short texts like tweets
 To tune these parameters, we recommend an empirical approach: build a set of
 evals, and choose the parameter values that maximize performance on those evals.
 
-On this page
-
-- [Basic example](https://turbopuffer.com/docs/fts#basic-example)
-- [Advanced example](https://turbopuffer.com/docs/fts#advanced-example)
-- [Custom tokenization](https://turbopuffer.com/docs/fts#custom-tokenization)
-- [Supported languages](https://turbopuffer.com/docs/fts#supported-languages)
-- [Tokenizers](https://turbopuffer.com/docs/fts#tokenizers)
-- [Advanced tuning](https://turbopuffer.com/docs/fts#advanced-tuning)
-
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
 [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
@@ -420,11 +354,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")

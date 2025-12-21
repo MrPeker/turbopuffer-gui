@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/limits"
 title: "Limits"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 # Limits
 
@@ -78,30 +18,31 @@ are limited by present performance, [contact us](https://turbopuffer.com/contact
 | Max documents (per namespace) | 500M+ @ 2TB | 500M @ 2TB |
 | Max number of namespaces | 100M+ | Unlimited |
 | Max dimensions |  | 10,752 |
-| Max inactive time in cache | ~1 day | Contact us for custom |
+| Max inactive time in cache | hours | Contact us for custom |
 | Max write throughput (global) | 10M+ writes/s @ 32GB/s | Unlimited |
-| Max write throughput (per namespace) | 32K+ writes/s @ 64MB/s | 10K writes/s @ 32 MB/s |
+| Max write throughput (per namespace) | 32k+ writes/s @ 64MB/s | 10k writes/s @ 32 MB/s |
+| Max namespace copy throughput | 72 MB/s | Contact us if bottlenecked |
 | Max upsert batch request size |  | 256 MB |
 | Max write batch rate (per namespace) |  | 1 batch/s |
 | Max rows affected by [patch by filter](https://turbopuffer.com/docs/write#patch-by-filter) |  | 500k |
 | Max rows affected by [delete by filter](https://turbopuffer.com/docs/write#delete-by-filter) |  | 5M |
 | Max ingested, unindexed data |  | 2 GB |
-| Max queries (global) | 10K+ queries/s | Unlimited |
-| Max queries (per namespace) | 1K+ queries/s | 1K+ queries/s |
+| Max queries (global) | 10k+ queries/s | Unlimited |
+| Max queries (per namespace) | 1k+ queries/s | 1k+ queries/s |
 | Max queries in a [multi-query request](https://turbopuffer.com/docs/query#param-queries) |  | 16 |
 | Max concurrent queries per namespace |  | 16 (100s of queries/s) |
 | Max read replicas | 3 | Unlimited |
 | Vector search recall@10 | 90-100% | 90-100% |
 | Max attribute value size |  | 8 MiB |
-| Max filterable value size |  | 4KiB |
+| Max filterable value size |  | 4 KiB |
 | Max document size |  | 64 MiB |
 | Max id size |  | 64 bytes |
 | Max attribute name length |  | 128 bytes |
 | Max attribute names per namespace |  | 256 |
 | Max namespace name length |  | 128 bytes |
 | Max full-text query length | 8,192 | 1,024 |
-| Max topk | 10K | 1.2K |
-| Max aggregation groups per query | 1.2K | 1.2K |
+| Max [limit.total](https://turbopuffer.com/docs/query#param-limit) | 10k | 10k |
+| Max aggregation groups per query | 10k | 1.2k |
 
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
@@ -113,11 +54,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")

@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/regions"
 title: "Regions"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 # Regions
 
@@ -71,20 +11,21 @@ turbopuffer supports multiple regions, choose the one closest to your backend.
 
 | Region | URL | Location | Browser RTT |
 | --- | --- | --- | --- |
-| gcp-us-east4 | https://gcp-us-east4.turbopuffer.com | N. Virginia | 012345678901234567890123456789 ms |
-| gcp-northamerica-northeast2 | https://gcp-northamerica-northeast2.turbopuffer.com | Toronto | 012345678901234567890123456789 ms |
-| gcp-us-west1 | https://gcp-us-west1.turbopuffer.com | Oregon | 012345678901234567890123456789 ms |
-| gcp-europe-west3 | https://gcp-europe-west3.turbopuffer.com | Frankfurt | 012345678901234567890123456789 ms |
-| gcp-us-central1 | https://gcp-us-central1.turbopuffer.com | Iowa | 012345678901234567890123456789 ms |
-| gcp-asia-southeast1 | https://gcp-asia-southeast1.turbopuffer.com | Singapore | ~~ ms |
-| gcp-asia-northeast3 | https://gcp-asia-northeast3.turbopuffer.com | Seoul | ~~ ms |
+| gcp-us-east4 | https://gcp-us-east4.turbopuffer.com | N. Virginia | 01234567890123456789 ms |
+| gcp-northamerica-northeast2 | https://gcp-northamerica-northeast2.turbopuffer.com | Toronto | 01234567890123456789 ms |
+| gcp-us-central1 | https://gcp-us-central1.turbopuffer.com | Iowa | 01234567890123456789 ms |
+| gcp-us-west1 | https://gcp-us-west1.turbopuffer.com | Oregon | 01234567890123456789 ms |
+| gcp-europe-west3 | https://gcp-europe-west3.turbopuffer.com | Frankfurt | 01234567890123456789 ms |
+| gcp-asia-northeast3 | https://gcp-asia-northeast3.turbopuffer.com | Seoul | 012345678901234567890123456789 ms |
+| gcp-asia-southeast1 | https://gcp-asia-southeast1.turbopuffer.com | Singapore | 012345678901234567890123456789 ms |
 | aws-us-east-1 | https://aws-us-east-1.turbopuffer.com | N. Virginia | 01234567890123456789 ms |
 | aws-us-east-2 | https://aws-us-east-2.turbopuffer.com | Ohio | 01234567890123456789 ms |
+| aws-ca-central-1 | https://aws-ca-central-1.turbopuffer.com | Montreal | 01234567890123456789 ms |
+| aws-eu-central-1 | https://aws-eu-central-1.turbopuffer.com | Frankfurt | 01234567890123456789 ms |
 | aws-us-west-2 | https://aws-us-west-2.turbopuffer.com | Oregon | 012345678901234567890123456789 ms |
-| aws-eu-central-1 | https://aws-eu-central-1.turbopuffer.com | Frankfurt | 012345678901234567890123456789 ms |
 | aws-eu-west-1 | https://aws-eu-west-1.turbopuffer.com | Ireland | 012345678901234567890123456789 ms |
-| aws-ap-southeast-2 | https://aws-ap-southeast-2.turbopuffer.com | Sydney | 012345678901234567890123456789 ms |
 | aws-ap-south-1 | https://aws-ap-south-1.turbopuffer.com | Mumbai | 012345678901234567890123456789 ms |
+| aws-ap-southeast-2 | https://aws-ap-southeast-2.turbopuffer.com | Sydney | 012345678901234567890123456789 ms |
 
 We support Azure for "Deploy in your VPC", but no public regions yet. [Contact us](https://turbopuffer.com/contact) if you need a public Azure region.
 
@@ -148,11 +89,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")

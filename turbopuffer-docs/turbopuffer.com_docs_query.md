@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/query"
 title: "Query documents"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 ## POST /v2/namespaces/:namespace/query
 
@@ -140,11 +80,11 @@ For [hybrid search](https://turbopuffer.com/docs/hybrid-search), you can use [mu
 
 * * *
 
-**top\_k** numberrequired
+**top\_k** number
 
-Number of documents to return.
+Alias for [limit.total](https://turbopuffer.com/docs/query#param-limit).
 
-Maximum: 1200 (adjustable upon request)
+Maximum: 10,000
 
 * * *
 
@@ -186,6 +126,49 @@ Cannot be specified with [include\_attributes](https://turbopuffer.com/docs/quer
 
 * * *
 
+**limit** number \| objectrequired
+
+Limits the number of documents returned.
+
+Can be a number to apply a total limit, or an object with the following
+fields:
+
+- `total` (number, required): limits the total number of documents returned
+
+Maximum: 10,000
+
+- `per` (object, optional): limits the number of documents with the same value for a
+set of attributes (the "limit key") that can appear in the results.
+
+
+  - `attributes` (string array): the attributes to include in the limit key
+  - `limit` (number): the maximum number of documents to return for each
+    value of the limit key
+
+`per` is only supported for [order by attribute](https://turbopuffer.com/docs/query#ordering-by-attributes)
+queries. Support for BM25 and ANN queries is on our roadmap.
+
+**Example (simple total):**
+
+```json
+{"limit": 10}
+```
+
+**Example (limit per category and size):**
+
+```json
+{
+  "limit": {
+    "per": {"attributes": ["category", "size"], "limit": 10},
+    "total": 10
+  }
+}
+```
+
+See [Diversification](https://turbopuffer.com/docs/query#diversification) below for details.
+
+* * *
+
 **aggregate\_by** objectrequired unless rank\_by is set
 
 [Aggregations](https://turbopuffer.com/docs/query#aggregations) to compute over all documents in the namespace
@@ -198,6 +181,7 @@ Each entry in the object maps a label for the aggregation to
 an aggregate function. Supported aggregate functions:
 
 - `["Count"]`: counts the number of documents.
+- `["Sum", "attribute_name"]`: sums the values of the specified scalar numeric attribute (supports `int`, `uint`, `float`)
 
 **Example:**`{"aggregate_by": {"my_count": ["Count"]}}`
 
@@ -507,6 +491,29 @@ result = ns.query(
 print(result.aggregations['my_cool_count'])
 ```
 
+You can use `Sum` to sum numeric attribute values across all documents that match
+a particular filter:
+
+python
+
+curlpythontypescriptgojavaruby
+
+```python
+import turbopuffer
+
+tpuf = turbopuffer.Turbopuffer(
+    region='gcp-us-central1', # pick the right region: https://turbopuffer.com/docs/regions
+)
+
+ns = tpuf.namespace('query-sum-example-py')
+
+result = ns.query(
+    aggregate_by={'my_cool_sum': ('Sum', 'cool_score')},
+    filters=('id', 'Gte', 2),
+)
+print(result.aggregations['my_cool_sum'])
+```
+
 #### Group by
 
 When [aggregating](https://turbopuffer.com/docs/query#param-aggregate_by), you can use the
@@ -650,10 +657,10 @@ print(result.rows)
 
 #### FTS operators
 
-FTS operators combine the results of multiple sub-queries into a single score. Specifically, the following operators are supported:
+FTS operators combine the results of multiple clauses into a single score. Specifically, the following operators are supported:
 
-- `Sum`: Sum the scores of the sub-queries.
-- `Max`: Use the maximum score of sub-queries as the score.
+- `Sum`: Sum the scores of the clauses.
+- `Max`: Use the maximum score of clauses as the score.
 
 Operators can be nested. For example:
 
@@ -670,7 +677,7 @@ Operators can be nested. For example:
 #### Field weights/boosts
 
 You can specify a weight / boost per-field by using the `Product` operator inside a `rank_by`.
-For example, to apply a 2x score multiplier on the `title` sub-query:
+For example, to apply a 2x score multiplier on the `title` clause:
 
 ```json
 "rank_by": ["Sum", [\
@@ -698,19 +705,24 @@ Use `Product` to change how large the boost is:
 
 #### Phrase matching
 
-A simple form of phrase matching is supported with the `ContainsAllTokens` filter. This filter matches documents that contain all the tokens present in the filter input string:
+`ContainsTokenSequence` matches documents that contain all the tokens present in the filter input string, in the exact order and adjacent to each other.
 
 ```json
-"filters": ["text", "ContainsAllTokens", "lazy walrus"]
+"filters": ["text", "ContainsTokenSequence", "walrus is lazy"]
 ```
 
-Specifically, this filter would match a document containing "walrus is super lazy", but not a document containing only "lazy." Combining this with a `Not` filter can help exclude unwanted results:
+Currently, turbopuffer implements `ContainsTokenSequence` using a partial postfilter which may lead to reduced recall on ANN & FTS queries, and potentially higher latency on filter-only queries; we expect to improve this in the future.
+
+`ContainsAllTokens` matches documents that contain all the tokens present in the filter input string, regardless of order or adjacency. For example, this filter would match a document like "walrus is lazy", provided said document didn't contain both "polar" and "bear":
 
 ```json
-"filters": ["Not", ["text", "ContainsAllTokens", "polar bear"]]
+"filters": ["And", [\
+  ["text", "ContainsAllTokens", "lazy walrus"],\
+  ["Not", ["text", "ContainsAllTokens", "polar bear"]]\
+]]
 ```
 
-Full phrase matching, i.e. requiring the exact phrase "lazy walrus", with the terms adjacent and in that order, is not yet supported.
+`ContainsAllTokens` is generally faster than `ContainsTokenSequence`.
 
 #### Prefix queries
 
@@ -882,9 +894,20 @@ Regular expression match against `string` attribute values. Requires the [regex 
 
 **ContainsAllTokens** string
 
-Matches if all tokens in the input string are present in the `attributes` value. Requires that the attribute is configured for [full-text search](https://turbopuffer.com/docs/fts).
+Matches documents that contain all the tokens present in the filter input string. If you need tokens to be adjacent and in order, use `ContainsTokenSequence` instead. See [phrase matching](https://turbopuffer.com/docs/query#phrase-matching) for usage examples.
+
+Requires that the attribute is configured for [full-text search](https://turbopuffer.com/docs/fts).
 
 Supports [prefix queries](https://turbopuffer.com/docs/query#prefix-queries) by providing an options object as the fourth parameter with `"last_as_prefix": true`. Prefixes match using byte representations, e.g. "🧑" is a prefix of "🧑‍💻".
+
+* * *
+
+**ContainsTokenSequence** string
+
+Matches documents that contain all the tokens present in the
+input string, in the exact order and adjacent to each other. See [phrase matching](https://turbopuffer.com/docs/query#phrase-matching) for usage examples.
+
+Requires that the attribute is configured for [full-text search](https://turbopuffer.com/docs/fts).
 
 #### Complex Example
 
@@ -919,6 +942,23 @@ result = ns.query(
     ))
 )
 print(result.rows) # Returns a row-oriented VectorResult
+```
+
+### Diversification
+
+The [limit.per](https://turbopuffer.com/docs/query#param-limit) parameter is a simple mechanism for increasing the
+diversity of results. For example, to ensure that no category appears more than
+five times in the results:
+
+```jsonc
+{
+  "rank_by": ["id", "asc"],
+  "filters": ["product_name", "ContainsAllTokens", "red cotton"],
+  "limit": {
+    "per": {"attributes": ["category"], "limit": 5}, // no more than 5 docs per category
+    "total": 50
+  }
+}
 ```
 
 ### Pagination
@@ -964,29 +1004,6 @@ Currently paginating beyond the first page for full-text search and vector
 search is not supported. Pass a larger `top_k` value to get more results and
 paginate client-side. If you need a higher limit, please [contact us](https://turbopuffer.com/contact).
 
-On this page
-
-- [Request](https://turbopuffer.com/docs/query#request)
-- [Response](https://turbopuffer.com/docs/query#response)
-- [Examples](https://turbopuffer.com/docs/query#examples)
-- [Vector Search](https://turbopuffer.com/docs/query#vector-search)
-- [Filters](https://turbopuffer.com/docs/query#filters)
-- [Ordering by Attributes](https://turbopuffer.com/docs/query#ordering-by-attributes)
-- [Lookups](https://turbopuffer.com/docs/query#lookups)
-- [Aggregations](https://turbopuffer.com/docs/query#aggregations)
-- [Group by](https://turbopuffer.com/docs/query#group-by)
-- [Multi-queries](https://turbopuffer.com/docs/query#multi-queries)
-- [Full-Text Search](https://turbopuffer.com/docs/query#full-text-search)
-- [FTS operators](https://turbopuffer.com/docs/query#fts-operators)
-- [Field weights/boosts](https://turbopuffer.com/docs/query#field-weightsboosts)
-- [Rank by filter](https://turbopuffer.com/docs/query#rank-by-filter)
-- [Phrase matching](https://turbopuffer.com/docs/query#phrase-matching)
-- [Prefix queries](https://turbopuffer.com/docs/query#prefix-queries)
-- [Filtering](https://turbopuffer.com/docs/query#filtering)
-- [Filtering Parameters](https://turbopuffer.com/docs/query#filtering-parameters)
-- [Complex Example](https://turbopuffer.com/docs/query#complex-example)
-- [Pagination](https://turbopuffer.com/docs/query#pagination)
-
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
 [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
@@ -997,11 +1014,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")

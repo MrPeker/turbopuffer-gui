@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/write"
 title: "Write Documents"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 ## POST /v2/namespaces/:namespace
 
@@ -322,30 +262,34 @@ Copy all documents from another namespace into this one. The destination namespa
 you are copying into must be empty. The initial request currently cannot make
 schema changes or contain documents.
 
-Copying is billed at a 50% write discount which stacks with the up to 50%
-discount for batched writes. This is a faster, cheaper alternative to
-re-upserting documents for backups and namespaces that share documents.
+Copying is billed at up to a 75% write discount (a 50% copy discount that stacks
+with the up to 50% discount for batched writes). This is a faster, cheaper alternative to
+re-upserting documents for backups and namespaces that share documents. See the
+[cross-region backups guide](https://turbopuffer.com/docs/backups) for an example.
 
-To copy a namespace from a different organization, instead of providing the
+To copy a namespace from a different organization or region, instead of providing the
 namespace as a string, provide an object with the following fields:
 
-- `source_api_key` (string): an API key for the organization containing the source namespace
 - `source_namespace` (string): the namespace to copy from
+- `source_api_key` (string, optional): an API key for the organization containing the source namespace. Omit to copy from the same organization as the target namespace.
+- `source_region` (string, optional): the [region](https://turbopuffer.com/docs/regions) of the source namespace (e.g. `"aws-us-east-1"`). Omit to copy from the same region as the target namespace.
 
 By default, the destination namespace will inherit the source namespace's encryption
 configuration. You can optionally specify a different [CMEK key](https://turbopuffer.com/docs/write#param-encryption)
 for the destination namespace by including the `encryption` parameter in the same
 request. This allows you to copy from an unencrypted namespace to a CMEK-encrypted
-namespace, or to use a different CMEK key than the source.
+namespace, or to use a different CMEK key than the source. For cross-region copies
+from a CMEK-encrypted namespace, you must explicitly specify a destination encryption key available in the destination region.
 
 **Example (basic copy):**`"source-namespace"`
 
-**Example (cross-org copy):**
+**Example (cross-region, cross-org copy):**
 
 ```json
 {
   "source_namespace": "source-namespace",
-  "source_api_key": "tpuf_A1..."
+  "source_api_key": "tpuf_A1...",
+  "source_region": "aws-us-east-1"
 }
 ```
 
@@ -383,15 +327,9 @@ or use [`copy_from_namespace`](https://turbopuffer.com/docs/write#param-copy_fro
 
 **disable\_backpressure** booleandefault: false
 
-If you are doing extremely large scale ingestions, you can disable backpressure with this parameter.
+Disables HTTP 429 backpressure on writes when unindexed data exceeds 2 GiB. Useful for initial data loading or bulk updates. When disabled, strongly consistent queries return errors above this threshold, so use [eventual consistency](https://turbopuffer.com/docs/query#param-consistency) instead. Eventually consistent queries search only the first 128 MiB of unindexed data.
 
-Writes by default apply backpressure with HTTP 429 responses when ingested, unindexed data reaches 2 GB. This can happen when particularly efficient pipelines ingest faster than turbopuffer can index (~32 MB/s). See [Performance](https://turbopuffer.com/docs/performance) on how to optimize indexing throughput.
-
-[Official clients](https://github.com/turbopuffer) automatically handle graceful backoff, which can limit ingestion throughput.
-
-Disabling backpressure means that strongly consistent queries will fail when ingested, [unindexed data reaches 2 GB](https://turbopuffer.com/docs/limits) (the WAL), and grow slower the larger the unindexed data. Eventually consistent queries will work even with unindexed data exceeding 2 GB.
-
-Indexing progress can be tracked through the `exhaustive_search_count` field in the query response’s [`performance`](https://turbopuffer.com/docs/query#responsefield-performance) field.
+Indexing progress can be tracked through the `unindexed_bytes` field in the [metadata endpoint](https://turbopuffer.com/docs/metadata#responsefield-index).
 
 **Example:**`true`
 
@@ -436,7 +374,7 @@ The [limits](https://turbopuffer.com/docs/limits) are currently:
 The billable resources consumed by the write. The object contains the following fields:
 
 - `billable_logical_bytes_written` (uint): the number of logical bytes written to the namespace
-- `query` (object, optional): query billing information when the write involves a query (for a conditional write, patch\_by\_filter or delete\_by\_filter):
+- `query`(object, optional): query billing information when the write involves a query (for a conditional write, patch\_by\_filter or delete\_by\_filter):
   - `billable_logical_bytes_queried` (uint): the number of logical bytes processed by queries
   - `billable_logical_bytes_returned` (uint): the number of logical bytes returned by queries
 
@@ -546,11 +484,12 @@ override this by setting `filterable: true`.
 
 Can either be a boolean for default settings, or an object with the following optional fields:
 
-- `language` (string): The language of the text. Defaults to `english`. See: [Supported languages](https://turbopuffer.com/docs/fts#supported-languages)
+- `tokenizer` (string): How to convert the text to a list of tokens. Defaults to `word_v3`. The default is periodically upgraded for new namespaces. See: [Supported tokenizers](https://turbopuffer.com/docs/fts#tokenizers)
+- `case_sensitive` (boolean): Whether searching is case-sensitive. Defaults to `false` (i.e. case-insensitive).
+- `language` (string): The language of the text. Defaults to `english`. See: [Supported languages](https://turbopuffer.com/docs/fts/#supported-languages)
 - `stemming` (boolean): Language-specific stemming for the text. Defaults to `false` (i.e. do not stem).
 - `remove_stopwords` (boolean): Removes [common words](https://snowballstem.org/algorithms/english/stop.txt) from the text based on `language`. Defaults to `true` (i.e. remove common words).
-- `case_sensitive` (boolean): Whether searching is case-sensitive. Defaults to `false` (i.e. case-insensitive).
-- `tokenizer` (string): How to convert the text to a list of tokens. Defaults to `word_v2`. The default is periodically upgraded for new namespaces. See: [Supported tokenizers](https://turbopuffer.com/docs/fts#tokenizers)
+- `ascii_folding` (boolean): Whether to convert each non-ASCII character in a token to its ASCII equivalent, if one exists (e.g., à -> a). Applied after stemming and stopword removal. Defaults to `false` (i.e., no folding).
 - `k1` (float): Term frequency saturation parameter for BM25 scoring. Must be greater than zero. Defaults to `1.2`. See: [Advanced tuning](https://turbopuffer.com/docs/fts#advanced-tuning)
 - `b` (float): Document length normalization parameter for BM25 scoring. Must be in the range `[0.0, 1.0]`. Defaults to `0.75`. See: [Advanced tuning](https://turbopuffer.com/docs/fts#advanced-tuning)
 
@@ -930,22 +869,6 @@ for row in results.rows:
     print(f"ID {row['id']}: {row['status']}")  # IDs 101 and 103 are now archived
 ```
 
-On this page
-
-- [Request](https://turbopuffer.com/docs/write#request)
-- [Response](https://turbopuffer.com/docs/write#response)
-- [Attributes](https://turbopuffer.com/docs/write#attributes)
-- [Vectors](https://turbopuffer.com/docs/write#vectors)
-- [Schema](https://turbopuffer.com/docs/write#schema)
-- [Updating attributes](https://turbopuffer.com/docs/write#updating-attributes)
-- [Examples](https://turbopuffer.com/docs/write#examples)
-- [Row-based writes](https://turbopuffer.com/docs/write#row-based-writes)
-- [Configuring the schema](https://turbopuffer.com/docs/write#configuring-the-schema)
-- [Column-based writes](https://turbopuffer.com/docs/write#column-based-writes)
-- [Conditional writes](https://turbopuffer.com/docs/write#conditional-writes)
-- [Delete by filter](https://turbopuffer.com/docs/write#delete-by-filter)
-- [Patch by filter](https://turbopuffer.com/docs/write#patch-by-filter)
-
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
 [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
@@ -956,11 +879,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")

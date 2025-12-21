@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/security"
 title: "Security & Compliance"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 # Security & Compliance
 
@@ -73,8 +13,8 @@ All customer data is hosted exclusively in the [region you\\
 select](https://turbopuffer.com/docs/regions). Customer data inserted into one region remains in that
 region, except when requested by the customer via the turbopuffer API. Customer
 data and usage data is always encrypted in transit with TLS1.2+. Customer data
-is always encrypted at rest with AES-256 in Google Cloud Storage, and optionally
-with a [customer's key](https://turbopuffer.com/docs/security#customer-managed-encryption-cmek).
+is always encrypted at rest with AES-256, and optionally with a [customer's\\
+key](https://turbopuffer.com/docs/security#customer-managed-encryption-cmek).
 
 ### SOC2
 
@@ -85,13 +25,26 @@ You can request a copy of the latest SOC 2 report and Penetration Test
 from our [Trust\\
 Center](https://app.drata.com/trust/b4dc7714-f52d-4f50-97e3-ff56a41c2b5c).
 
+### Data Protection (GDPR & CCPA)
+
+turbopuffer provides a [Data Processing Addendum (DPA)](https://turbopuffer.com/dpa) for all customers
+to enable compliance with the General Data Protection Regulation (GDPR) and the
+California Consumer Privacy Act (CCPA).
+The DPA describes our commitment to policies that comply with the requirements
+of privacy laws on data processors, such as data deletion, breach notification,
+and subprocessor management policies.
+
+We're happy to assist with any additional questions you may have as part of your
+privacy compliance processes.
+
 ### HIPAA
 
 Customers who wish to store protected health information (PHI) in turbopuffer
-may request a business associate agreement (BAA) with turbopuffer under which
-turbopuffer commits to HIPAA compliance.
+may request a Business Associate Agreement (BAA) with turbopuffer, under which
+turbopuffer commits to compliance with the requirements of HIPAA on business
+associates that store and process PHI.
 
-[Contact us](https://turbopuffer.com/contact) if you require a BAA.
+[Contact us](https://turbopuffer.com/contact) if you require a BAA or have further questions.
 
 ### Vulnerability Disclosure
 
@@ -133,16 +86,6 @@ customers on the [Enterprise](https://turbopuffer.com/pricing) plan.
 [Subscribe to subprocessor update notifications for when we engage new customer\\
 data subprocessors.](https://turbopuffer.com/dashboard/subprocessor-subscribe)
 
-On this page
-
-- [Hosting](https://turbopuffer.com/docs/security#hosting)
-- [SOC2](https://turbopuffer.com/docs/security#soc2)
-- [HIPAA](https://turbopuffer.com/docs/security#hipaa)
-- [Vulnerability Disclosure](https://turbopuffer.com/docs/security#vulnerability-disclosure)
-- [Customer managed encryption (CMEK)](https://turbopuffer.com/docs/security#customer-managed-encryption-cmek)
-- [Private networking](https://turbopuffer.com/docs/security#private-networking)
-- [Subprocessors for Customer Data](https://turbopuffer.com/docs/security#subprocessors-for-customer-data)
-
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
 [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
@@ -153,11 +96,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")

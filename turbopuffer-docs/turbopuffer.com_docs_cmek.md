@@ -3,67 +3,7 @@ url: "https://turbopuffer.com/docs/cmek"
 title: "Setting up CMEK encryption with an EKM"
 ---
 
-[100B vectors @ 200ms p99NEW: 100B vectors @ 200ms p99 latency (opt-in beta)](https://turbopuffer.com/docs/roadmap)
-
-## Navigation
-
-[![Logo](https://turbopuffer.com/_next/static/media/logo_header_darkbg.435dd040.svg)turbopuffer](https://turbopuffer.com/)
-
-[Customers](https://turbopuffer.com/customers) [Pricing](https://turbopuffer.com/pricing) [Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Blog](https://turbopuffer.com/blog) [Docs](https://turbopuffer.com/docs) [Contact](https://turbopuffer.com/contact) [Dashboard](https://turbopuffer.com/dashboard) [Sign up](https://turbopuffer.com/join)
-
-[Introduction](https://turbopuffer.com/docs)
-
-[Architecture](https://turbopuffer.com/docs/architecture)
-
-[Guarantees](https://turbopuffer.com/docs/guarantees)
-
-[Tradeoffs](https://turbopuffer.com/docs/tradeoffs)
-
-[Limits](https://turbopuffer.com/docs/limits)
-
-[Regions](https://turbopuffer.com/docs/regions)
-
-[Roadmap & Changelog](https://turbopuffer.com/docs/roadmap)
-
-[Security](https://turbopuffer.com/docs/security)
-
-[Encryption](https://turbopuffer.com/docs/cmek)
-
-[Private Networking](https://turbopuffer.com/docs/private-networking)
-
-[Performance](https://turbopuffer.com/docs/performance)
-
-Guides
-
-[Quickstart](https://turbopuffer.com/docs/quickstart)
-
-[Vector Search](https://turbopuffer.com/docs/vector)
-
-[Full-Text Search](https://turbopuffer.com/docs/fts)
-
-[Hybrid Search](https://turbopuffer.com/docs/hybrid)
-
-[Testing](https://turbopuffer.com/docs/testing)
-
-API
-
-[Auth & Encoding](https://turbopuffer.com/docs/auth)
-
-[Write](https://turbopuffer.com/docs/write)
-
-[Query](https://turbopuffer.com/docs/query)
-
-[Namespace metadata](https://turbopuffer.com/docs/metadata)
-
-[Export](https://turbopuffer.com/docs/export)
-
-[Warm cache](https://turbopuffer.com/docs/warm-cache)
-
-[List namespaces](https://turbopuffer.com/docs/namespaces)
-
-[Delete namespace](https://turbopuffer.com/docs/delete-namespace)
-
-[Recall](https://turbopuffer.com/docs/recall)
+[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
 
 # Setting up CMEK encryption with an EKM
 
@@ -218,18 +158,9 @@ If you need to migrate all data to a new key version, you have two options:
 1. Use the [export](https://turbopuffer.com/docs/export) API to re-upsert your data into a new namespace with the desired encryption configuration
 2. Use [`copy_from_namespace`](https://turbopuffer.com/docs/write#param-copy_from_namespace) with a different `encryption` parameter to copy the namespace with a new CMEK key
 
-The second option is faster and more cost-effective, with a 50% write discount. It also works for upgrading an unencrypted (SSE) namespace to CMEK encryption.
+The second option is faster and more cost-effective, with up to a 75% write discount. It also works for upgrading an unencrypted (SSE) namespace to CMEK encryption.
 
 **Should you find this limiting, [contact us](https://turbopuffer.com/contact)**
-
-On this page
-
-- [Enabling CMEK](https://turbopuffer.com/docs/cmek#enabling-cmek)
-- [When do I provide the encryption key?](https://turbopuffer.com/docs/cmek#when-do-i-provide-the-encryption-key)
-- [Does CMEK impact latency or availability?](https://turbopuffer.com/docs/cmek#does-cmek-impact-latency-or-availability)
-- [What does it cost?](https://turbopuffer.com/docs/cmek#what-does-it-cost)
-- [Who is doing the encryption?](https://turbopuffer.com/docs/cmek#who-is-doing-the-encryption)
-- [Does turbopuffer support key rotation?](https://turbopuffer.com/docs/cmek#does-turbopuffer-support-key-rotation)
 
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
@@ -241,11 +172,8 @@ Support
 
 Follow
 
-[Blog](https://turbopuffer.com/blog)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
 
 © 2025 turbopuffer Inc.
 
 [Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
-
-[- SOC2 Type 2 certified\\
-- HIPAA compliant](https://turbopuffer.com/docs/security "Learn more about our security practices")
