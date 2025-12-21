@@ -106,6 +106,9 @@ export function convertFiltersToQuery(
       case "not_imatches":
         filters.push([filter.attribute, "NotIGlob", filter.value] as Filter);
         break;
+      case "regex":
+        filters.push([filter.attribute, "Regex", filter.value] as Filter);
+        break;
     }
   });
 

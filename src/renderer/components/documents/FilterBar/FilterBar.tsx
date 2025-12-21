@@ -124,9 +124,12 @@ export const FilterBar: React.FC<FilterBarProps> = (
     vectorField || "embedding",
   );
 
-  // Subscribe to store for currentNamespaceId changes
+  // Subscribe to store for currentNamespaceId and client initialization changes
   const currentNamespaceId = useDocumentsStore((state) =>
     state.currentNamespaceId
+  );
+  const isClientInitialized = useDocumentsStore((state) =>
+    state.isClientInitialized
   );
 
   // Subscribe directly to recentFilterHistory from store
@@ -309,10 +312,12 @@ export const FilterBar: React.FC<FilterBarProps> = (
     return fields;
   }, [documents, attributes]);
 
-  // Load schema on mount
+  // Load schema when namespace changes or client becomes initialized
   useEffect(() => {
-    loadSchemaAndInitColumns();
-  }, []);
+    if (currentNamespaceId && isClientInitialized) {
+      loadSchemaAndInitColumns();
+    }
+  }, [currentNamespaceId, isClientInitialized, loadSchemaAndInitColumns]);
 
   // Sync local search text with store
   useEffect(() => {
@@ -903,7 +908,8 @@ export const FilterBar: React.FC<FilterBarProps> = (
               className="h-8 px-2 font-mono text-xs"
             >
               <Eye className="w-3 h-3 mr-1" />
-              {visibleColumns.size}/{availableFields.length}
+              {/* Count only fields that are in availableFields */}
+              {availableFields.filter(f => visibleColumns.has(f.name)).length}/{availableFields.length}
               <ChevronDown className="w-3 h-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
@@ -923,7 +929,7 @@ export const FilterBar: React.FC<FilterBarProps> = (
             >
               <Checkbox
                 checked={visibleColumns.has("id")}
-                className="mr-1.5 h-3 w-3"
+                className="mr-2 h-4 w-4 pointer-events-none focus:ring-0 focus-visible:ring-0"
               />
               <span className="flex-1">id</span>
               <Badge variant="outline" className="ml-1.5">
@@ -947,7 +953,7 @@ export const FilterBar: React.FC<FilterBarProps> = (
                 >
                   <Checkbox
                     checked={visibleColumns.has(field.name)}
-                    className="mr-1.5 h-3 w-3"
+                    className="mr-2 h-4 w-4 pointer-events-none focus:ring-0 focus-visible:ring-0"
                   />
                   <span className="flex-1 font-mono text-tp-text">
                     {field.name}
@@ -1221,10 +1227,10 @@ export const FilterBar: React.FC<FilterBarProps> = (
                     if (onPageSizeChange) {
                       onPageSizeChange(newSize);
                     }
-                    loadDocuments(false, false, newSize);
+                    loadDocuments(false, false, newSize, 1); // Reset to page 1 when changing page size
                   }}
                 >
-                  <SelectTrigger className="w-16 h-6 py-0 text-xs bg-transparent border-0 hover:bg-muted">
+                  <SelectTrigger className="w-[5rem] h-6 py-0 text-xs bg-transparent border-0 hover:bg-muted">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

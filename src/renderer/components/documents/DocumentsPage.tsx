@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import type { Document } from "@/types/document";
 import {
   AlertCircle,
+  ChevronRight,
   Download,
   RefreshCw,
   Trash2,
@@ -36,7 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const DocumentsPage: React.FC = () => {
   const { connectionId, namespaceId } = useParams<{ connectionId: string; namespaceId: string }>();
-  const { getConnectionById, turbopufferClient, clientError, setActiveConnection, isActiveConnectionReadOnly } = useConnections();
+  const { getConnectionById, turbopufferClient, clientError, setActiveConnection, isActiveConnectionReadOnly, getDelimiterPreference } = useConnections();
   const connection = connectionId ? getConnectionById(connectionId) : null;
   const { toast } = useToast();
   const { setInspectorContent, setInspectorTitle, openInspector, closeInspector } = useInspector();
@@ -338,16 +339,33 @@ export const DocumentsPage: React.FC = () => {
     <div className="flex flex-col h-full bg-tp-bg relative">
       {/* Toolbar - Tier 3: Document Actions */}
       <div className="px-3 py-1.5 border-b border-tp-border-subtle bg-tp-surface flex items-center justify-between">
-        {/* Page Title */}
-        <div className="flex items-center gap-1.5">
-          <h1 className="text-xs font-semibold uppercase tracking-wider text-tp-text">Documents</h1>
-          {namespaceId && (
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-1.5 text-xs">
+          <span className="font-semibold uppercase tracking-wider text-tp-text">Documents</span>
+          {connection && (
             <>
-              <span className="text-tp-text-muted">•</span>
-              <span className="text-xs font-mono text-tp-accent">{namespaceId}</span>
+              <ChevronRight className="h-3 w-3 text-tp-text-muted" />
+              <Link
+                to={`/connections/${connectionId}/namespaces`}
+                className="text-tp-text-muted hover:text-tp-text transition-colors"
+              >
+                {connection.name}
+              </Link>
             </>
           )}
-        </div>
+          {namespaceId && (() => {
+            const delimiter = connectionId ? getDelimiterPreference(connectionId) : '-';
+            const parts = namespaceId.split(delimiter);
+            return parts.map((part, index) => (
+              <React.Fragment key={index}>
+                <ChevronRight className="h-3 w-3 text-tp-text-muted" />
+                <span className={index === parts.length - 1 ? "font-mono text-tp-accent" : "font-mono text-tp-text-muted"}>
+                  {part}
+                </span>
+              </React.Fragment>
+            ));
+          })()}
+        </nav>
 
         {/* Document Actions - Tier 3 (subtle) */}
         <div className="flex items-center gap-1">

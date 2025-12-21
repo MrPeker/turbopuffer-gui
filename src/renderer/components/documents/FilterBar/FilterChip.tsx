@@ -28,6 +28,7 @@ export const FilterChip: React.FC<FilterChipProps> = ({ filter, onRemove }) => {
     not_matches: "≉",
     imatches: "≈i",
     not_imatches: "≉i",
+    regex: "~",
   };
 
   // Format display value more nicely
