@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { Namespace } from '../../../types/namespace';
@@ -13,16 +13,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   MoreHorizontal,
   Trash2,
   ArrowRight,
   RefreshCw,
-  Database,
   Copy,
   FolderOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatBytes, formatNumber, formatDate } from '../../utils/formatBytes';
 
 interface NamespaceListProps {
   namespaces: Namespace[];
@@ -41,7 +42,18 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
     setDeleteDialogNamespace,
     deleteNamespace,
     addRecentNamespace,
+    fetchMetadataForNamespaces,
+    getNamespaceMetadata,
+    isMetadataLoading,
   } = useNamespacesStore();
+
+  // Fetch metadata for visible namespaces
+  useEffect(() => {
+    if (namespaces.length > 0) {
+      const namespaceIds = namespaces.map(ns => ns.id);
+      fetchMetadataForNamespaces(namespaceIds);
+    }
+  }, [namespaces, fetchMetadataForNamespaces]);
 
   const handleDelete = async (namespaceId: string) => {
     try {
@@ -77,30 +89,64 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
             <TableRow className="border-b border-tp-border-subtle hover:bg-transparent">
               <TableHead className="h-9 px-4 w-[24px]"></TableHead>
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">namespace</TableHead>
+              <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted text-right w-[100px]">rows</TableHead>
+              <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted text-right w-[100px]">size</TableHead>
+              <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted w-[120px]">created</TableHead>
               <TableHead className="h-9 px-4 w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {namespaces.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3} className="h-24 text-center text-xs text-tp-text-muted">
+                <TableCell colSpan={6} className="h-24 text-center text-xs text-tp-text-muted">
                   no namespaces found
                 </TableCell>
               </TableRow>
             ) : (
-              namespaces.map((namespace) => (
-                <TableRow
-                  key={namespace.id}
-                  className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
-                  onClick={() => handleNamespaceClick(namespace)}
-                >
-                  <TableCell className="py-3 px-4">
-                    <FolderOpen className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />
-                  </TableCell>
-                  <TableCell className="py-3 px-4 font-mono text-sm text-tp-text font-medium">
-                    {namespace.id}
-                  </TableCell>
-                  <TableCell className="py-3 px-4">
+              namespaces.map((namespace) => {
+                const metadata = getNamespaceMetadata(namespace.id);
+                const isLoading = isMetadataLoading(namespace.id);
+
+                return (
+                  <TableRow
+                    key={namespace.id}
+                    className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
+                    onClick={() => handleNamespaceClick(namespace)}
+                  >
+                    <TableCell className="py-3 px-4">
+                      <FolderOpen className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />
+                    </TableCell>
+                    <TableCell className="py-3 px-4 font-mono text-sm text-tp-text font-medium">
+                      {namespace.id}
+                    </TableCell>
+                    <TableCell className="py-3 px-4 text-right text-xs text-tp-text-muted tabular-nums">
+                      {isLoading ? (
+                        <Skeleton className="h-4 w-16 ml-auto" />
+                      ) : metadata ? (
+                        formatNumber(metadata.approx_row_count)
+                      ) : (
+                        <span className="text-tp-text-muted/50">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-3 px-4 text-right text-xs text-tp-text-muted tabular-nums">
+                      {isLoading ? (
+                        <Skeleton className="h-4 w-16 ml-auto" />
+                      ) : metadata ? (
+                        formatBytes(metadata.approx_logical_bytes)
+                      ) : (
+                        <span className="text-tp-text-muted/50">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-3 px-4 text-xs text-tp-text-muted">
+                      {isLoading ? (
+                        <Skeleton className="h-4 w-20" />
+                      ) : metadata ? (
+                        formatDate(metadata.created_at)
+                      ) : (
+                        <span className="text-tp-text-muted/50">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-3 px-4">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
@@ -143,7 +189,8 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>

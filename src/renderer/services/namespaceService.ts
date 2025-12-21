@@ -2,6 +2,7 @@ import { Turbopuffer } from '@turbopuffer/turbopuffer';
 import type {
   Namespace,
   NamespaceListParams,
+  NamespaceMetadata,
   NamespaceSchema,
   NamespacesResponse
 } from '../../types/namespace';
@@ -169,6 +170,27 @@ export class NamespaceService {
   async searchNamespaces(prefix: string): Promise<Namespace[]> {
     const response = await this.listNamespaces({ prefix, page_size: 1000 });
     return response.namespaces;
+  }
+
+  async getNamespaceMetadata(namespaceId: string): Promise<NamespaceMetadata> {
+    if (!this.client) {
+      throw new Error('Turbopuffer client not initialized');
+    }
+
+    const ns = this.client.namespace(namespaceId);
+
+    try {
+      const metadata = await ns.metadata();
+      return {
+        approx_row_count: metadata.approx_row_count,
+        approx_logical_bytes: metadata.approx_logical_bytes,
+        created_at: metadata.created_at,
+        schema: metadata.schema,
+      };
+    } catch (error) {
+      console.error('Failed to get namespace metadata:', error);
+      throw error;
+    }
   }
 
   // DEPRECATED: Document count queries can cause 429 rate limit errors

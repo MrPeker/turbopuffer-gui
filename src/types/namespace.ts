@@ -2,6 +2,17 @@ export interface Namespace {
   id: string;
   /** @deprecated Document count queries can cause 429 rate limit errors. Avoid using this property. */
   documentCount?: number;
+  // Metadata fields (populated when fetched via getNamespaceMetadata)
+  approx_row_count?: number;
+  approx_logical_bytes?: number;
+  created_at?: string;
+}
+
+export interface NamespaceMetadata {
+  approx_row_count: number;
+  approx_logical_bytes: number;
+  created_at: string;
+  schema?: Record<string, unknown>;
 }
 
 export interface NamespacesResponse {

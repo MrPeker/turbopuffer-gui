@@ -20,6 +20,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatBytes, formatNumber, formatDate } from '../../utils/formatBytes';
 
 interface NamespaceTreeViewProps {
   namespaces: Namespace[];
@@ -62,7 +63,18 @@ export function NamespaceTreeView({
     setDeleteDialogNamespace,
     deleteNamespace,
     resetExpandedFolders,
+    fetchMetadataForNamespaces,
+    getNamespaceMetadata,
+    isMetadataLoading,
   } = useNamespacesStore();
+
+  // Fetch metadata for visible namespaces (only actual namespaces, not folders)
+  useEffect(() => {
+    if (namespaces.length > 0) {
+      const namespaceIds = namespaces.map(ns => ns.id);
+      fetchMetadataForNamespaces(namespaceIds);
+    }
+  }, [namespaces, fetchMetadataForNamespaces]);
 
   // Reset expanded folders when delimiter changes
   useEffect(() => {
@@ -198,6 +210,8 @@ export function NamespaceTreeView({
   const renderTreeNode = (node: TreeNode, level = 0) => {
     const isExpanded = expandedFolders.has(node.id);
     const isLoading = loadingFolders.has(node.id);
+    const metadata = !node.isFolder ? getNamespaceMetadata(node.id) : undefined;
+    const metadataLoading = !node.isFolder && isMetadataLoading(node.id);
 
     return (
       <div key={node.id}>
@@ -222,7 +236,7 @@ export function NamespaceTreeView({
           ) : (
             <div className="w-4" />
           )}
-          
+
           {node.isFolder ? (
             isExpanded ? (
               <FolderOpen className="h-4 w-4 text-blue-600" />
@@ -232,13 +246,36 @@ export function NamespaceTreeView({
           ) : (
             <File className="h-4 w-4 text-muted-foreground" />
           )}
-          
+
           <span className={cn(
-            "flex-1 text-sm",
-            node.isFolder ? "font-medium" : "font-mono"
+            "text-sm min-w-0",
+            node.isFolder ? "font-medium flex-1" : "font-mono"
           )}>
             {node.name}
           </span>
+
+          {/* Metadata display for leaf nodes */}
+          {!node.isFolder && (
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground ml-2">
+              {metadataLoading ? (
+                <>
+                  <Skeleton className="h-3 w-10" />
+                  <Skeleton className="h-3 w-12" />
+                </>
+              ) : metadata ? (
+                <>
+                  <span className="tabular-nums" title="Row count">
+                    {formatNumber(metadata.approx_row_count)} rows
+                  </span>
+                  <span className="tabular-nums" title="Size">
+                    {formatBytes(metadata.approx_logical_bytes)}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          )}
+
+          <div className="flex-1" />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { devtools, subscribeWithSelector } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { enableMapSet } from "immer";
-import type { Namespace, NamespacesResponse } from "../../types/namespace";
+import type { Namespace, NamespaceMetadata, NamespacesResponse } from "../../types/namespace";
 import type { TurbopufferRegion } from "../../types/connection";
 import { namespaceService } from "../services/namespaceService";
 import { turbopufferService } from "../services/turbopufferService";
@@ -61,6 +61,13 @@ interface NamespacesState {
   viewModeCache: Map<string, 'list' | 'tree'>; // Per-connection view preference
   expandedFoldersCache: Map<string, Set<string>>; // Per-connection expanded state
 
+  // Metadata Cache
+  metadataCache: Map<string, {
+    metadata: NamespaceMetadata;
+    timestamp: number;
+  }>;
+  metadataLoading: Set<string>; // Namespace IDs currently loading metadata
+
   // Actions - Connection
   setConnectionId: (connectionId: string | null) => void;
   initializeClient: (connectionId: string, region: TurbopufferRegion) => Promise<boolean>;
@@ -101,6 +108,11 @@ interface NamespacesState {
   addRecentNamespace: (connectionId: string, namespace: Namespace) => void;
   clearRecentNamespaces: () => void;
   loadRecentNamespaces: (connectionId?: string) => void;
+
+  // Actions - Metadata
+  fetchMetadataForNamespaces: (namespaceIds: string[]) => Promise<void>;
+  getNamespaceMetadata: (namespaceId: string) => NamespaceMetadata | undefined;
+  isMetadataLoading: (namespaceId: string) => boolean;
 
   // Selectors (computed state)
   getFilteredNamespaces: () => Namespace[];
@@ -145,6 +157,8 @@ export const useNamespacesStore = create<NamespacesState>()(
         namespacesCache: new Map(),
         viewModeCache: new Map(),
         expandedFoldersCache: new Map(),
+        metadataCache: new Map(),
+        metadataLoading: new Set(),
 
         // Connection Actions
         setConnectionId: (connectionId) => {
@@ -613,6 +627,61 @@ export const useNamespacesStore = create<NamespacesState>()(
           return state.namespaces.filter(ns =>
             ns.id.toLowerCase().includes(term)
           );
+        },
+
+        // Metadata Actions
+        fetchMetadataForNamespaces: async (namespaceIds) => {
+          const state = get();
+
+          // Filter out already cached (and still valid) or loading
+          const toFetch = namespaceIds.filter(id => {
+            if (state.metadataLoading.has(id)) return false;
+            const cached = state.metadataCache.get(id);
+            if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return false;
+            return true;
+          });
+
+          if (toFetch.length === 0) return;
+
+          // Mark as loading
+          set((state) => {
+            toFetch.forEach(id => state.metadataLoading.add(id));
+          });
+
+          // Fetch in parallel with error handling per namespace
+          const results = await Promise.allSettled(
+            toFetch.map(async (id) => {
+              const metadata = await namespaceService.getNamespaceMetadata(id);
+              return { id, metadata };
+            })
+          );
+
+          // Update cache with successful results
+          set((state) => {
+            results.forEach((result, idx) => {
+              const id = toFetch[idx];
+              state.metadataLoading.delete(id);
+
+              if (result.status === 'fulfilled') {
+                state.metadataCache.set(id, {
+                  metadata: result.value.metadata,
+                  timestamp: Date.now(),
+                });
+              }
+            });
+          });
+        },
+
+        getNamespaceMetadata: (namespaceId) => {
+          const cached = get().metadataCache.get(namespaceId);
+          if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+            return cached.metadata;
+          }
+          return undefined;
+        },
+
+        isMetadataLoading: (namespaceId) => {
+          return get().metadataLoading.has(namespaceId);
         },
 
         // Utilities
