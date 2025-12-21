@@ -33,16 +33,27 @@ export type Filter =
   | ['Not', Filter]
   | [string, FilterOp, any];
 
-export type FilterOp = 
-  | 'Eq' | 'NotEq' 
+export type FilterOp =
+  // Equality
+  | 'Eq' | 'NotEq'
+  // List membership
   | 'In' | 'NotIn'
+  // Scalar comparisons
   | 'Lt' | 'Lte' | 'Gt' | 'Gte'
+  // Array element comparisons
+  | 'AnyLt' | 'AnyLte' | 'AnyGt' | 'AnyGte'
+  // Array containment
+  | 'Contains' | 'NotContains'
+  | 'ContainsAny' | 'NotContainsAny'
+  // Pattern matching
   | 'Glob' | 'NotGlob' | 'IGlob' | 'NotIGlob'
-  | 'ContainsAllTokens'
-  | 'Contains' | 'ContainsAny'
-  | 'Regex';
+  | 'Regex'
+  // Full-text search
+  | 'ContainsAllTokens' | 'ContainsTokenSequence';
 
-export type AggregateFunction = ['Count', string];
+export type AggregateFunction =
+  | ['Count']
+  | ['Sum', string];
 
 // NEW: Type for grouped aggregation results
 export interface AggregationGroup {

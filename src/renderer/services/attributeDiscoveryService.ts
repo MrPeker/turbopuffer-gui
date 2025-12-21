@@ -22,11 +22,17 @@ export class AttributeDiscoveryService {
 
   async discoverAttributes(
     namespaceId: string,
-    options: AttributeDiscoveryOptions = {}
+    options: AttributeDiscoveryOptions = {},
+    forceRefresh = false
   ): Promise<AttributeDiscoveryResult> {
     const cacheKey = `${namespaceId}:${JSON.stringify(options)}`;
+
+    // Clear cache for this namespace if force refresh
+    if (forceRefresh) {
+      this.cache.delete(cacheKey);
+    }
+
     const cached = this.cache.get(cacheKey);
-    
     if (cached && Date.now() - cached.discoveredAt.getTime() < this.cacheExpiry) {
       return cached;
     }
@@ -148,23 +154,84 @@ export class AttributeDiscoveryService {
   ): DiscoveredAttribute {
     const types = Array.from(info.types);
     const primaryType = this.determinePrimaryType(types, info.values);
-    
-    // Get unique values (excluding nulls)
+
+    console.log(`🔬 [AttributeDiscovery] Analyzing "${name}":`, {
+      detectedTypes: types,
+      primaryType,
+      totalValues: info.values.length,
+      sampleRawValues: info.values.slice(0, 3),
+    });
+
+    // Get unique values (excluding nulls), preserving original types
     const nonNullValues = info.values.filter(v => v !== null && v !== undefined);
-    const uniqueValues = Array.from(new Set(nonNullValues));
-    
+    const seen = new Set<string>();
+    const uniqueValues: any[] = [];
+
+    // For arrays, extract inner elements as sample values (recursively flatten)
+    // e.g., topics: [["a","b"], ["b","c"]] -> sample values: ["a", "b", "c"]
+    // e.g., scores: [[[1,2], [3,4]]] -> sample values: [1, 2, 3, 4]
+    // Check for array type: 'array' OR Turbopuffer types like '[]int32', '[]string', etc.
+    const isArrayType = primaryType === 'array' || primaryType.startsWith('[]');
+
+    if (isArrayType) {
+      console.log(`🔬 [AttributeDiscovery] "${name}" is array type (${primaryType}) - flattening elements`);
+
+      const flattenAndCollect = (value: any, depth = 0) => {
+        if (value === null || value === undefined) return;
+        if (Array.isArray(value)) {
+          for (const element of value) {
+            flattenAndCollect(element, depth + 1);
+          }
+        } else {
+          // Leaf value - add if not seen
+          const key = JSON.stringify(value);
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueValues.push(value);
+          }
+        }
+      };
+
+      for (const arr of nonNullValues) {
+        flattenAndCollect(arr);
+      }
+
+      console.log(`🔬 [AttributeDiscovery] "${name}" flattened to ${uniqueValues.length} unique leaf values:`,
+        uniqueValues.slice(0, 10));
+    }
+
+    if (!isArrayType) {
+      // For non-arrays, use values directly
+      for (const v of nonNullValues) {
+        const key = JSON.stringify(v);
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueValues.push(v);
+        }
+      }
+
+      console.log(`🔬 [AttributeDiscovery] "${name}" has ${uniqueValues.length} unique values:`,
+        uniqueValues.slice(0, 10));
+    }
+
+    // Use deduplicated unique values for samples (up to 50 for better coverage)
+    const sampleValues = uniqueValues.slice(0, 50);
+
+    console.log(`🔬 [AttributeDiscovery] "${name}" final sampleValues (${sampleValues.length}):`,
+      sampleValues.slice(0, 10));
+
     const result: DiscoveredAttribute = {
       name,
       type: primaryType,
-      sampleValues: info.sampleValues.slice(0, 5),
+      sampleValues,
       frequency: info.frequency,
       totalDocuments,
       isNullable: info.values.some(v => v === null || v === undefined)
     };
 
-    // Add unique values if not too many
+    // Expose unique values if count is reasonable (for enum-like fields)
     if (uniqueValues.length <= maxUniqueValues) {
-      result.uniqueValues = uniqueValues.slice(0, maxUniqueValues);
+      result.uniqueValues = uniqueValues;
     }
 
     // Add range for numeric attributes

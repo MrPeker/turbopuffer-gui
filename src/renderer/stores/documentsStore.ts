@@ -1074,6 +1074,10 @@ loadDocuments: async (
           set((state) => {
             state.isLoading = true;
             state.error = null;
+            // Update pageSize if a new limit is provided
+            if (limit !== state.pageSize) {
+              state.pageSize = limit;
+            }
           });
 
           try {
@@ -1682,7 +1686,8 @@ loadDocuments: async (
               {
                 sampleSize: 200,
                 detectPatterns: false,
-              }
+              },
+              force // Pass force to clear service cache too
             );
 
             set((state) => {
@@ -1705,17 +1710,24 @@ loadDocuments: async (
 
         loadSchemaAndInitColumns: async () => {
           const state = get();
-          if (!state.currentNamespaceId || !state.isClientInitialized) return;
+          if (!state.currentNamespaceId || !state.isClientInitialized) {
+            console.log('⏭️ loadSchemaAndInitColumns: skipping - client not initialized or no namespace');
+            return;
+          }
 
           try {
+            console.log('📋 Loading schema for namespace:', state.currentNamespaceId);
             // Set the namespace service client
             namespaceService.setClient(turbopufferService.getClient()!);
-            
+
             // Get schema from API
             const schema = await namespaceService.getNamespaceSchema(state.currentNamespaceId);
-            
+            console.log('📋 Schema loaded:', Object.keys(schema));
+
             // Initialize visible columns from schema
             const defaultColumns = new Set<string>();
+            // Also build attributes array from schema for filters
+            const schemaAttributes: DiscoveredAttribute[] = [];
 
             // Always include id
             defaultColumns.add('id');
@@ -1725,6 +1737,21 @@ loadDocuments: async (
               // Only skip internal attributes
               if (attrName !== '$dist' && attrName !== 'attributes') {
                 defaultColumns.add(attrName);
+
+                // Build attribute info from schema
+                const schemaType = (attrSchema as any).type || 'string';
+                schemaAttributes.push({
+                  name: attrName,
+                  type: schemaType,
+                  uniqueValues: [],
+                  totalDocuments: 0,
+                  frequency: 0,
+                  sampleValues: [],
+                  isNullable: true,
+                  arrayElementType: undefined,
+                  commonPatterns: [],
+                  range: undefined,
+                });
               }
             });
 
@@ -1733,10 +1760,15 @@ loadDocuments: async (
               defaultColumns.add('vector');
             }
 
+            console.log('📋 Setting visible columns from schema:', Array.from(defaultColumns));
+            console.log('📋 Setting attributes from schema:', schemaAttributes.map(a => a.name));
             set((state) => {
-              // Only set if visibleColumns is empty (first time)
-              if (state.visibleColumns.size === 0) {
-                state.visibleColumns = defaultColumns;
+              // Always set visible columns from schema (schema is source of truth)
+              state.visibleColumns = defaultColumns;
+              // Set attributes from schema if not already populated
+              // This ensures filters have access to all fields
+              if (state.attributes.length === 0 || schemaAttributes.length > state.attributes.length) {
+                state.attributes = schemaAttributes;
               }
             });
           } catch (error) {
@@ -1870,7 +1902,9 @@ loadDocuments: async (
             let sampleValues: any[] = [];
             
             // For array fields, use individual elements as sample values
-            if (info.type === "array" && info.arrayElements) {
+            // Check for 'array' OR Turbopuffer types like '[]int32', '[]string', etc.
+            const isArrayType = info.type === "array" || info.type.startsWith("[]");
+            if (isArrayType && info.arrayElements) {
               const elements = Array.from(info.arrayElements);
               // Limit to 1000 elements max for performance
               const limitedElements = elements.slice(0, 1000);
@@ -1881,12 +1915,10 @@ loadDocuments: async (
                 limitedElements.sort();
               }
               sampleValues = limitedElements;
-              console.log(`🔍 Array Attribute "${name}":`, {
-                type: info.type,
-                count: info.count,
+              console.log(`🔍 Array Attribute "${name}" (${info.type}):`, {
                 uniqueArraysCount: uniqueValues.length,
                 uniqueElementsCount: elements.length,
-                sampleElements: sampleValues.slice(0, 10),
+                sampleElements: sampleValues.slice(0, 20),
               });
             } else {
               sampleValues = uniqueValues.slice(0, 20);

@@ -1,53 +1,54 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, Plus, X, Check, CornerDownLeft } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { MultiSelectInput } from "./MultiSelectInput";
-import { 
+import {
   isArrayType,
   isNumericType
 } from "@/renderer/utils/filterTypeConversion";
+import type { FilterOperator, SimpleFilter } from "@/renderer/stores/documentsStore";
 
-interface SimpleFilter {
-  id: string;
-  attribute: string;
-  operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches" | "any_lt" | "any_lte" | "any_gt" | "any_gte";
-  value: any;
-  displayValue: string;
+interface FieldInfo {
+  name: string;
+  type: string;
+  sampleValues: any[];
+  count: number;
+  isFts?: boolean; // Whether this field has full-text search enabled
 }
 
 interface FilterBuilderProps {
-  fields: Array<{
-    name: string;
-    type: string;
-    sampleValues: any[];
-    count: number;
-  }>;
+  fields: FieldInfo[];
   activeFilters: SimpleFilter[];
-  onAddFilter: (field: string, operator: string, value: any) => void;
+  onAddFilter: (field: string, operator: FilterOperator, value: any) => void;
   onUpdateFilter: (
     filterId: string,
     field: string,
-    operator: string,
+    operator: FilterOperator,
     value: any
   ) => void;
   onRemoveFilter: (filterId: string) => void;
 }
 
-// Array-specific operator labels for better UX
-const arrayOperatorLabels = {
-  contains: "Contains value",
-  not_equals: "Does not contain",
-  in: "Contains any of",
-  not_in: "Contains none of",
-};
+interface OperatorOption {
+  value: FilterOperator;
+  label: string;          // Human-readable description
+  apiOperator: string;    // The actual Turbopuffer API operator
+  group?: string;
+}
 
 const FilterBuilder: React.FC<FilterBuilderProps> = ({
   fields,
@@ -134,8 +135,32 @@ const FilterRow: React.FC<FilterRowProps> = ({
   );
   // Store the actual typed value from dropdown selection
   const [actualValue, setActualValue] = useState<any>(null);
+  // Popover state for value suggestions
+  const [valuePopoverOpen, setValuePopoverOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedFieldInfo = fields.find((f) => f.name === selectedField);
+
+  // Deduplicate and filter sample values based on input
+  const filteredSampleValues = useMemo(() => {
+    if (!selectedFieldInfo?.sampleValues) return [];
+
+    // Deduplicate sample values (preserving original types)
+    const seen = new Set<string>();
+    const uniqueValues = selectedFieldInfo.sampleValues.filter(v => {
+      const key = JSON.stringify(v);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (!filterValue.trim()) return uniqueValues;
+
+    const searchLower = filterValue.toLowerCase();
+    return uniqueValues.filter(v =>
+      String(v).toLowerCase().includes(searchLower)
+    );
+  }, [selectedFieldInfo?.sampleValues, filterValue]);
 
   // Dynamic placeholder based on operator
   const getPlaceholder = (operator: string) => {
@@ -145,88 +170,111 @@ const FilterRow: React.FC<FilterRowProps> = ({
       case "imatches":
       case "not_imatches":
         return "e.g., *.tsx, /src/**, file-?.js";
+      case "regex":
+        return "e.g., ^error.*500$, [a-z]+@[a-z]+\\.com";
       case "in":
       case "not_in":
+      case "contains_any":
+      case "not_contains_any":
         return "Comma-separated values";
       case "equals":
       case "not_equals":
         return "Enter exact value or null";
       case "contains":
-        return "Text to search for";
+      case "array_contains":
+      case "not_array_contains":
+        return "Value to search for";
+      case "contains_all_tokens":
+        return "Space-separated words";
+      case "contains_token_sequence":
+        return "Exact phrase to match";
       default:
         return "Enter value...";
     }
   };
 
   // Define operators for different field types
-  const operators = useMemo(() => {
+  const operators: OperatorOption[] = useMemo(() => {
     if (!selectedFieldInfo) return [];
 
     const type = selectedFieldInfo.type;
-    
-    // Specialized operators for array fields with clearer labels
+    const isFts = selectedFieldInfo.isFts;
+    const isNumericArray = type.includes('int') || type.includes('uint') || type.includes('float') || type === '[]number';
+
+    // Operators for array fields
     if (isArrayType(type)) {
-      const baseArrayOps = [
-        { value: "contains", label: arrayOperatorLabels.contains },
-        { value: "not_equals", label: arrayOperatorLabels.not_equals },
-        { value: "in", label: arrayOperatorLabels.in },
-        { value: "not_in", label: arrayOperatorLabels.not_in },
+      const ops: OperatorOption[] = [
+        // Containment (single value)
+        { value: "array_contains", apiOperator: "Contains", label: "Array contains value", group: "containment" },
+        { value: "not_array_contains", apiOperator: "NotContains", label: "Array does not contain", group: "containment" },
+        // Containment (multiple values)
+        { value: "contains_any", apiOperator: "ContainsAny", label: "Contains any of values", group: "containment" },
+        { value: "not_contains_any", apiOperator: "NotContainsAny", label: "Contains none of values", group: "containment" },
       ];
 
-      // Add numeric array operators if the array contains numbers
-      if (type.includes('number') || type === '[]number') {
-        return [
-          ...baseArrayOps,
-          { value: "any_lt", label: "Any element < value" },
-          { value: "any_lte", label: "Any element ≤ value" },
-          { value: "any_gt", label: "Any element > value" },
-          { value: "any_gte", label: "Any element ≥ value" },
-        ];
+      // Add numeric array comparison operators
+      if (isNumericArray) {
+        ops.push(
+          { value: "any_lt", apiOperator: "AnyLt", label: "Any element less than", group: "comparison" },
+          { value: "any_lte", apiOperator: "AnyLte", label: "Any element less or equal", group: "comparison" },
+          { value: "any_gt", apiOperator: "AnyGt", label: "Any element greater than", group: "comparison" },
+          { value: "any_gte", apiOperator: "AnyGte", label: "Any element greater or equal", group: "comparison" }
+        );
       }
 
-      return baseArrayOps;
-    } 
+      return ops;
+    }
+
     // Operators for numeric fields
-    else if (type === "number" || isNumericType(type)) {
+    if (type === "number" || isNumericType(type)) {
       return [
-        { value: "equals", label: "Equals (=)" },
-        { value: "not_equals", label: "Not equals (≠)" },
-        { value: "greater", label: "Greater than (>)" },
-        { value: "greater_or_equal", label: "Greater or equal (≥)" },
-        { value: "less", label: "Less than (<)" },
-        { value: "less_or_equal", label: "Less or equal (≤)" },
-        { value: "in", label: "In list" },
-        { value: "not_in", label: "Not in list" },
-      ];
-    } 
-    // Operators for string fields
-    else {
-      return [
-        { value: "equals", label: "Equals (=)" },
-        { value: "not_equals", label: "Not equals (≠)" },
-        { value: "contains", label: "Contains text" },
-        { value: "matches", label: "Matches pattern" },
-        { value: "not_matches", label: "Not matches pattern" },
-        { value: "imatches", label: "Matches (case insensitive)" },
-        { value: "not_imatches", label: "Not matches (case insensitive)" },
-        { value: "in", label: "In list" },
-        { value: "not_in", label: "Not in list" },
-        { value: "greater", label: "Greater than (>)" },
-        { value: "greater_or_equal", label: "Greater or equal (≥)" },
-        { value: "less", label: "Less than (<)" },
-        { value: "less_or_equal", label: "Less or equal (≤)" },
+        { value: "equals", apiOperator: "Eq", label: "Equal to", group: "equality" },
+        { value: "not_equals", apiOperator: "NotEq", label: "Not equal to", group: "equality" },
+        { value: "greater", apiOperator: "Gt", label: "Greater than", group: "comparison" },
+        { value: "greater_or_equal", apiOperator: "Gte", label: "Greater or equal", group: "comparison" },
+        { value: "less", apiOperator: "Lt", label: "Less than", group: "comparison" },
+        { value: "less_or_equal", apiOperator: "Lte", label: "Less or equal", group: "comparison" },
+        { value: "in", apiOperator: "In", label: "Value in list", group: "list" },
+        { value: "not_in", apiOperator: "NotIn", label: "Value not in list", group: "list" },
       ];
     }
+
+    // Operators for string fields
+    const stringOps: OperatorOption[] = [
+      { value: "equals", apiOperator: "Eq", label: "Exact match", group: "equality" },
+      { value: "not_equals", apiOperator: "NotEq", label: "Not equal", group: "equality" },
+      { value: "contains", apiOperator: "Glob", label: "Contains substring (*val*)", group: "pattern" },
+      { value: "matches", apiOperator: "Glob", label: "Unix glob pattern", group: "pattern" },
+      { value: "not_matches", apiOperator: "NotGlob", label: "Does not match glob", group: "pattern" },
+      { value: "imatches", apiOperator: "IGlob", label: "Case-insensitive glob", group: "pattern" },
+      { value: "not_imatches", apiOperator: "NotIGlob", label: "Not case-insensitive glob", group: "pattern" },
+      { value: "regex", apiOperator: "Regex", label: "Regular expression", group: "pattern" },
+      { value: "in", apiOperator: "In", label: "Value in list", group: "list" },
+      { value: "not_in", apiOperator: "NotIn", label: "Value not in list", group: "list" },
+      { value: "greater", apiOperator: "Gt", label: "Lexicographic greater", group: "comparison" },
+      { value: "greater_or_equal", apiOperator: "Gte", label: "Lexicographic greater or equal", group: "comparison" },
+      { value: "less", apiOperator: "Lt", label: "Lexicographic less", group: "comparison" },
+      { value: "less_or_equal", apiOperator: "Lte", label: "Lexicographic less or equal", group: "comparison" },
+    ];
+
+    // Add FTS operators if the field has full-text search enabled
+    if (isFts) {
+      stringOps.push(
+        { value: "contains_all_tokens", apiOperator: "ContainsAllTokens", label: "All words present (any order)", group: "fts" },
+        { value: "contains_token_sequence", apiOperator: "ContainsTokenSequence", label: "Exact phrase match", group: "fts" }
+      );
+    }
+
+    return stringOps;
   }, [selectedFieldInfo]);
 
   const handleApply = () => {
     const fieldType = selectedFieldInfo?.type;
     const isArrayField = isArrayType(fieldType);
-    
-    // For array fields, use multi-select when appropriate
-    const useMultiSelect =
-      isArrayField &&
-      (selectedOperator === "in" || selectedOperator === "not_in");
+
+    // Operators that require multiple values (multi-select input)
+    const multiValueOperators = ["in", "not_in", "contains_any", "not_contains_any"];
+    const useMultiSelect = multiValueOperators.includes(selectedOperator);
 
     if (
       selectedField &&
@@ -277,7 +325,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
     if (!isNew) {
       // Reset operator based on field type
       const fieldInfo = fields.find((f) => f.name === newField);
-      const newOperator = isArrayType(fieldInfo?.type) ? "contains" : "equals";
+      const newOperator: FilterOperator = isArrayType(fieldInfo?.type) ? "array_contains" : "equals";
       setSelectedOperator(newOperator);
       // Clear values
       setFilterValue("");
@@ -338,37 +386,38 @@ const FilterRow: React.FC<FilterRowProps> = ({
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-between h-9"
+            className="w-full justify-between h-9 font-mono"
             disabled={!selectedField}
           >
-            {operators.find((op) => op.value === selectedOperator)?.label ||
+            {operators.find((op) => op.value === selectedOperator)?.apiOperator ||
               "Select..."}
             <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[180px]" align="start">
+        <DropdownMenuContent className="w-[240px]" align="start">
           {operators.map((op) => (
             <DropdownMenuItem
               key={op.value}
               onClick={() => handleOperatorChange(op.value)}
+              className="flex flex-col items-start py-2"
             >
-              {op.label}
+              <span className="font-mono font-medium">{op.apiOperator}</span>
+              <span className="text-xs text-muted-foreground">{op.label}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
 
       {/* Value Input */}
-      {isArrayType(selectedFieldInfo?.type) &&
-      (selectedOperator === "in" || selectedOperator === "not_in") ? (
+      {["in", "not_in", "contains_any", "not_contains_any"].includes(selectedOperator) ? (
         <MultiSelectInput
           value={multiSelectValue}
           onChange={(newValues) => {
             setMultiSelectValue(newValues);
             handleValueChange();
           }}
-          options={selectedFieldInfo.sampleValues.map((v) => ({
-            value: v, // Preserve original type (number or string)
+          options={(selectedFieldInfo?.sampleValues || []).map((v) => ({
+            value: v,
             label: String(v),
           }))}
           placeholder={getPlaceholder(selectedOperator)}
@@ -376,69 +425,116 @@ const FilterRow: React.FC<FilterRowProps> = ({
           className="w-full"
           allowCreate={true}
         />
-      ) : selectedFieldInfo && selectedFieldInfo.sampleValues.length > 0 ? (
-        // Show dropdown for string fields with sample values
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div className="relative">
+      ) : (
+        // Combobox: type to enter value, with suggestions from sample values
+        <Popover open={valuePopoverOpen} onOpenChange={setValuePopoverOpen}>
+          <PopoverTrigger asChild>
+            <div className="relative w-full">
               <Input
+                ref={inputRef}
                 placeholder={getPlaceholder(selectedOperator)}
                 value={filterValue}
                 className="h-9 pr-8"
                 disabled={!selectedField || !selectedOperator}
-                onChange={(e) => setFilterValue(e.target.value)}
+                onChange={(e) => {
+                  setFilterValue(e.target.value);
+                  setActualValue(null);
+                  if (!valuePopoverOpen && e.target.value) {
+                    setValuePopoverOpen(true);
+                  }
+                }}
+                onFocus={() => {
+                  if (selectedFieldInfo?.sampleValues?.length) {
+                    setValuePopoverOpen(true);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
+                    e.preventDefault();
+                    setValuePopoverOpen(false);
                     handleApply();
+                  } else if (e.key === "Escape") {
+                    setValuePopoverOpen(false);
                   }
                 }}
-                onBlur={handleValueChange}
               />
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 opacity-50" />
+              {selectedFieldInfo?.sampleValues?.length ? (
+                <ChevronDown
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 opacity-50 cursor-pointer"
+                  onClick={() => setValuePopoverOpen(!valuePopoverOpen)}
+                />
+              ) : null}
             </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-[300px] max-h-[300px] overflow-y-auto"
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-[300px] p-0"
             align="start"
+            onOpenAutoFocus={(e) => e.preventDefault()}
           >
-            {selectedFieldInfo.sampleValues.map((value, idx) => (
-              <DropdownMenuItem
-                key={idx}
-                onClick={() => {
-                  // Store the actual typed value for later use
-                  setActualValue(value);
-                  // Set the display value
-                  const displayValue = String(value);
-                  setFilterValue(displayValue);
-                  // For existing filters, update immediately
-                  if (!isNew && selectedField && selectedOperator) {
-                    onUpdate(selectedField, selectedOperator, value);
-                  }
-                }}
-              >
-                <span className="truncate">{String(value)}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        <Input
-          placeholder={getPlaceholder(selectedOperator)}
-          value={filterValue}
-          className="h-9"
-          disabled={!selectedField || !selectedOperator}
-          onChange={(e) => {
-            setFilterValue(e.target.value);
-            // Clear actual value when user types manually
-            setActualValue(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleApply();
-            }
-          }}
-          onBlur={handleValueChange}
-        />
+            <div className="max-h-[300px] overflow-y-auto">
+              {/* Exact value option - always first when there's input */}
+              {filterValue.trim() && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent border-b text-sm"
+                  onClick={() => {
+                    setActualValue(null);
+                    setValuePopoverOpen(false);
+                    if (!isNew && selectedField && selectedOperator) {
+                      onUpdate(selectedField, selectedOperator, filterValue);
+                    }
+                  }}
+                >
+                  <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Use exact:</span>
+                  <span className="font-mono font-medium truncate">{filterValue}</span>
+                </div>
+              )}
+
+              {/* Filtered sample values */}
+              {filteredSampleValues.length > 0 ? (
+                <div className="py-1">
+                  <div className="px-3 py-1.5 text-xs text-muted-foreground">
+                    Sample values
+                  </div>
+                  {filteredSampleValues.slice(0, 20).map((value, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent text-sm"
+                      onClick={() => {
+                        setActualValue(value);
+                        setFilterValue(String(value));
+                        setValuePopoverOpen(false);
+                        if (!isNew && selectedField && selectedOperator) {
+                          onUpdate(selectedField, selectedOperator, value);
+                        }
+                      }}
+                    >
+                      <span className="truncate font-mono">{String(value)}</span>
+                      {typeof value === "number" && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                          num
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                  {filteredSampleValues.length > 20 && (
+                    <div className="px-3 py-1.5 text-xs text-muted-foreground">
+                      +{filteredSampleValues.length - 20} more...
+                    </div>
+                  )}
+                </div>
+              ) : filterValue.trim() ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">
+                  No matching values
+                </div>
+              ) : (
+                <div className="px-3 py-2 text-sm text-muted-foreground">
+                  Type to enter a value
+                </div>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       )}
 
       {/* Action Buttons */}
@@ -450,10 +546,9 @@ const FilterRow: React.FC<FilterRowProps> = ({
             disabled={
               !selectedField ||
               !selectedOperator ||
-              (isArrayType(selectedFieldInfo?.type) &&
-              (selectedOperator === "in" || selectedOperator === "not_in")
+              (["in", "not_in", "contains_any", "not_contains_any"].includes(selectedOperator)
                 ? multiSelectValue.length === 0
-                : !filterValue)
+                : !filterValue && actualValue === null)
             }
             className="h-9"
           >

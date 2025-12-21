@@ -1,29 +1,41 @@
-interface SimpleFilter {
-  id: string;
-  attribute: string;
-  operator: string;
-  value: any;
-  displayValue: string;
-}
+import type { SimpleFilter, FilterOperator } from "@/renderer/stores/documentsStore";
 
-const operatorLabels: Record<string, string> = {
-  equals: "=",
-  not_equals: "≠",
-  contains: "contains",
-  greater: ">",
-  greater_or_equal: "≥",
-  less: "<",
-  less_or_equal: "≤",
-  in: "in",
-  not_in: "not in",
-  matches: "matches",
-  not_matches: "not matches",
-  imatches: "matches (i)",
-  not_imatches: "not matches (i)",
-  any_lt: "any <",
-  any_lte: "any ≤",
-  any_gt: "any >",
-  any_gte: "any ≥",
+// Maps internal operator names to Turbopuffer API operator names
+const operatorToApiOperator: Record<FilterOperator, string> = {
+  // Equality
+  equals: "Eq",
+  not_equals: "NotEq",
+  // String contains (uses Glob with wildcards)
+  contains: "Glob",
+  // Comparisons
+  greater: "Gt",
+  greater_or_equal: "Gte",
+  less: "Lt",
+  less_or_equal: "Lte",
+  // List membership
+  in: "In",
+  not_in: "NotIn",
+  // Glob patterns
+  matches: "Glob",
+  not_matches: "NotGlob",
+  imatches: "IGlob",
+  not_imatches: "NotIGlob",
+  // Array element comparisons
+  any_lt: "AnyLt",
+  any_lte: "AnyLte",
+  any_gt: "AnyGt",
+  any_gte: "AnyGte",
+  // Array containment (single value)
+  array_contains: "Contains",
+  not_array_contains: "NotContains",
+  // Array containment (multiple values)
+  contains_any: "ContainsAny",
+  not_contains_any: "NotContainsAny",
+  // Regex
+  regex: "Regex",
+  // Full-text search
+  contains_all_tokens: "ContainsAllTokens",
+  contains_token_sequence: "ContainsTokenSequence",
 };
 
 function formatValue(value: any): string {
@@ -66,7 +78,7 @@ export function generateFilterDescription(
   // Add filters
   if (filters.length > 0) {
     const filterDescriptions = filters.map(filter => {
-      const operator = operatorLabels[filter.operator] || filter.operator;
+      const operator = operatorToApiOperator[filter.operator] || filter.operator;
       const value = formatValue(filter.value);
       return `${filter.attribute} ${operator} ${value}`;
     });
@@ -88,7 +100,7 @@ export function generateShortFilterSummary(
   searchText = ""
 ): string {
   const totalItems = filters.length + (searchText ? 1 : 0);
-  
+
   if (totalItems === 0) {
     return "No filters";
   } else if (totalItems === 1) {
@@ -96,7 +108,7 @@ export function generateShortFilterSummary(
       return `Search: "${searchText}"`;
     } else {
       const filter = filters[0];
-      return `${filter.attribute} ${operatorLabels[filter.operator] || filter.operator} ${formatValue(filter.value)}`;
+      return `${filter.attribute} ${operatorToApiOperator[filter.operator] || filter.operator} ${formatValue(filter.value)}`;
     }
   } else {
     const parts: string[] = [];
@@ -109,3 +121,6 @@ export function generateShortFilterSummary(
     return parts.join(" + ");
   }
 }
+
+// Export the mapping for use in other components
+export { operatorToApiOperator };
