@@ -32,6 +32,13 @@ import { useParams } from 'react-router-dom';
 import { useConnection } from '@/renderer/contexts/ConnectionContext';
 import { useDocumentsStore } from '@/renderer/stores/documentsStore';
 
+// Helper to get effective namespace ID from URL params or store
+const useEffectiveNamespaceId = () => {
+  const { namespaceId: urlNamespaceId } = useParams<{ namespaceId?: string }>();
+  const storeNamespaceId = useDocumentsStore(state => state.currentNamespaceId);
+  return urlNamespaceId || storeNamespaceId;
+};
+
 interface DocumentDetailsPanelProps {
   document: any;
   onClose: () => void;
@@ -71,6 +78,27 @@ const isVector = (value: any, key: string): boolean => {
   // Embedding vectors are typically >= 64 dimensions (e.g., 128D, 256D, 384D, 512D, 768D, 1536D)
   // Arrays with fewer dimensions are likely IDs/labels/categories
   return value.length >= 64;
+};
+
+// Check if a field is non-editable (cannot be patched via the API)
+const isNonEditableField = (key: string, value: any): boolean => {
+  // System fields that cannot be patched
+  if (key === 'id' || key === 'vector' || key === '$dist') return true;
+  // Vector-like arrays are also non-editable
+  if (isVector(value, key)) return true;
+  return false;
+};
+
+// Filter out non-editable fields from a document for JSON editing
+const filterEditableFields = (doc: any): any => {
+  const filtered: any = {};
+  Object.entries(doc).forEach(([key, value]) => {
+    // Keep 'id' for reference but skip vectors and $dist
+    if (key === 'vector' || key === '$dist') return;
+    if (isVector(value, key)) return;
+    filtered[key] = value;
+  });
+  return filtered;
 };
 
 // Detect if a number is likely a timestamp
@@ -138,8 +166,8 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
   onUpdate,
 }) => {
   const { toast } = useToast();
-  const { namespaceId } = useParams<{ namespaceId?: string }>();
-  const { selectedConnection } = useConnection();
+  const namespaceId = useEffectiveNamespaceId();
+  const { activeConnectionId } = useConnection();
   const { updateDocument } = useDocumentsStore();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -284,7 +312,15 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
   };
 
   const handleSave = async () => {
-    if (!selectedConnection || !namespaceId) return;
+    if (!activeConnectionId || !namespaceId) {
+      console.warn('Cannot save: missing connection or namespace', { activeConnectionId, namespaceId });
+      toast({
+        title: 'error',
+        description: 'no active connection or namespace selected',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -316,7 +352,16 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
         return;
       }
 
-      setEditedDocument(parsed);
+      // Preserve vector fields from original document (they're hidden in edit mode)
+      const merged = { ...document };
+      Object.entries(parsed).forEach(([key, value]) => {
+        // Only update editable fields
+        if (!isNonEditableField(key, document[key])) {
+          merged[key] = value;
+        }
+      });
+
+      setEditedDocument(merged);
       setJsonError(null);
     } catch (error) {
       setJsonError('invalid JSON');
@@ -413,8 +458,10 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
     return typeof value;
   };
 
-  const renderPrettyValue = (value: any, key: string) => {
+  const renderPrettyValue = (value: any, key: string, isReadOnly = false) => {
     const isExpanded = expandedSections.has(key);
+    // Only allow editing if we're in edit mode AND the field is not read-only
+    const canEdit = isEditing && !isReadOnly;
 
     if (value === null || value === undefined) {
       return <span className="text-tp-text-faint italic text-sm">null</span>;
@@ -498,7 +545,7 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
 
     // Boolean display with toggle in edit mode
     if (typeof value === 'boolean') {
-      if (isEditing) {
+      if (canEdit) {
         return (
           <div className="flex items-center gap-2">
             <Switch
@@ -528,7 +575,7 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
 
     // Number display
     if (typeof value === 'number') {
-      if (isEditing) {
+      if (canEdit) {
         return (
           <Input
             type="number"
@@ -578,7 +625,7 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
         return <span className="text-tp-text-faint italic text-sm">empty string</span>;
       }
 
-      if (isEditing) {
+      if (canEdit) {
         return value.length > 100 ? (
           <Textarea
             value={value}
@@ -695,7 +742,11 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
 
             {!isEditing && (
               <button
-                onClick={() => setIsEditing(true)}
+                onClick={() => {
+                  // Initialize rawJsonText with filtered (editable) fields only
+                  setRawJsonText(safeStringify(filterEditableFields(editedDocument)));
+                  setIsEditing(true);
+                }}
                 disabled={isSaving}
                 className="h-6 px-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-tp-text-muted hover:text-tp-accent hover:bg-tp-accent/5 rounded transition-all disabled:opacity-50"
               >
@@ -783,6 +834,7 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
                   isVector(value, key);
                 const isExpanded = expandedSections.has(key);
                 const isModified = modifiedFields.has(key);
+                const isReadOnly = isNonEditableField(key, value);
 
                 return (
                   <div key={key}>
@@ -815,6 +867,12 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
                             {getTypeLabel(value, key)}
                           </Badge>
 
+                          {isEditing && isReadOnly && (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-tp-surface-alt text-tp-text-muted border-tp-border-subtle">
+                              read-only
+                            </Badge>
+                          )}
+
                           {isModified && (
                             <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-500/10 text-amber-600 border-amber-500/30">
                               modified
@@ -835,7 +893,7 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
                           >
                             <Copy className="h-2.5 w-2.5" />
                           </Button>
-                          {isEditing && key !== 'id' && (
+                          {isEditing && !isReadOnly && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -857,7 +915,7 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
                         className="pl-5"
                         onClick={isExpandable ? () => toggleSection(key) : undefined}
                       >
-                        {renderPrettyValue(value, key)}
+                        {renderPrettyValue(value, key, isReadOnly)}
                       </div>
                     </div>
                   </div>
@@ -867,9 +925,9 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
           </div>
         ) : (
           <div className="px-3 py-3">
-            {jsonError && (
-              <div className="mb-3 px-3 py-2 bg-tp-danger/10 border border-tp-danger/30 rounded-sm text-xs text-tp-danger">
-                {jsonError}
+            {isEditing && (
+              <div className="mb-3 px-3 py-2 bg-tp-surface-alt border border-tp-border-subtle rounded-sm text-xs text-tp-text-muted">
+                Vector fields are hidden (not editable via API)
               </div>
             )}
             <Textarea
@@ -888,6 +946,12 @@ export const DocumentDetailsPanel: React.FC<DocumentDetailsPanelProps> = ({
               }}
               className="font-mono text-xs min-h-[500px] bg-tp-bg border-tp-border-subtle"
             />
+            {jsonError && (
+              <div className="mt-3 px-3 py-2 bg-tp-danger/10 border border-tp-danger/30 rounded-sm text-xs text-tp-danger flex items-center gap-1.5">
+                <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                {jsonError}
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>

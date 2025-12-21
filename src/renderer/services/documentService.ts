@@ -264,7 +264,19 @@ async listDocuments(
       id: [documentId],
     };
 
+    // Fields that cannot be patched via the API
+    const nonPatchableFields = new Set(['id', 'vector', '$dist']);
+
     Object.entries(attributes).forEach(([key, value]) => {
+      // Skip non-patchable fields (id, vector, $dist)
+      if (nonPatchableFields.has(key)) {
+        return;
+      }
+      // Skip vector-like arrays (high-dimensional numeric arrays)
+      if (Array.isArray(value) && value.length >= 64 && value.every(v => typeof v === 'number')) {
+        console.warn(`Skipping field "${key}" - appears to be a vector (not patchable)`);
+        return;
+      }
       patchColumns[key] = [value];
     });
 

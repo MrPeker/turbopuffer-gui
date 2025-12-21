@@ -28,6 +28,13 @@ import { useParams } from 'react-router-dom';
 import { useConnection } from '@/renderer/contexts/ConnectionContext';
 import { useDocumentsStore } from '@/renderer/stores/documentsStore';
 
+// Helper to get effective namespace ID from URL params or store
+const useEffectiveNamespaceId = () => {
+  const { namespaceId: urlNamespaceId } = useParams<{ namespaceId?: string }>();
+  const storeNamespaceId = useDocumentsStore(state => state.currentNamespaceId);
+  return urlNamespaceId || storeNamespaceId;
+};
+
 interface DocumentViewerProps {
   document: any;
   onClose: () => void;
@@ -40,8 +47,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onUpdate,
 }) => {
   const { toast } = useToast();
-  const { namespaceId } = useParams<{ namespaceId?: string }>();
-  const { selectedConnection } = useConnection();
+  const namespaceId = useEffectiveNamespaceId();
+  const { activeConnectionId } = useConnection();
   const { updateDocument } = useDocumentsStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editedDocument, setEditedDocument] = useState(document);
@@ -57,7 +64,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
   };
 
   const handleSave = async () => {
-    if (!selectedConnection || !namespaceId) return;
+    if (!activeConnectionId || !namespaceId) {
+      console.warn('Cannot save: missing connection or namespace', { activeConnectionId, namespaceId });
+      toast({
+        title: 'Error',
+        description: 'No active connection or namespace selected',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
       await updateDocument(document.id, editedDocument);

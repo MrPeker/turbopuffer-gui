@@ -17,10 +17,32 @@ import { namespaceService } from "../services/namespaceService";
 import { generateFilterDescription } from "../utils/filterDescriptions";
 import { isArrayType, parseValueForFieldType } from "../utils/filterTypeConversion";
 
+export type FilterOperator =
+  // Equality
+  | "equals" | "not_equals"
+  // String contains (glob pattern)
+  | "contains"
+  // Comparisons
+  | "greater" | "greater_or_equal" | "less" | "less_or_equal"
+  // List membership
+  | "in" | "not_in"
+  // Glob patterns
+  | "matches" | "not_matches" | "imatches" | "not_imatches"
+  // Array element comparisons
+  | "any_lt" | "any_lte" | "any_gt" | "any_gte"
+  // Array containment (single value)
+  | "array_contains" | "not_array_contains"
+  // Array containment (multiple values)
+  | "contains_any" | "not_contains_any"
+  // Regex
+  | "regex"
+  // Full-text search
+  | "contains_all_tokens" | "contains_token_sequence";
+
 export interface SimpleFilter {
   id: string;
   attribute: string;
-  operator: "equals" | "not_equals" | "contains" | "greater" | "greater_or_equal" | "less" | "less_or_equal" | "in" | "not_in" | "matches" | "not_matches" | "imatches" | "not_imatches" | "any_lt" | "any_lte" | "any_gt" | "any_gte";
+  operator: FilterOperator;
   value: any;
   displayValue: string;
 }
@@ -1229,6 +1251,55 @@ loadDocuments: async (
                   case "not_imatches":
                     filters.push([filter.attribute, "NotIGlob", filter.value]);
                     break;
+                  // Array element comparison operators
+                  case "any_lt":
+                    filters.push([filter.attribute, "AnyLt", filter.value]);
+                    break;
+                  case "any_lte":
+                    filters.push([filter.attribute, "AnyLte", filter.value]);
+                    break;
+                  case "any_gt":
+                    filters.push([filter.attribute, "AnyGt", filter.value]);
+                    break;
+                  case "any_gte":
+                    filters.push([filter.attribute, "AnyGte", filter.value]);
+                    break;
+                  // Array containment operators
+                  case "array_contains": {
+                    // Single value containment check
+                    const value = Array.isArray(filter.value) ? filter.value[0] : filter.value;
+                    filters.push([filter.attribute, "Contains", value]);
+                    break;
+                  }
+                  case "not_array_contains": {
+                    // Single value NOT containment check
+                    const value = Array.isArray(filter.value) ? filter.value[0] : filter.value;
+                    filters.push([filter.attribute, "NotContains", value]);
+                    break;
+                  }
+                  case "contains_any": {
+                    // Multiple values - contains any of them
+                    const values = Array.isArray(filter.value) ? filter.value : [filter.value];
+                    filters.push([filter.attribute, "ContainsAny", values]);
+                    break;
+                  }
+                  case "not_contains_any": {
+                    // Multiple values - contains none of them
+                    const values = Array.isArray(filter.value) ? filter.value : [filter.value];
+                    filters.push([filter.attribute, "NotContainsAny", values]);
+                    break;
+                  }
+                  // Regex operator
+                  case "regex":
+                    filters.push([filter.attribute, "Regex", filter.value]);
+                    break;
+                  // Full-text search operators
+                  case "contains_all_tokens":
+                    filters.push([filter.attribute, "ContainsAllTokens", filter.value]);
+                    break;
+                  case "contains_token_sequence":
+                    filters.push([filter.attribute, "ContainsTokenSequence", filter.value]);
+                    break;
                 }
               });
 
@@ -1616,12 +1687,11 @@ loadDocuments: async (
 
             set((state) => {
               state.attributes = result.attributes;
-            });
-
-            // Cache the results
-            state.attributesCache.set(attributesCacheKey, {
-              attributes: result.attributes,
-              timestamp: Date.now(),
+              // Cache the results
+              state.attributesCache.set(attributesCacheKey, {
+                attributes: result.attributes,
+                timestamp: Date.now(),
+              });
             });
           } catch (error) {
             console.warn("Failed to discover attributes:", error);
@@ -1919,10 +1989,9 @@ loadDocuments: async (
               if (state.totalCount !== null) {
                 state.totalCount = Math.max(0, state.totalCount - ids.length);
               }
+              // Clear cache to force refresh
+              state.documentsCache.clear();
             });
-
-            // Clear cache to force refresh
-            state.documentsCache.clear();
           } catch (error) {
             console.error("Failed to delete documents:", error);
             set((state) => {
@@ -1946,7 +2015,7 @@ loadDocuments: async (
               attributes
             );
 
-            // Update local state
+            // Update local state and clear cache
             set((state) => {
               const docIndex = state.documents.findIndex(
                 (doc) => doc.id === id
@@ -1960,10 +2029,9 @@ loadDocuments: async (
                   },
                 };
               }
+              // Clear cache to ensure consistency
+              state.documentsCache.clear();
             });
-
-            // Clear cache to ensure consistency
-            state.documentsCache.clear();
           } catch (error) {
             console.error("Failed to update document:", error);
             set((state) => {
@@ -1992,11 +2060,13 @@ loadDocuments: async (
             );
 
             // Clear cache to force reload
-            state.documentsCache.clear();
-            state.attributesCache.clear();
+            set((state) => {
+              state.documentsCache.clear();
+              state.attributesCache.clear();
+            });
 
-            // Optionally, reload documents immediately
-            await state.loadDocuments(true, false, state.pageSize);
+            // Reload documents immediately
+            await get().loadDocuments(true, false, get().pageSize);
 
             set((state) => {
               state.isLoading = false;
@@ -2015,24 +2085,28 @@ loadDocuments: async (
         },
 
         refresh: async () => {
-          const state = get();
+          const currentState = get();
+          const namespaceId = currentState.currentNamespaceId;
+          const pageSize = currentState.pageSize;
+
           set((state) => {
             state.isRefreshing = true;
             // Reset to first page on refresh
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
+            // Clear all caches inside set()
+            state.documentsCache.clear();
+            state.attributesCache.clear();
           });
 
-          // Clear all caches
-          state.documentsCache.clear();
-          state.attributesCache.clear();
-          attributeDiscoveryService.clearCache(state.currentNamespaceId);
+          // Clear external cache
+          attributeDiscoveryService.clearCache(namespaceId);
 
           try {
             await Promise.all([
-              state.loadDocuments(true, false, state.pageSize, 1), // Force page 1
-              state.discoverAttributes(true),
+              currentState.loadDocuments(true, false, pageSize, 1), // Force page 1
+              currentState.discoverAttributes(true),
             ]);
           } finally {
             set((state) => {
