@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/MrPeker/turbopuffer-gui/security/advisories/new
+    about: Please report security vulnerabilities through GitHub's private vulnerability reporting.
+  - name: Question / Discussion
+    url: https://github.com/MrPeker/turbopuffer-gui/discussions
+    about: Use GitHub Discussions for questions and general discussion.
+  - name: Turbopuffer Documentation
+    url: https://turbopuffer.com/docs
+    about: Check the official Turbopuffer documentation for API-related questions.

@@ -93,3 +93,62 @@ out/
 
 # Downloaded spectrum-css repo
 spectrum-css/
+
+# IDE and editors
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# VS Code (allow workspace settings for consistency)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Environment files
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# Debug logs
+*.log
+debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Build artifacts
+dist/
+build/
+*.asar
+
+# Package manager locks (keep package-lock.json for reproducibility)
+yarn.lock
+pnpm-lock.yaml
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Claude Code
+.claude/settings.local.json

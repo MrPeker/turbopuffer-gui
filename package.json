@@ -11,7 +11,24 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx ."
   },
-  "keywords": [],
+  "keywords": [
+    "turbopuffer",
+    "vector-database",
+    "vector-search",
+    "full-text-search",
+    "electron",
+    "desktop",
+    "gui",
+    "database-client"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrPeker/turbopuffer-gui.git"
+  },
+  "homepage": "https://github.com/MrPeker/turbopuffer-gui#readme",
+  "bugs": {
+    "url": "https://github.com/MrPeker/turbopuffer-gui/issues"
+  },
   "author": {
     "name": "Mehmet Ali Peker",
     "email": "23459375+MrPeker@users.noreply.github.com"
