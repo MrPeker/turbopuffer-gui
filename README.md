@@ -11,12 +11,16 @@ A third-party, open-source desktop GUI client for [Turbopuffer](https://turbopuf
 
 > **⚠️ Beta Software**: This application is currently in beta and is released for testing and development purposes only. **Do not use with production data or systems.** Features may be incomplete, unstable, or subject to breaking changes.
 
-<!--
 ## Screenshots
 
-TODO: Add screenshots of the application
-![Main Interface](docs/screenshots/main.png)
--->
+![Connections](docs/screenshots/connections.png)
+*Manage multiple Turbopuffer connections with encrypted API key storage*
+
+![Namespaces](docs/screenshots/namespaces.png)
+*Browse and manage all namespaces in your Turbopuffer instance*
+
+![Documents](docs/screenshots/documents.png)
+*Explore documents with advanced filtering and search capabilities*
 
 ## Features
 
