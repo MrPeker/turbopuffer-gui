@@ -458,6 +458,18 @@ export const FilterBar: React.FC<FilterBarProps> = (
               : "h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"}
             onClick={() => {
               setQueryMode("bm25");
+              // Auto-select text fields if none are configured
+              if (localBM25Fields.length === 0) {
+                const textFields = attributes
+                  .filter(attr => attr.type === 'string' || attr.type === '[]string')
+                  .filter(attr => !['id', 'uuid', 'key'].includes(attr.name.toLowerCase()))
+                  .slice(0, 3) // Select up to 3 text fields
+                  .map(attr => attr.name);
+                if (textFields.length > 0) {
+                  setLocalBM25Fields(textFields);
+                  setBM25Config(textFields.map(f => ({ field: f, weight: 1.0 })), localBM25Operator);
+                }
+              }
               setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
             }}
             disabled={isLoading}
@@ -492,7 +504,7 @@ export const FilterBar: React.FC<FilterBarProps> = (
               <Input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search all fields..."
+                placeholder="Search by ID..."
                 value={localSearchText}
                 onChange={(e) => setLocalSearchText(e.target.value)}
                 className="h-8 pr-8 text-xs pl-7"
@@ -509,6 +521,29 @@ export const FilterBar: React.FC<FilterBarProps> = (
                   <X className="w-3 h-3" />
                 </Button>
               )}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Use <button
+                className="underline hover:text-foreground"
+                onClick={() => {
+                  setQueryMode("bm25");
+                  // Auto-select text fields if none are configured
+                  if (localBM25Fields.length === 0) {
+                    const textFields = attributes
+                      .filter(attr => attr.type === 'string' || attr.type === '[]string')
+                      .filter(attr => !['id', 'uuid', 'key'].includes(attr.name.toLowerCase()))
+                      .slice(0, 3)
+                      .map(attr => attr.name);
+                    if (textFields.length > 0) {
+                      setLocalBM25Fields(textFields);
+                      setBM25Config(textFields.map(f => ({ field: f, weight: 1.0 })), localBM25Operator);
+                    }
+                  }
+                  setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+                }}
+              >
+                full-text mode
+              </button> for content search
             </div>
           </div>
         )}

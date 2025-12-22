@@ -49,6 +49,20 @@ const appAPI = {
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
 };
 
+const fileAPI = {
+  saveWithDialog: (options: {
+    defaultPath?: string;
+    filters?: { name: string; extensions: string[] }[];
+    content: string;
+  }) => ipcRenderer.invoke('file:saveWithDialog', options),
+
+  showInFolder: (filePath: string) => ipcRenderer.invoke('file:showInFolder', filePath),
+
+  openPath: (filePath: string) => ipcRenderer.invoke('file:openPath', filePath),
+
+  openExternal: (url: string) => ipcRenderer.invoke('file:openExternal', url),
+};
+
 const queryHistoryAPI = {
   loadQueryHistory: (connectionId: string, namespaceId: string) =>
     ipcRenderer.invoke('queryHistory:load', connectionId, namespaceId),
@@ -79,6 +93,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...connectionAPI,
   ...settingsAPI,
   ...appAPI,
+  ...fileAPI,
   ...queryHistoryAPI,
 });
 
@@ -87,6 +102,16 @@ declare global {
   interface Window {
     electronAPI: ConnectionAPI & SettingsAPI & {
       getVersion: () => Promise<string>;
+      // File API
+      saveWithDialog: (options: {
+        defaultPath?: string;
+        filters?: { name: string; extensions: string[] }[];
+        content: string;
+      }) => Promise<{ canceled: boolean; filePath: string | null }>;
+      showInFolder: (filePath: string) => Promise<void>;
+      openPath: (filePath: string) => Promise<string>;
+      openExternal: (url: string) => Promise<void>;
+      // Query History API
       loadQueryHistory: (connectionId: string, namespaceId: string) => Promise<any>;
       saveQueryHistory: (connectionId: string, namespaceId: string, history: any) => Promise<void>;
       addSavedFilter: (connectionId: string, namespaceId: string, entry: any) => Promise<void>;

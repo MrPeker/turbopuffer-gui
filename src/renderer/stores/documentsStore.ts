@@ -186,12 +186,12 @@ loadDocuments: (
     id: string | number,
     attributes: Record<string, any>
   ) => Promise<void>;
-  uploadDocuments: (documents: Document[]) => Promise<void>;
+  importDocuments: (documents: Document[]) => Promise<void>;
   refresh: () => Promise<void>;
   exportDocuments: (
     format: "json" | "csv",
     documentIds?: string[]
-  ) => Promise<void>;
+  ) => Promise<{ filePath: string | null; canceled: boolean }>;
 
   // Raw Query Actions
   setRawQueryResults: (documents: Document[], queryResponse?: any) => void;
@@ -1104,25 +1104,13 @@ loadDocuments: async (
               // Build query filters
               const filters: TurbopufferFilter[] = [];
 
-              // Add text search filter across multiple fields (browse mode only)
-              // BM25 mode uses rank_by instead of filters
+              // In Browse mode, search text is used for ID lookup only
+              // For full-text search across content fields, users should use BM25 mode
+              // This avoids errors with BM25-enabled fields that have filtering disabled
               if (state.searchText.trim() && state.queryMode === 'browse') {
-                // Search across all string and array-of-string fields
-                const searchFields = state.attributes
-                  .filter(attr => attr.type === 'string' || attr.type === '[]string')
-                  .map(attr => attr.name);
-
-                // Create glob search filters for each searchable field
-                const textSearchFilters: TurbopufferFilter[] = searchFields.map(field =>
-                  [field, "Glob", `*${state.searchText.trim()}*`] as TurbopufferFilter
-                );
-
-                // Combine with OR logic if multiple fields
-                if (textSearchFilters.length > 1) {
-                  filters.push(["Or", textSearchFilters] as TurbopufferFilter);
-                } else if (textSearchFilters.length === 1) {
-                  filters.push(textSearchFilters[0]);
-                }
+                // Only search by ID in browse mode - treat as ID contains/starts with
+                // Use Glob pattern for partial ID matching
+                filters.push(["id", "Glob", `*${state.searchText.trim()}*`] as TurbopufferFilter);
               }
 
               // Add attribute filters
@@ -1397,9 +1385,25 @@ loadDocuments: async (
                   const field = state.bm25Fields[0].field;
                   rankBy = [field, "BM25", state.searchText.trim()];
                 } else {
-                  // Fallback to simple single field
-                  const searchField = state.searchField || 'id';
-                  rankBy = [searchField, "BM25", state.searchText.trim()];
+                  // No BM25 fields configured - try to find string fields that might have BM25
+                  // Look for common text fields that are likely to have full-text search enabled
+                  const potentialBM25Fields = state.attributes
+                    .filter(attr => attr.type === 'string' || attr.type === '[]string')
+                    .filter(attr => !['id', 'uuid', 'key', 'created_at', 'updated_at'].includes(attr.name.toLowerCase()))
+                    .map(attr => attr.name);
+
+                  if (potentialBM25Fields.length > 0) {
+                    // Use first text field as fallback
+                    rankBy = [potentialBM25Fields[0], "BM25", state.searchText.trim()];
+                    console.log("🔍 BM25: No fields selected, using first text field:", potentialBM25Fields[0]);
+                  } else {
+                    // No suitable fields found - set error and return early
+                    set((state) => {
+                      state.error = "No text fields available for full-text search. Please select fields in the BM25 configuration or check your schema has full_text_search enabled.";
+                      state.isLoading = false;
+                    });
+                    return;
+                  }
                 }
               } else if (state.queryMode === 'vector' && state.vectorQuery && state.vectorQuery.length > 0) {
                 // Vector search mode (ANN)
@@ -2076,7 +2080,7 @@ loadDocuments: async (
           }
         },
 
-        uploadDocuments: async (documents) => {
+        importDocuments: async (documents) => {
           const state = get();
           if (!state.currentNamespaceId) return;
 
@@ -2104,13 +2108,13 @@ loadDocuments: async (
               state.isLoading = false;
             });
           } catch (error) {
-            console.error("Failed to upload documents:", error);
+            console.error("Failed to import documents:", error);
             set((state) => {
               state.isLoading = false;
               state.error =
                 error instanceof Error
                   ? error.message
-                  : "Failed to upload documents";
+                  : "Failed to import documents";
             });
             throw error;
           }
@@ -2150,7 +2154,7 @@ loadDocuments: async (
         exportDocuments: async (
           format: "json" | "csv",
           documentIds?: string[]
-        ) => {
+        ): Promise<{ filePath: string | null; canceled: boolean }> => {
           const state = get();
           const documentsToExport = documentIds
             ? state.documents.filter((doc) =>
@@ -2162,21 +2166,16 @@ loadDocuments: async (
             throw new Error("No documents to export");
           }
 
+          let content: string;
+          let defaultFileName: string;
+          let filters: { name: string; extensions: string[] }[];
+
           if (format === "json") {
-            const jsonData = JSON.stringify(documentsToExport, null, 2);
-            const blob = new Blob([jsonData], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `export_${
-              state.currentNamespaceId
-            }_${Date.now()}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          } else if (format === "csv") {
-            // Import Papa dynamically for CSV export
+            content = JSON.stringify(documentsToExport, null, 2);
+            defaultFileName = `export_${state.currentNamespaceId}_${Date.now()}.json`;
+            filters = [{ name: "JSON Files", extensions: ["json"] }];
+          } else {
+            // CSV format
             const Papa = await import("papaparse");
 
             // Flatten documents for CSV export
@@ -2189,17 +2188,19 @@ loadDocuments: async (
               };
             });
 
-            const csv = Papa.unparse(flattenedDocs);
-            const blob = new Blob([csv], { type: "text/csv" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `export_${state.currentNamespaceId}_${Date.now()}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            content = Papa.unparse(flattenedDocs);
+            defaultFileName = `export_${state.currentNamespaceId}_${Date.now()}.csv`;
+            filters = [{ name: "CSV Files", extensions: ["csv"] }];
           }
+
+          // Use Electron's save dialog
+          const result = await window.electronAPI.saveWithDialog({
+            defaultPath: defaultFileName,
+            filters,
+            content,
+          });
+
+          return { filePath: result.filePath, canceled: result.canceled };
         },
 
         // Raw Query Actions

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useConnections } from '../../contexts/ConnectionContext';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
 import { NamespaceList } from './NamespaceList';
 import { NamespaceTreeView } from './NamespaceTreeView';
@@ -39,6 +39,7 @@ import {
 export function NamespacesPage() {
   const navigate = useNavigate();
   const { connectionId } = useParams<{ connectionId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { getDelimiterPreference, setDelimiterPreference, getConnectionById, isActiveConnectionReadOnly } = useConnections();
 
   // Zustand store
@@ -105,6 +106,17 @@ export function NamespacesPage() {
       sessionStorage.removeItem('intendedDestination');
     }
   }, [setIntendedDestination]);
+
+  // Handle prefix URL parameter (from breadcrumb navigation)
+  useEffect(() => {
+    const prefixParam = searchParams.get('prefix');
+    if (prefixParam) {
+      // Set the search term to filter by prefix
+      setSearchTerm(prefixParam);
+      // Clear the URL param after applying (keeps URL clean)
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchTerm, setSearchParams]);
 
   // Initialize connection and load namespaces
   useEffect(() => {

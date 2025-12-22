@@ -3,6 +3,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { setupConnectionHandlers } from './main/ipc/connectionHandlers';
 import { setupSettingsHandlers } from './main/ipc/settingsHandlers';
+import { setupFileHandlers } from './main/ipc/fileHandlers';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -48,6 +49,7 @@ const createWindow = () => {
 app.on('ready', () => {
   setupConnectionHandlers();
   setupSettingsHandlers();
+  setupFileHandlers();
   createWindow();
 });
 

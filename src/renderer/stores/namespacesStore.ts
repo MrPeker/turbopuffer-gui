@@ -110,6 +110,7 @@ interface NamespacesState {
   loadRecentNamespaces: (connectionId?: string) => void;
 
   // Actions - Metadata
+  fetchMetadataForNamespace: (namespaceId: string) => Promise<void>;
   fetchMetadataForNamespaces: (namespaceIds: string[]) => Promise<void>;
   getNamespaceMetadata: (namespaceId: string) => NamespaceMetadata | undefined;
   isMetadataLoading: (namespaceId: string) => boolean;
@@ -630,6 +631,36 @@ export const useNamespacesStore = create<NamespacesState>()(
         },
 
         // Metadata Actions
+        fetchMetadataForNamespace: async (namespaceId) => {
+          const state = get();
+
+          // Skip if already loading or cached
+          if (state.metadataLoading.has(namespaceId)) return;
+          const cached = state.metadataCache.get(namespaceId);
+          if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return;
+
+          // Mark as loading
+          set((state) => {
+            state.metadataLoading.add(namespaceId);
+          });
+
+          try {
+            const metadata = await namespaceService.getNamespaceMetadata(namespaceId);
+            set((state) => {
+              state.metadataLoading.delete(namespaceId);
+              state.metadataCache.set(namespaceId, {
+                metadata,
+                timestamp: Date.now(),
+              });
+            });
+          } catch (error) {
+            console.error(`Failed to fetch metadata for ${namespaceId}:`, error);
+            set((state) => {
+              state.metadataLoading.delete(namespaceId);
+            });
+          }
+        },
+
         fetchMetadataForNamespaces: async (namespaceIds) => {
           const state = get();
 

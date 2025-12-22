@@ -25,7 +25,10 @@
       "mcp__zen__chat",
       "Skill(frontend-design:frontend-design)",
       "Skill(superpowers:brainstorming)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(cat:*)",
+      "Skill(superpowers:systematic-debugging)",
+      "Bash(npm run test:run:*)"
     ],
     "deny": []
   }

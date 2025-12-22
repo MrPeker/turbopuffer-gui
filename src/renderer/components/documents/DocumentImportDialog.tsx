@@ -38,19 +38,19 @@ import { useConnection } from '@/renderer/contexts/ConnectionContext';
 import { useDocumentsStore } from '@/renderer/stores/documentsStore';
 import Papa from 'papaparse';
 
-interface DocumentUploadDialogProps {
+interface DocumentImportDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-interface UploadFile {
+interface ImportFile {
   file: File;
   preview: any[];
   error?: string;
 }
 
-export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
+export const DocumentImportDialog: React.FC<DocumentImportDialogProps> = ({
   open,
   onClose,
   onSuccess,
@@ -58,11 +58,11 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
   const { toast } = useToast();
   const { namespaceId } = useParams<{ namespaceId?: string }>();
   const { selectedConnection } = useConnection();
-  const { uploadDocuments } = useDocumentsStore();
-  const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
+  const { importDocuments } = useDocumentsStore();
+  const [importFiles, setImportFiles] = useState<ImportFile[]>([]);
   const [jsonText, setJsonText] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
   const [activeTab, setActiveTab] = useState('file');
   const [vectorConfig, setVectorConfig] = useState({
     enabled: false,
@@ -75,7 +75,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
   const [idField, setIdField] = useState('id');
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const newFiles: UploadFile[] = [];
+    const newFiles: ImportFile[] = [];
 
     for (const file of acceptedFiles) {
       try {
@@ -122,7 +122,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
       }
     }
 
-    setUploadFiles(prev => [...prev, ...newFiles]);
+    setImportFiles(prev => [...prev, ...newFiles]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -135,28 +135,28 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
   });
 
   const removeFile = (index: number) => {
-    setUploadFiles(prev => prev.filter((_, i) => i !== index));
+    setImportFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpload = async () => {
+  const handleImport = async () => {
     if (!selectedConnection || !namespaceId) return;
 
-    setUploading(true);
-    setUploadProgress(0);
+    setImporting(true);
+    setImportProgress(0);
 
     try {
       let allDocuments: any[] = [];
 
-      // Process file uploads
-      for (const uploadFile of uploadFiles) {
-        if (uploadFile.error) continue;
+      // Process file imports
+      for (const importFile of importFiles) {
+        if (importFile.error) continue;
 
-        const content = await uploadFile.file.text();
+        const content = await importFile.file.text();
 
-        if (uploadFile.file.name.endsWith('.json')) {
+        if (importFile.file.name.endsWith('.json')) {
           const data = JSON.parse(content);
           allDocuments = allDocuments.concat(Array.isArray(data) ? data : [data]);
-        } else if (uploadFile.file.name.endsWith('.csv')) {
+        } else if (importFile.file.name.endsWith('.csv')) {
           await new Promise<void>((resolve) => {
             Papa.parse(content, {
               header: true,
@@ -167,7 +167,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
               },
             });
           });
-        } else if (uploadFile.file.name.endsWith('.ndjson') || uploadFile.file.name.endsWith('.jsonl')) {
+        } else if (importFile.file.name.endsWith('.ndjson') || importFile.file.name.endsWith('.jsonl')) {
           const lines = content.trim().split('\n');
           allDocuments = allDocuments.concat(lines.map(line => JSON.parse(line)));
         }
@@ -184,7 +184,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
       }
 
       if (allDocuments.length === 0) {
-        throw new Error('No documents to upload');
+        throw new Error('No documents to import');
       }
 
       // Transform documents to match expected format
@@ -223,30 +223,30 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
         };
       });
 
-      // Upload documents in batches
+      // Import documents in batches
       const batches = [];
       for (let i = 0; i < allDocuments.length; i += batchSize) {
         batches.push(allDocuments.slice(i, i + batchSize));
       }
-      
-      for (let i = 0; i < batches.length; i++) {
-        await uploadDocuments(batches[i]);
-        setUploadProgress(((i + 1) / batches.length) * 100);
-      }
-      setUploadProgress(100);
 
-      toast.success('Upload successful', {
-        description: `Successfully uploaded ${allDocuments.length} documents in ${batches.length} batch${batches.length > 1 ? 'es' : ''}.`,
+      for (let i = 0; i < batches.length; i++) {
+        await importDocuments(batches[i]);
+        setImportProgress(((i + 1) / batches.length) * 100);
+      }
+      setImportProgress(100);
+
+      toast.success('Import successful', {
+        description: `Successfully imported ${allDocuments.length} documents in ${batches.length} batch${batches.length > 1 ? 'es' : ''}.`,
       });
 
       onSuccess();
     } catch (error) {
-      toast.error('Upload failed', {
+      toast.error('Import failed', {
         description: error instanceof Error ? error.message : 'Unknown error',
       });
     } finally {
-      setUploading(false);
-      setUploadProgress(0);
+      setImporting(false);
+      setImportProgress(0);
     }
   };
 
@@ -267,15 +267,15 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Upload Documents</DialogTitle>
+          <DialogTitle>Import Documents</DialogTitle>
           <DialogDescription>
-            Upload documents to the namespace in JSON, CSV, or NDJSON format.
+            Import documents to the namespace in JSON, CSV, or NDJSON format.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="file">File Upload</TabsTrigger>
+            <TabsTrigger value="file">File Import</TabsTrigger>
             <TabsTrigger value="json">JSON Input</TabsTrigger>
             <TabsTrigger value="settings">Import Settings</TabsTrigger>
           </TabsList>
@@ -302,33 +302,33 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
               </p>
             </div>
 
-            {uploadFiles.length > 0 && (
+            {importFiles.length > 0 && (
               <div className="space-y-2">
                 <Label>Selected Files</Label>
-                {uploadFiles.map((uploadFile, index) => (
+                {importFiles.map((importFile, index) => (
                   <div
                     key={index}
                     className="flex items-center justify-between p-3 border rounded-lg"
                   >
                     <div className="flex items-center gap-3">
-                      {uploadFile.file.name.endsWith('.json') ? (
+                      {importFile.file.name.endsWith('.json') ? (
                         <FileJson className="h-8 w-8 text-blue-500" />
                       ) : (
                         <FileText className="h-8 w-8 text-green-500" />
                       )}
                       <div>
-                        <p className="text-sm font-medium">{uploadFile.file.name}</p>
+                        <p className="text-sm font-medium">{importFile.file.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {(uploadFile.file.size / 1024).toFixed(2)} KB
+                          {(importFile.file.size / 1024).toFixed(2)} KB
                         </p>
-                        {uploadFile.error ? (
+                        {importFile.error ? (
                           <p className="text-xs text-destructive flex items-center gap-1 mt-1">
                             <AlertCircle className="h-3 w-3" />
-                            {uploadFile.error}
+                            {importFile.error}
                           </p>
                         ) : (
                           <p className="text-xs text-muted-foreground mt-1">
-                            {uploadFile.preview.length} document(s) detected
+                            {importFile.preview.length} document(s) detected
                           </p>
                         )}
                       </div>
@@ -489,29 +489,29 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({
           </TabsContent>
         </Tabs>
 
-        {uploading && (
+        {importing && (
           <div className="space-y-2">
-            <Label>Upload Progress</Label>
-            <Progress value={uploadProgress} />
+            <Label>Import Progress</Label>
+            <Progress value={importProgress} />
             <p className="text-xs text-muted-foreground text-center">
-              {uploadProgress.toFixed(0)}% complete
+              {importProgress.toFixed(0)}% complete
             </p>
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={uploading}>
+          <Button variant="outline" onClick={onClose} disabled={importing}>
             Cancel
           </Button>
           <Button
-            onClick={handleUpload}
+            onClick={handleImport}
             disabled={
-              uploading ||
-              (activeTab === 'file' && uploadFiles.length === 0) ||
+              importing ||
+              (activeTab === 'file' && importFiles.length === 0) ||
               (activeTab === 'json' && (!jsonText.trim() || !jsonValidation?.valid))
             }
           >
-            {uploading ? 'Uploading...' : 'Upload Documents'}
+            {importing ? 'Importing...' : 'Import Documents'}
           </Button>
         </DialogFooter>
       </DialogContent>

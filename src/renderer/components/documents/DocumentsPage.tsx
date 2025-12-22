@@ -23,10 +23,11 @@ import {
 import { useConnections } from "@/renderer/contexts/ConnectionContext";
 import { useDocumentsStore } from "@/renderer/stores/documentsStore";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { useInspector } from "@/renderer/components/layout/MainLayout";
 import { DocumentsTable } from "./DocumentsTable";
 import { DocumentDetailsPanel } from "./DocumentDetailsPanel";
-import { DocumentUploadDialog } from "./DocumentUploadDialog";
+import { DocumentImportDialog } from "./DocumentImportDialog";
 import { FilterBar } from "./FilterBar/FilterBar";
 import { RawQueryBar } from "./RawQueryBar";
 import { QueryPerformanceMetrics } from "./QueryPerformanceMetrics";
@@ -74,7 +75,7 @@ export const DocumentsPage: React.FC = () => {
   // Check if we're in aggregation mode (with or without grouping)
   const isAggregationMode = aggregations.length > 0;
 
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [pageSize, setPageSize] = useState(100);
   const [isRawQueryMode, setIsRawQueryMode] = useState(false);
   const [initialRawQuery, setInitialRawQuery] = useState<string | undefined>(undefined);
@@ -209,10 +210,27 @@ export const DocumentsPage: React.FC = () => {
           ? Array.from(selectedDocuments).map((id) => String(id))
           : undefined;
 
-      await exportDocuments(format, exportIds);
-
-      // Success - no toast, the file download is the feedback
+      const result = await exportDocuments(format, exportIds);
       setIsExporting(false);
+
+      if (result.canceled) {
+        // User cancelled the save dialog
+        return;
+      }
+
+      if (result.filePath) {
+        // Show toast with action to open file
+        sonnerToast.success(`Exported ${docsToExport} documents`, {
+          description: result.filePath,
+          action: {
+            label: "Show in Folder",
+            onClick: () => {
+              window.electronAPI.showInFolder(result.filePath!);
+            },
+          },
+          duration: 5000,
+        });
+      }
     } catch (error) {
       setIsExporting(false);
       toast({
@@ -356,14 +374,30 @@ export const DocumentsPage: React.FC = () => {
           {namespaceId && (() => {
             const delimiter = connectionId ? getDelimiterPreference(connectionId) : '-';
             const parts = namespaceId.split(delimiter);
-            return parts.map((part, index) => (
-              <React.Fragment key={index}>
-                <ChevronRight className="h-3 w-3 text-tp-text-muted" />
-                <span className={index === parts.length - 1 ? "font-mono text-tp-accent" : "font-mono text-tp-text-muted"}>
-                  {part}
-                </span>
-              </React.Fragment>
-            ));
+            return parts.map((part, index) => {
+              // Build the prefix up to this part (inclusive)
+              const prefix = parts.slice(0, index + 1).join(delimiter);
+              const isLast = index === parts.length - 1;
+
+              return (
+                <React.Fragment key={index}>
+                  <ChevronRight className="h-3 w-3 text-tp-text-muted" />
+                  {isLast ? (
+                    <span className="font-mono text-tp-accent">
+                      {part}
+                    </span>
+                  ) : (
+                    <Link
+                      to={`/connections/${connectionId}/namespaces?prefix=${encodeURIComponent(prefix)}`}
+                      className="font-mono text-tp-text-muted hover:text-tp-accent transition-colors"
+                      title={`Filter namespaces starting with "${prefix}"`}
+                    >
+                      {part}
+                    </Link>
+                  )}
+                </React.Fragment>
+              );
+            });
           })()}
         </nav>
 
@@ -382,12 +416,12 @@ export const DocumentsPage: React.FC = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowUploadDialog(true)}
+            onClick={() => setShowImportDialog(true)}
             disabled={isActiveConnectionReadOnly}
             className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
           >
             <Upload className="h-3 w-3 mr-1" />
-            upload
+            import
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -506,13 +540,13 @@ export const DocumentsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Upload Dialog */}
-      {showUploadDialog && (
-        <DocumentUploadDialog
-          open={showUploadDialog}
-          onClose={() => setShowUploadDialog(false)}
+      {/* Import Dialog */}
+      {showImportDialog && (
+        <DocumentImportDialog
+          open={showImportDialog}
+          onClose={() => setShowImportDialog(false)}
           onSuccess={() => {
-            setShowUploadDialog(false);
+            setShowImportDialog(false);
             refresh();
           }}
         />

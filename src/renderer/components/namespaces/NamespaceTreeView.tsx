@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { Namespace } from '../../../types/namespace';
@@ -63,18 +63,31 @@ export function NamespaceTreeView({
     setDeleteDialogNamespace,
     deleteNamespace,
     resetExpandedFolders,
-    fetchMetadataForNamespaces,
+    fetchMetadataForNamespace,
     getNamespaceMetadata,
     isMetadataLoading,
   } = useNamespacesStore();
 
-  // Fetch metadata for visible namespaces (only actual namespaces, not folders)
-  useEffect(() => {
-    if (namespaces.length > 0) {
-      const namespaceIds = namespaces.map(ns => ns.id);
-      fetchMetadataForNamespaces(namespaceIds);
+  // Debounced metadata fetch on hover (200ms delay to avoid scroll jank)
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleNodeHover = useCallback((namespaceId: string, isFolder: boolean) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
     }
-  }, [namespaces, fetchMetadataForNamespaces]);
+    if (!isFolder) {
+      hoverTimeoutRef.current = setTimeout(() => {
+        fetchMetadataForNamespace(namespaceId);
+      }, 200);
+    }
+  }, [fetchMetadataForNamespace]);
+
+  const handleNodeLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  }, []);
 
   // Reset expanded folders when delimiter changes
   useEffect(() => {
@@ -222,6 +235,8 @@ export function NamespaceTreeView({
           )}
           style={{ paddingLeft: `${level * 20 + 8}px` }}
           onClick={() => node.isFolder ? toggleFolder(node.id) : handleNamespaceClick(node)}
+          onMouseEnter={() => handleNodeHover(node.id, node.isFolder)}
+          onMouseLeave={handleNodeLeave}
         >
           {node.isFolder ? (
             <div className="h-4 w-4 flex items-center justify-center">

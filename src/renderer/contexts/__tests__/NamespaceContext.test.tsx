@@ -1,99 +1,164 @@
 import React from 'react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { NamespaceProvider, useNamespace } from '../NamespaceContext';
-import { ConnectionProvider } from '../ConnectionContext';
+import { localStorageMock } from '@/__tests__/setup';
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
-};
-global.localStorage = localStorageMock as any;
+vi.mock('../../services/turbopufferService', () => ({
+  turbopufferService: {
+    initializeClient: vi.fn(),
+    getClient: vi.fn(() => null),
+  },
+}));
 
-// Mock connection context
-jest.mock('../ConnectionContext', () => ({
-  useConnection: jest.fn(() => ({
-    selectedConnection: { id: 'test-connection' },
-  })),
-  ConnectionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+vi.mock('../../services/namespaceService', () => ({
+  namespaceService: {
+    setClient: vi.fn(),
+    getNamespaceById: vi.fn(),
+    listNamespaces: vi.fn().mockResolvedValue({ namespaces: [] }),
+  },
 }));
 
 describe('NamespaceContext', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    localStorage.clear();
+    vi.clearAllMocks();
+    localStorageMock.getItem.mockReturnValue(null);
+    localStorageMock.setItem.mockClear();
+    localStorageMock.removeItem.mockClear();
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <ConnectionProvider>
-      <NamespaceProvider>{children}</NamespaceProvider>
-    </ConnectionProvider>
+    <NamespaceProvider>{children}</NamespaceProvider>
   );
 
-  it('should provide namespace context', () => {
+  it('should provide namespace context with required functions', () => {
     const { result } = renderHook(() => useNamespace(), { wrapper });
 
-    expect(result.current.selectedNamespace).toBeNull();
-    expect(typeof result.current.selectNamespace).toBe('function');
-    expect(typeof result.current.clearNamespace).toBe('function');
+    expect(result.current.recentNamespaces).toEqual([]);
+    expect(typeof result.current.addRecentNamespace).toBe('function');
+    expect(typeof result.current.clearRecentNamespaces).toBe('function');
+    expect(typeof result.current.getNamespaceById).toBe('function');
+    expect(typeof result.current.loadNamespacesForConnection).toBe('function');
   });
 
-  it('should select and persist namespace', () => {
+  it('should add namespace to recent namespaces', () => {
     const { result } = renderHook(() => useNamespace(), { wrapper });
-    const testNamespace = { id: 'test-namespace' };
+    const testNamespace = { id: 'test-namespace', name: 'Test Namespace' };
 
     act(() => {
-      result.current.selectNamespace(testNamespace);
+      result.current.addRecentNamespace('conn-1', testNamespace);
     });
 
-    expect(result.current.selectedNamespace).toEqual(testNamespace);
-    expect(localStorage.setItem).toHaveBeenCalledWith(
-      'selectedNamespace',
-      expect.stringContaining('"namespace":{"id":"test-namespace"}')
+    expect(result.current.recentNamespaces).toHaveLength(1);
+    expect(result.current.recentNamespaces[0]).toEqual(testNamespace);
+  });
+
+  it('should persist recent namespaces to localStorage', () => {
+    const { result } = renderHook(() => useNamespace(), { wrapper });
+    const testNamespace = { id: 'test-namespace', name: 'Test Namespace' };
+
+    act(() => {
+      result.current.addRecentNamespace('conn-1', testNamespace);
+    });
+
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      'recentNamespaces',
+      expect.stringContaining('"id":"test-namespace"')
     );
   });
 
-  it('should clear namespace', () => {
+  it('should limit recent namespaces to MAX_RECENT_NAMESPACES (3)', () => {
     const { result } = renderHook(() => useNamespace(), { wrapper });
-    const testNamespace = { id: 'test-namespace' };
 
     act(() => {
-      result.current.selectNamespace(testNamespace);
+      result.current.addRecentNamespace('conn-1', { id: 'ns-1', name: 'NS 1' });
+      result.current.addRecentNamespace('conn-1', { id: 'ns-2', name: 'NS 2' });
+      result.current.addRecentNamespace('conn-1', { id: 'ns-3', name: 'NS 3' });
+      result.current.addRecentNamespace('conn-1', { id: 'ns-4', name: 'NS 4' });
     });
 
-    act(() => {
-      result.current.clearNamespace();
-    });
-
-    expect(result.current.selectedNamespace).toBeNull();
-    expect(localStorage.removeItem).toHaveBeenCalledWith('selectedNamespace');
+    expect(result.current.recentNamespaces).toHaveLength(3);
+    expect(result.current.recentNamespaces[0].id).toBe('ns-4');
+    expect(result.current.recentNamespaces[2].id).toBe('ns-2');
   });
 
-  it('should load namespace from localStorage on mount', () => {
+  it('should not add duplicate namespaces', () => {
+    const { result } = renderHook(() => useNamespace(), { wrapper });
+    const testNamespace = { id: 'test-namespace', name: 'Test Namespace' };
+
+    act(() => {
+      result.current.addRecentNamespace('conn-1', testNamespace);
+      result.current.addRecentNamespace('conn-1', testNamespace);
+    });
+
+    expect(result.current.recentNamespaces).toHaveLength(1);
+  });
+
+  it('should move existing namespace to front when re-added', () => {
+    const { result } = renderHook(() => useNamespace(), { wrapper });
+
+    act(() => {
+      result.current.addRecentNamespace('conn-1', { id: 'ns-1', name: 'NS 1' });
+      result.current.addRecentNamespace('conn-1', { id: 'ns-2', name: 'NS 2' });
+      result.current.addRecentNamespace('conn-1', { id: 'ns-1', name: 'NS 1' });
+    });
+
+    expect(result.current.recentNamespaces).toHaveLength(2);
+    expect(result.current.recentNamespaces[0].id).toBe('ns-1');
+    expect(result.current.recentNamespaces[1].id).toBe('ns-2');
+  });
+
+  it('should clear recent namespaces', () => {
+    const { result } = renderHook(() => useNamespace(), { wrapper });
+
+    act(() => {
+      result.current.addRecentNamespace('conn-1', { id: 'ns-1', name: 'NS 1' });
+    });
+
+    expect(result.current.recentNamespaces).toHaveLength(1);
+
+    act(() => {
+      result.current.clearRecentNamespaces();
+    });
+
+    expect(result.current.recentNamespaces).toHaveLength(0);
+    expect(localStorageMock.removeItem).toHaveBeenCalledWith('recentNamespaces');
+  });
+
+  it('should load recent namespaces from localStorage on mount', () => {
     const storedData = {
-      namespace: { id: 'stored-namespace' },
-      connectionId: 'test-connection',
+      namespaces: [{ id: 'stored-namespace', name: 'Stored NS' }],
+      connectionId: 'conn-1',
       timestamp: new Date().toISOString(),
     };
     localStorageMock.getItem.mockReturnValue(JSON.stringify(storedData));
 
     const { result } = renderHook(() => useNamespace(), { wrapper });
 
-    expect(result.current.selectedNamespace).toEqual({ id: 'stored-namespace' });
+    expect(result.current.recentNamespaces).toEqual([{ id: 'stored-namespace', name: 'Stored NS' }]);
   });
 
-  it('should not load namespace if connection ID does not match', () => {
-    const storedData = {
-      namespace: { id: 'stored-namespace' },
-      connectionId: 'different-connection',
-      timestamp: new Date().toISOString(),
-    };
-    localStorageMock.getItem.mockReturnValue(JSON.stringify(storedData));
+  it('should handle invalid localStorage data gracefully', () => {
+    localStorageMock.getItem.mockReturnValue('invalid-json');
 
     const { result } = renderHook(() => useNamespace(), { wrapper });
 
-    expect(result.current.selectedNamespace).toBeNull();
+    expect(result.current.recentNamespaces).toEqual([]);
+  });
+
+  it('should not add namespace without connectionId', () => {
+    const { result } = renderHook(() => useNamespace(), { wrapper });
+
+    act(() => {
+      result.current.addRecentNamespace('', { id: 'ns-1', name: 'NS 1' });
+    });
+
+    expect(result.current.recentNamespaces).toHaveLength(0);
+  });
+
+  it('throws error when useNamespace is used outside provider', () => {
+    expect(() => {
+      renderHook(() => useNamespace());
+    }).toThrow('useNamespace must be used within a NamespaceProvider');
   });
 });

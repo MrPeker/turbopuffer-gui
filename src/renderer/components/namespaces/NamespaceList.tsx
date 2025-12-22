@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { Namespace } from '../../../types/namespace';
@@ -42,18 +42,29 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
     setDeleteDialogNamespace,
     deleteNamespace,
     addRecentNamespace,
-    fetchMetadataForNamespaces,
+    fetchMetadataForNamespace,
     getNamespaceMetadata,
     isMetadataLoading,
   } = useNamespacesStore();
 
-  // Fetch metadata for visible namespaces
-  useEffect(() => {
-    if (namespaces.length > 0) {
-      const namespaceIds = namespaces.map(ns => ns.id);
-      fetchMetadataForNamespaces(namespaceIds);
+  // Debounced metadata fetch on hover (200ms delay to avoid scroll jank)
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleRowHover = useCallback((namespaceId: string) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
     }
-  }, [namespaces, fetchMetadataForNamespaces]);
+    hoverTimeoutRef.current = setTimeout(() => {
+      fetchMetadataForNamespace(namespaceId);
+    }, 200);
+  }, [fetchMetadataForNamespace]);
+
+  const handleRowLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  }, []);
 
   const handleDelete = async (namespaceId: string) => {
     try {
@@ -112,6 +123,8 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
                     key={namespace.id}
                     className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
                     onClick={() => handleNamespaceClick(namespace)}
+                    onMouseEnter={() => handleRowHover(namespace.id)}
+                    onMouseLeave={handleRowLeave}
                   >
                     <TableCell className="py-3 px-4">
                       <FolderOpen className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />

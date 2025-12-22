@@ -3,7 +3,7 @@ import "./index.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./renderer/App";
-import { Toaster } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
