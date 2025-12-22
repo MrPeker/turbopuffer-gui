@@ -152,3 +152,6 @@ $RECYCLE.BIN/
 
 # Claude Code
 .claude/settings.local.json
+
+# Downloaded documentation
+*.zip
