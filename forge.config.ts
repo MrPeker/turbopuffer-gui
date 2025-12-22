@@ -23,6 +23,7 @@ const config: ForgeConfig = {
     icon: './assets/icon',
     appBundleId: 'com.peker.turbopuffer',
     appCategoryType: 'public.app-category.developer-tools',
+    executableName: 'turbopuffer-gui',
     ...(signingIdentity && {
       osxSign: {
         identity: signingIdentity,
