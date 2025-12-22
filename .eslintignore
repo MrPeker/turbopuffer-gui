@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+.vite/
+spectrum-css/
+src/components/ui/
+coverage/
+*.config.js
+*.config.ts
+forge.config.ts
