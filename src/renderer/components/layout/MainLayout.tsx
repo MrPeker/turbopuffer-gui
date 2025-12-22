@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Outlet, useOutletContext } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { InspectorPanel } from "./InspectorPanel";
+import { UpdateBanner } from "./UpdateBanner";
 import { useSettings } from "../../contexts/SettingsContext";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,9 @@ export function MainLayout() {
 
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Update Banner */}
+        <UpdateBanner />
+
         {/* Main workspace */}
         <main className="flex-1 overflow-hidden flex">
           <div className="flex-1 overflow-auto">

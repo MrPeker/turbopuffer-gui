@@ -34,6 +34,7 @@ export class DocumentService {
     });
     console.log("📋 Query Parameters:", {
       rank_by: params.rank_by,
+      rank_by_json: JSON.stringify(params.rank_by),
       top_k: params.top_k,
       filters: params.filters,
       include_attributes: params.include_attributes,

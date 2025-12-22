@@ -1377,13 +1377,16 @@ loadDocuments: async (
                 // BM25 full-text search mode
                 if (state.bm25Fields.length > 1) {
                   // Multi-field BM25 with operator
-                  const fieldRanks = state.bm25Fields.map(f => {
-                    const rank = [f.field, "BM25", state.searchText.trim()];
-                    return f.weight !== 1.0 ? [f.weight, rank] : rank;
+                  // Format: ['Sum', [rank1, rank2, ...]] or ['Max', [rank1, rank2, ...]]
+                  const fieldRanks: any[] = state.bm25Fields.map(f => {
+                    const rank: [string, string, string] = [f.field, "BM25", state.searchText.trim()];
+                    // Weighted: ['Product', [weight, rank]]
+                    return f.weight !== 1.0 ? ['Product', [f.weight, rank]] : rank;
                   });
 
                   const op = state.bm25Operator.charAt(0).toUpperCase() + state.bm25Operator.slice(1);
-                  rankBy = [op, ...fieldRanks];
+                  // SDK expects ['Sum', RankByText[]] - array of ranks wrapped in outer array
+                  rankBy = [op, fieldRanks];
                 } else if (state.bm25Fields.length === 1) {
                   // Single field BM25 from config
                   const field = state.bm25Fields[0].field;

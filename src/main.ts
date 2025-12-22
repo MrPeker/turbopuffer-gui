@@ -4,6 +4,7 @@ import started from 'electron-squirrel-startup';
 import { setupConnectionHandlers } from './main/ipc/connectionHandlers';
 import { setupSettingsHandlers } from './main/ipc/settingsHandlers';
 import { setupFileHandlers } from './main/ipc/fileHandlers';
+import { setupUpdateHandlers } from './main/ipc/updateHandlers';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -22,6 +23,7 @@ app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
  */
 const ALLOWED_URL_PATTERNS = [
   /^https:\/\/([a-z0-9-]+\.)?turbopuffer\.com(\/|$)/i,  // Turbopuffer API
+  /^https:\/\/api\.github\.com\/repos\/MrPeker\/turbopuffer-gui\//i, // GitHub API (update check)
   /^https?:\/\/localhost(:\d+)?(\/|$)/,                  // Local dev server (HTTP)
   /^https?:\/\/127\.0\.0\.1(:\d+)?(\/|$)/,               // Local dev server (HTTP)
   /^wss?:\/\/localhost(:\d+)?(\/|$)/,                    // Local dev server (WebSocket)
@@ -82,6 +84,7 @@ app.on('ready', () => {
   setupConnectionHandlers();
   setupSettingsHandlers();
   setupFileHandlers();
+  setupUpdateHandlers();
   createWindow();
 });
 

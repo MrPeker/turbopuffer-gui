@@ -114,6 +114,7 @@ cp .env.example .env
 This application disables Chromium's web security (CORS) to allow the Turbopuffer SDK to communicate with the API from the renderer process. To mitigate the associated risks, all outgoing network requests are filtered and restricted to:
 
 - `*.turbopuffer.com` (Turbopuffer API)
+- `api.github.com/repos/MrPeker/turbopuffer-gui/*` (update checks, from main process only)
 - `localhost` / `127.0.0.1` (development only)
 - Local files (`file://`)
 

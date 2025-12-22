@@ -4,6 +4,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ConnectionAPI, ConnectionFormData } from './types/connection';
 import type { SettingsAPI, Settings } from './types/settings';
+import type { UpdateAPI } from './types/update';
 
 const connectionAPI: ConnectionAPI = {
   saveConnection: (connection: ConnectionFormData) => 
@@ -66,27 +67,33 @@ const fileAPI = {
 const queryHistoryAPI = {
   loadQueryHistory: (connectionId: string, namespaceId: string) =>
     ipcRenderer.invoke('queryHistory:load', connectionId, namespaceId),
-  
+
   saveQueryHistory: (connectionId: string, namespaceId: string, history: any) =>
     ipcRenderer.invoke('queryHistory:save', connectionId, namespaceId, history),
-  
+
   addSavedFilter: (connectionId: string, namespaceId: string, entry: any) =>
     ipcRenderer.invoke('queryHistory:addSaved', connectionId, namespaceId, entry),
-  
+
   addRecentFilter: (connectionId: string, namespaceId: string, entry: any) =>
     ipcRenderer.invoke('queryHistory:addRecent', connectionId, namespaceId, entry),
-  
+
   updateFilterCount: (connectionId: string, namespaceId: string, filterId: string) =>
     ipcRenderer.invoke('queryHistory:updateCount', connectionId, namespaceId, filterId),
-  
+
   deleteSavedFilter: (connectionId: string, namespaceId: string, filterId: string) =>
     ipcRenderer.invoke('queryHistory:deleteSaved', connectionId, namespaceId, filterId),
-  
+
   clearRecentFilters: (connectionId: string, namespaceId: string) =>
     ipcRenderer.invoke('queryHistory:clearRecent', connectionId, namespaceId),
-  
+
   deleteAllHistory: (connectionId: string, namespaceId: string) =>
     ipcRenderer.invoke('queryHistory:deleteAll', connectionId, namespaceId),
+};
+
+const updateAPI: UpdateAPI = {
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  getUpdateState: () => ipcRenderer.invoke('update:getState'),
+  dismissUpdate: (version: string) => ipcRenderer.invoke('update:dismiss', version),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -95,12 +102,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ...appAPI,
   ...fileAPI,
   ...queryHistoryAPI,
+  ...updateAPI,
 });
 
 // Type augmentation for window object
 declare global {
   interface Window {
-    electronAPI: ConnectionAPI & SettingsAPI & {
+    electronAPI: ConnectionAPI & SettingsAPI & UpdateAPI & {
       getVersion: () => Promise<string>;
       // File API
       saveWithDialog: (options: {

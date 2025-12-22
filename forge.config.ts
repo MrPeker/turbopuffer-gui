@@ -3,9 +3,11 @@ import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
+import { MakerDMG } from '@electron-forge/maker-dmg';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { PublisherGithub } from '@electron-forge/publisher-github';
 import * as dotenv from 'dotenv';
 
 // Load environment variables from .env file
@@ -41,12 +43,38 @@ const config: ForgeConfig = {
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      // Windows will use assets/icon.png via packagerConfig
+    }),
     new MakerZIP({
       ...(macUpdateUrl && { macUpdateManifestBaseUrl: macUpdateUrl })
     }, ['darwin']),
-    new MakerRpm({}),
-    new MakerDeb({})
+    new MakerDMG({
+      icon: './assets/icon.icns',
+    }),
+    new MakerDeb({
+      options: {
+        icon: './assets/icon.png',
+        categories: ['Development', 'Utility'],
+        maintainer: 'Mehmet Ali Peker',
+      }
+    }),
+    new MakerRpm({
+      options: {
+        icon: './assets/icon.png',
+        categories: ['Development', 'Utility'],
+      }
+    }),
+  ],
+  publishers: [
+    new PublisherGithub({
+      repository: {
+        owner: 'MrPeker',
+        name: 'turbopuffer-gui',
+      },
+      prerelease: false,
+      draft: true, // Create as draft first, then manually publish
+    }),
   ],
   plugins: [
     new VitePlugin({
