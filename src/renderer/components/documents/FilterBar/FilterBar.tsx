@@ -98,12 +98,17 @@ export const FilterBar: React.FC<FilterBarProps> = (
     aggregations,
     setAggregations,
     aggregationResults,
+    wrapCellText,
+    toggleWrapCellText,
+    shrinkLargeText,
+    toggleShrinkLargeText,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
   const [isAggregationsOpen, setIsAggregationsOpen] = useState(false);
   const [showBM25Advanced, setShowBM25Advanced] = useState(false);
+  const [columnSearch, setColumnSearch] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // BM25 mode state
@@ -194,8 +199,8 @@ export const FilterBar: React.FC<FilterBarProps> = (
               type: Array.isArray(value)
                 ? "array"
                 : typeof value === "number"
-                ? "number"
-                : "string",
+                  ? "number"
+                  : "string",
               sampleValues: [],
               count: 0,
             });
@@ -244,8 +249,8 @@ export const FilterBar: React.FC<FilterBarProps> = (
               type: Array.isArray(value)
                 ? "array"
                 : typeof value === "number"
-                ? "number"
-                : "string",
+                  ? "number"
+                  : "string",
               sampleValues: [],
               count: 0,
             });
@@ -579,8 +584,7 @@ export const FilterBar: React.FC<FilterBarProps> = (
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-6 text-xs">
                     {localBM25Fields.length > 0
-                      ? `${localBM25Fields.length} field${
-                        localBM25Fields.length > 1 ? "s" : ""
+                      ? `${localBM25Fields.length} field${localBM25Fields.length > 1 ? "s" : ""
                       }`
                       : "All fields"}
                     <ChevronDown className="w-3 h-3 ml-1" />
@@ -696,11 +700,11 @@ export const FilterBar: React.FC<FilterBarProps> = (
                       </SelectItem>
                     ))}
                   {availableFields.filter((f) =>
-                        f.name.toLowerCase().includes("vector") ||
-                        f.name.toLowerCase().includes("embedding")
-                      ).length === 0 && (
-                    <SelectItem value="embedding">embedding</SelectItem>
-                  )}
+                    f.name.toLowerCase().includes("vector") ||
+                    f.name.toLowerCase().includes("embedding")
+                  ).length === 0 && (
+                      <SelectItem value="embedding">embedding</SelectItem>
+                    )}
                 </SelectContent>
               </Select>
             </div>
@@ -792,31 +796,31 @@ export const FilterBar: React.FC<FilterBarProps> = (
           {rankingMode === "simple" &&
             sortAttribute !== "relevance" &&
             sortAttribute !== "similarity" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-[2rem] px-2 text-xs font-mono leading-none"
-              onClick={() => {
-                const newDirection = sortDirection === "asc" ? "desc" : "asc";
-                setSortAttribute(sortAttribute || "id", newDirection);
-                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
-              }}
-              disabled={isLoading}
-              title={`Toggle sort direction (currently ${sortDirection.toUpperCase()})`}
-            >
-              {sortDirection === "asc"
-                ? (
-                  <>
-                    ASC <ArrowUp className="w-3 h-3 ml-1" />
-                  </>
-                )
-                : (
-                  <>
-                    DESC <ArrowDown className="w-3 h-3 ml-1" />
-                  </>
-                )}
-            </Button>
-          )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-[2rem] px-2 text-xs font-mono leading-none"
+                onClick={() => {
+                  const newDirection = sortDirection === "asc" ? "desc" : "asc";
+                  setSortAttribute(sortAttribute || "id", newDirection);
+                  setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+                }}
+                disabled={isLoading}
+                title={`Toggle sort direction (currently ${sortDirection.toUpperCase()})`}
+              >
+                {sortDirection === "asc"
+                  ? (
+                    <>
+                      ASC <ArrowUp className="w-3 h-3 ml-1" />
+                    </>
+                  )
+                  : (
+                    <>
+                      DESC <ArrowDown className="w-3 h-3 ml-1" />
+                    </>
+                  )}
+              </Button>
+            )}
         </div>
       </div>
 
@@ -948,11 +952,47 @@ export const FilterBar: React.FC<FilterBarProps> = (
               <ChevronDown className="w-3 h-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56 overflow-y-auto max-h-96 bg-tp-surface border-tp-border-strong">
-            <DropdownMenuLabel className="text-xs tracking-wider uppercase">
+          <DropdownMenuContent className="w-72 overflow-y-auto max-h-96 bg-tp-surface border-tp-border-strong">
+            {/* Search and quick actions */}
+            <div className="px-2 py-2 flex items-center gap-2">
+              <Input
+                value={columnSearch}
+                onChange={(e) => setColumnSearch(e.target.value)}
+                placeholder="Search columns..."
+                className="text-xs h-8"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const all = new Set(availableFields.map((f) => f.name));
+                  setVisibleColumns(all);
+                  setTimeout(() => loadDocuments(true, false, pageSize), 100);
+                }}
+              >
+                Select all
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setVisibleColumns(new Set());
+                  setTimeout(() => loadDocuments(true, false, pageSize), 100);
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+
+            <DropdownMenuLabel className="text-xs tracking-wider uppercase px-2">
               toggle columns
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-tp-border-subtle" />
+
             <DropdownMenuItem
               key="id"
               onClick={(e) => {
@@ -971,8 +1011,10 @@ export const FilterBar: React.FC<FilterBarProps> = (
                 required
               </Badge>
             </DropdownMenuItem>
+
             {availableFields
               .filter((field) => field.name !== "id")
+              .filter((field) => field.name.toLowerCase().includes(columnSearch.toLowerCase()))
               .map((field) => (
                 <DropdownMenuItem
                   key={field.name}
@@ -995,14 +1037,47 @@ export const FilterBar: React.FC<FilterBarProps> = (
                     {(field.name.includes("vector") ||
                       field.name === "attributes" ||
                       field.name === "$dist") && (
-                      <Badge variant="outline" className="ml-1.5">
-                        special
-                      </Badge>
-                    )}
+                        <Badge variant="outline" className="ml-1.5">
+                          special
+                        </Badge>
+                      )}
                   </span>
                 </DropdownMenuItem>
               ))}
+
+            {availableFields.filter((field) => field.name !== "id").filter((field) => field.name.toLowerCase().includes(columnSearch.toLowerCase())).length === 0 && (
+              <div className="px-3 py-2 text-xs text-tp-text-muted">no columns match</div>
+            )}
+
             <DropdownMenuSeparator className="bg-tp-border-subtle" />
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.preventDefault();
+                // Toggle wrap text option
+                toggleWrapCellText();
+              }}
+              className="text-xs"
+            >
+              <Checkbox
+                checked={wrapCellText}
+                className="mr-2 h-4 w-4 pointer-events-none focus:ring-0 focus-visible:ring-0"
+              />
+              <span className="flex-1">wrap text</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.preventDefault();
+                // Toggle shrink large text
+                toggleShrinkLargeText();
+              }}
+              className="text-xs"
+            >
+              <Checkbox
+                checked={shrinkLargeText}
+                className="mr-2 h-4 w-4 pointer-events-none focus:ring-0 focus-visible:ring-0"
+              />
+              <span className="flex-1">shrink large text</span>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(e) => {
                 e.preventDefault();

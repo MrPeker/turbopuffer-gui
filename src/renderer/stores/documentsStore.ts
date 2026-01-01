@@ -80,7 +80,7 @@ interface DocumentsState {
 
   // Connection State
   currentConnectionId: string | null;
-  
+
   // UI State
   isLoading: boolean;
   isRefreshing: boolean;
@@ -88,7 +88,9 @@ interface DocumentsState {
   error: string | null;
   selectedDocuments: Set<string | number>;
   visibleColumns: Set<string>;
-  
+  wrapCellText: boolean;
+  shrinkLargeText: boolean;
+
   // Client State
   isClientInitialized: boolean;
   initializationAttempts: number;
@@ -126,7 +128,7 @@ interface DocumentsState {
     string,
     { documents: Document[]; totalCount: number | null; timestamp: number }
   >;
-  
+
   // Filter History (per namespace)
   filterHistory: Map<string, FilterHistoryEntry[]>; // Saved filters
   recentFilterHistory: Map<string, RecentFilterEntry[]>; // Auto-logged recent filters
@@ -152,6 +154,10 @@ interface DocumentsState {
   setSelectedDocuments: (selected: Set<string | number>) => void;
   setVisibleColumns: (columns: Set<string>) => void;
   toggleColumn: (column: string) => void;
+  setWrapCellText: (wrap: boolean) => void;
+  toggleWrapCellText: () => void;
+  setShrinkLargeText: (shrink: boolean) => void;
+  toggleShrinkLargeText: () => void;
   setSortAttribute: (attribute: string | null, direction: 'asc' | 'desc') => void;
   setQueryMode: (mode: 'browse' | 'bm25' | 'vector') => void;
   setSearchField: (field: string | null) => void;
@@ -173,12 +179,12 @@ interface DocumentsState {
 
   // Async Actions
   initializeClient: (connectionId: string, region: TurbopufferRegion) => Promise<boolean>;
-loadDocuments: (
-          force?: boolean,
-          loadMore?: boolean,
-          limit?: number,
-          page?: number
-        ) => Promise<void>;  discoverAttributes: (force?: boolean) => Promise<void>;
+  loadDocuments: (
+    force?: boolean,
+    loadMore?: boolean,
+    limit?: number,
+    page?: number
+  ) => Promise<void>; discoverAttributes: (force?: boolean) => Promise<void>;
   discoverAttributesFromDocuments: (documents: Document[]) => void;
   loadSchemaAndInitColumns: () => Promise<void>;
   deleteDocuments: (ids: (string | number)[]) => Promise<void>;
@@ -236,6 +242,9 @@ export const useDocumentsStore = create<DocumentsState>()(
         error: null,
         selectedDocuments: new Set(),
         visibleColumns: new Set(),
+        // UI options
+        wrapCellText: false,
+        shrinkLargeText: false,
         isClientInitialized: false,
         initializationAttempts: 0,
         maxInitAttempts: 3,
@@ -374,16 +383,16 @@ export const useDocumentsStore = create<DocumentsState>()(
           const state = get();
           const attributeInfo = state.attributes.find(a => a.name === attribute);
           const fieldType = attributeInfo?.type;
-          
+
           console.log("🔍 Field type lookup:", {
             attribute,
             fieldType,
             attributeInfo
           });
-          
+
           // Convert the raw value to the correct type
           let typedValue: any = rawValue;
-          
+
           // Handle different input formats
           if (operator === "in" || operator === "not_in") {
             // For in/not_in operators, ensure we have an array
@@ -393,7 +402,7 @@ export const useDocumentsStore = create<DocumentsState>()(
               typedValue = values.map(v => parseValueForFieldType(v, fieldType));
             } else {
               // Convert each element in the array
-              typedValue = rawValue.map((v: any) => 
+              typedValue = rawValue.map((v: any) =>
                 typeof v === 'string' ? parseValueForFieldType(v, fieldType) : v
               );
             }
@@ -401,11 +410,11 @@ export const useDocumentsStore = create<DocumentsState>()(
             typedValue = null;
           } else {
             // Single value - convert to appropriate type
-            typedValue = typeof rawValue === 'string' 
+            typedValue = typeof rawValue === 'string'
               ? parseValueForFieldType(rawValue, fieldType)
               : rawValue;
           }
-          
+
           console.log("🔍 Type conversion result:", {
             fieldType,
             rawValue,
@@ -429,7 +438,7 @@ export const useDocumentsStore = create<DocumentsState>()(
           } else {
             displayValue = String(typedValue);
           }
-          
+
           const newFilter: SimpleFilter = {
             id: `${Date.now()}-${Math.random()}`,
             attribute,
@@ -479,23 +488,23 @@ export const useDocumentsStore = create<DocumentsState>()(
           const state = get();
           const attributeInfo = state.attributes.find(a => a.name === attribute);
           const fieldType = attributeInfo?.type;
-          
+
           // Convert the raw value to the correct type (same logic as addFilter)
           let typedValue: any = rawValue;
-          
+
           if (operator === "in" || operator === "not_in") {
             if (!Array.isArray(rawValue)) {
               const values = String(rawValue).split(",").map(v => v.trim()).filter(v => v);
               typedValue = values.map(v => parseValueForFieldType(v, fieldType));
             } else {
-              typedValue = rawValue.map((v: any) => 
+              typedValue = rawValue.map((v: any) =>
                 typeof v === 'string' ? parseValueForFieldType(v, fieldType) : v
               );
             }
           } else if (rawValue === "null" || (typeof rawValue === 'string' && rawValue.toLowerCase() === "null")) {
             typedValue = null;
           } else {
-            typedValue = typeof rawValue === 'string' 
+            typedValue = typeof rawValue === 'string'
               ? parseValueForFieldType(rawValue, fieldType)
               : rawValue;
           }
@@ -619,6 +628,27 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.visibleColumns = newColumns;
           }),
 
+        // Wrap and font options
+        setWrapCellText: (wrap) =>
+          set((state) => {
+            state.wrapCellText = wrap;
+          }),
+
+        toggleWrapCellText: () =>
+          set((state) => {
+            state.wrapCellText = !state.wrapCellText;
+          }),
+
+        setShrinkLargeText: (shrink) =>
+          set((state) => {
+            state.shrinkLargeText = shrink;
+          }),
+
+        toggleShrinkLargeText: () =>
+          set((state) => {
+            state.shrinkLargeText = !state.shrinkLargeText;
+          }),
+
         setSortAttribute: (attribute, direction) =>
           set((state) => {
             state.sortAttribute = attribute;
@@ -713,7 +743,7 @@ export const useDocumentsStore = create<DocumentsState>()(
         saveToFilterHistory: async (name) => {
           const state = get();
           const { currentConnectionId, currentNamespaceId, searchText, activeFilters } = state;
-          
+
           console.log('💾 saveToFilterHistory called:', {
             name,
             currentConnectionId,
@@ -721,12 +751,12 @@ export const useDocumentsStore = create<DocumentsState>()(
             searchText,
             activeFilters: activeFilters.length
           });
-          
+
           if (!currentConnectionId || !currentNamespaceId) {
             console.log('💾 Cannot save - missing connection or namespace');
             return;
           }
-          
+
           const newEntry: FilterHistoryEntry = {
             id: `${Date.now()}-${Math.random()}`,
             name,
@@ -736,9 +766,9 @@ export const useDocumentsStore = create<DocumentsState>()(
             appliedCount: 0,
             description: generateFilterDescription(activeFilters, searchText)
           };
-          
+
           console.log('💾 Creating saved filter entry:', newEntry);
-          
+
           try {
             // Save to disk
             await window.electronAPI.addSavedFilter(
@@ -760,7 +790,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             console.error('Failed to save filter to history:', error);
           }
         },
-        
+
         applyFilterFromHistory: async (historyId) => {
           const state = get();
           const { currentConnectionId, currentNamespaceId } = state;
@@ -788,7 +818,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             );
             state.filterHistory.set(historyKey, updatedHistory);
           });
-          
+
           // Update count on disk
           try {
             await window.electronAPI.updateFilterCount(
@@ -803,7 +833,7 @@ export const useDocumentsStore = create<DocumentsState>()(
           // Load documents with the applied filters - force page 1
           setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
         },
-        
+
         deleteFilterFromHistory: async (historyId) => {
           const state = get();
           const { currentConnectionId, currentNamespaceId } = state;
@@ -829,7 +859,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             console.error('Failed to delete filter from history:', error);
           }
         },
-        
+
         getNamespaceFilterHistory: () => {
           const state = get();
           const { currentConnectionId, currentNamespaceId } = state;
@@ -864,7 +894,7 @@ export const useDocumentsStore = create<DocumentsState>()(
 
           return history;
         },
-        
+
         applyRecentFilter: (historyId) => {
           const state = get();
           const { currentConnectionId, currentNamespaceId } = state;
@@ -887,29 +917,29 @@ export const useDocumentsStore = create<DocumentsState>()(
           // Load documents with the applied filters - force page 1
           setTimeout(() => get().loadDocuments(true, false, get().pageSize, 1), 0);
         },
-        
+
         logFilterChange: async () => {
           const state = get();
           const { currentConnectionId, currentNamespaceId, searchText, activeFilters } = state;
-          
+
           console.log('📝 logFilterChange called:', {
             currentConnectionId,
             currentNamespaceId,
             searchText,
             activeFilters: activeFilters.length
           });
-          
+
           if (!currentConnectionId || !currentNamespaceId) {
             console.log('📝 Skipping logFilterChange - missing connection or namespace');
             return;
           }
-          
+
           // Don't log if no filters or search
           if (searchText.length === 0 && activeFilters.length === 0) {
             console.log('📝 Skipping logFilterChange - no filters or search');
             return;
           }
-          
+
           const newEntry: RecentFilterEntry = {
             id: `${Date.now()}-${Math.random()}`,
             searchText,
@@ -917,9 +947,9 @@ export const useDocumentsStore = create<DocumentsState>()(
             timestamp: Date.now(),
             description: generateFilterDescription(activeFilters, searchText)
           };
-          
+
           console.log('📝 Creating filter history entry:', newEntry);
-          
+
           try {
             // Save to disk
             await window.electronAPI.addRecentFilter(
@@ -928,7 +958,7 @@ export const useDocumentsStore = create<DocumentsState>()(
               newEntry
             );
             console.log('📝 Saved filter to disk successfully');
-            
+
             // Update local state
             const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
             set((state) => {
@@ -966,12 +996,12 @@ export const useDocumentsStore = create<DocumentsState>()(
         // Async Actions
         initializeClient: async (connectionId, region) => {
           const state = get();
-          
+
           // Check if already initialized
           if (state.isClientInitialized && documentService.getClient()) {
             return true;
           }
-          
+
           // Check retry limit
           if (state.initializationAttempts >= state.maxInitAttempts) {
             set((state) => {
@@ -979,12 +1009,12 @@ export const useDocumentsStore = create<DocumentsState>()(
             });
             return false;
           }
-          
+
           // Increment attempt counter
           set((state) => {
             state.initializationAttempts++;
           });
-          
+
           try {
             const connectionWithKey =
               await window.electronAPI.getConnectionForUse(connectionId);
@@ -993,14 +1023,14 @@ export const useDocumentsStore = create<DocumentsState>()(
               region
             );
             documentService.setClient(turbopufferService.getClient()!);
-            
+
             // Mark as initialized on success
             set((state) => {
               state.isClientInitialized = true;
               state.initializationAttempts = 0; // Reset attempts on success
               state.error = null;
             });
-            
+
             return true;
           } catch (error) {
             console.error("Failed to initialize client:", error);
@@ -1014,7 +1044,7 @@ export const useDocumentsStore = create<DocumentsState>()(
           }
         },
 
-loadDocuments: async (
+        loadDocuments: async (
           force = false,
           loadMore = false,
           limit = 100,
@@ -1050,9 +1080,8 @@ loadDocuments: async (
             return;
           }
 
-          const cacheKey = `${state.currentConnectionId}:${state.currentNamespaceId}-${
-            state.searchText
-          }-${JSON.stringify(state.activeFilters)}-${page}-${limit}`;
+          const cacheKey = `${state.currentConnectionId}:${state.currentNamespaceId}-${state.searchText
+            }-${JSON.stringify(state.activeFilters)}-${page}-${limit}`;
           console.log("🔑 Cache key:", cacheKey);
 
           // Check cache first (only for non-forced loads)
@@ -1124,18 +1153,18 @@ loadDocuments: async (
               );
               state.activeFilters.forEach((filter) => {
                 console.log("🔍 Processing filter:", filter);
-                
+
                 // Debug: Check field info for this attribute
                 const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
                 console.log("🔍 Field info for", filter.attribute, ":", fieldInfo);
-                
+
                 switch (filter.operator) {
                   case "equals": {
                     // Check if this is an array field
                     const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
                     const fieldType = fieldInfo?.type;
                     const isArrayField = isArrayType(fieldType);
-                    
+
                     if (isArrayField) {
                       // For arrays, use "Contains" to check if array contains the value
                       // Value is already correctly typed from addFilter
@@ -1157,7 +1186,7 @@ loadDocuments: async (
                     const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
                     const fieldType = fieldInfo?.type;
                     const isArrayField = isArrayType(fieldType);
-                    
+
                     if (isArrayField) {
                       // For arrays, use "Not" with ContainsAny
                       // Value is already correctly typed
@@ -1175,7 +1204,7 @@ loadDocuments: async (
                     const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
                     const fieldType = fieldInfo?.type;
                     const isArrayField = isArrayType(fieldType);
-                    
+
                     if (isArrayField) {
                       // For arrays, use "ContainsAny" operator
                       // Value is already correctly typed from addFilter
@@ -1304,8 +1333,8 @@ loadDocuments: async (
                 filters.length === 0
                   ? undefined
                   : filters.length === 1
-                  ? filters[0]
-                  : ["And", filters];
+                    ? filters[0]
+                    : ["And", filters];
 
               console.log("🔍 Executing query with filters:", combinedFilter);
 
@@ -1324,16 +1353,16 @@ loadDocuments: async (
               // When filtering, ALWAYS fetch ALL attributes (filters select documents, not columns)
               // This is like MongoDB - query filters determine WHICH docs, but you get ALL fields
               const includeAttributes = true;
-              
+
               // Add cursor filter for pagination
               let finalFilter = combinedFilter;
               let cursor: string | number | null = null;
-              
+
               if (page > state.currentPage && state.documents.length > 0) {
                 // Going forward - use the last document ID from current page
                 cursor = state.documents[state.documents.length - 1].id;
                 const cursorFilter: TurbopufferFilter = ["id", "Gt", cursor];
-                finalFilter = combinedFilter 
+                finalFilter = combinedFilter
                   ? ["And", [combinedFilter, cursorFilter]]
                   : cursorFilter;
                 console.log("🔍 Forward pagination with cursor in filtered mode:", cursor);
@@ -1343,7 +1372,7 @@ loadDocuments: async (
                 if (cursorIndex >= 0 && cursorIndex < state.previousCursors.length) {
                   cursor = state.previousCursors[cursorIndex];
                   const cursorFilter: TurbopufferFilter = ["id", "Gt", cursor];
-                  finalFilter = combinedFilter 
+                  finalFilter = combinedFilter
                     ? ["And", [combinedFilter, cursorFilter]]
                     : cursorFilter;
                   console.log("🔍 Backward pagination with cursor in filtered mode:", cursor);
@@ -1356,7 +1385,7 @@ loadDocuments: async (
                 finalFilter = combinedFilter;
                 console.log("🔍 First page in filtered mode - no cursor");
               }
-              
+
               // Helper function to convert ranking expression to Turbopuffer format
               const convertRankingExprToTurbopuffer = (node: any): any => {
                 if (!node) return null;
@@ -1444,19 +1473,19 @@ loadDocuments: async (
                 state.currentNamespaceId,
                 hasAggregations
                   ? {
-                      // Aggregation mode: ONLY aggregate_by, group_by, filters, and top_k
-                      filters: finalFilter,
-                      top_k: limit,
-                      aggregate_by: aggregateBy,
-                      ...(state.groupByAttributes.length > 0 && { group_by: state.groupByAttributes }),
-                    }
+                    // Aggregation mode: ONLY aggregate_by, group_by, filters, and top_k
+                    filters: finalFilter,
+                    top_k: limit,
+                    aggregate_by: aggregateBy,
+                    ...(state.groupByAttributes.length > 0 && { group_by: state.groupByAttributes }),
+                  }
                   : {
-                      // Normal mode: rank_by, include_attributes, filters, and top_k
-                      filters: finalFilter,
-                      top_k: limit,
-                      include_attributes: includeAttributes,
-                      rank_by: rankBy,
-                    }
+                    // Normal mode: rank_by, include_attributes, filters, and top_k
+                    filters: finalFilter,
+                    top_k: limit,
+                    include_attributes: includeAttributes,
+                    rank_by: rankBy,
+                  }
               );
 
               documents = result.rows || [];
@@ -1476,7 +1505,7 @@ loadDocuments: async (
 
               // Get the last document ID as next cursor
               const newNextCursor = documents.length > 0 ? documents[documents.length - 1].id : null;
-              
+
               // Update page state in query mode
               set((state) => {
                 // Update cursor stack for backward navigation
@@ -1500,7 +1529,7 @@ loadDocuments: async (
                 state.aggregationResults = parsedAggregations.length > 0 ? parsedAggregations : null;
                 state.aggregationGroups = aggregationGroups; // NEW: Store grouped aggregation results
               });
-              
+
               console.log("📄 Query results:", {
                 documentsCount: documents.length,
                 result,
@@ -1533,7 +1562,7 @@ loadDocuments: async (
               // Build filters for cursor-based pagination
               let paginationFilter: TurbopufferFilter | undefined = undefined;
               let cursor: string | number | null = null;
-              
+
               if (page > state.currentPage && state.documents.length > 0) {
                 // Going forward - use the last document ID from current page
                 cursor = state.documents[state.documents.length - 1].id;
@@ -1557,7 +1586,7 @@ loadDocuments: async (
                 paginationFilter = undefined;
                 console.log("📄 First page - no cursor");
               }
-              
+
               console.log("📄 Sending pagination query:", {
                 filters: paginationFilter,
                 rank_by: ["id", "asc"],
@@ -1567,7 +1596,7 @@ loadDocuments: async (
                 hasDocuments: state.documents.length > 0,
                 lastDocId: state.documents.length > 0 ? state.documents[state.documents.length - 1].id : null,
               });
-              
+
               const response = await documentService.queryDocuments(
                 state.currentNamespaceId,
                 {
@@ -1580,7 +1609,7 @@ loadDocuments: async (
 
               documents = response.rows || [];
               queryResult = response;
-              
+
               // Get the last document ID as next cursor
               const newNextCursor = documents.length > 0 ? documents[documents.length - 1].id : null;
 
@@ -1607,7 +1636,7 @@ loadDocuments: async (
                   // Reset cursors when going to first page
                   state.previousCursors = [];
                 }
-                
+
                 state.nextCursor = newNextCursor;
                 state.currentPage = page;
                 state.totalPages = totalPages;
@@ -1631,7 +1660,7 @@ loadDocuments: async (
               pageSize: state.pageSize,
               totalPages: totalCount !== null ? Math.ceil(totalCount / state.pageSize) : null,
             });
-            
+
             set((state) => {
               state.documents = documents;
               state.totalCount = totalCount;
@@ -1853,7 +1882,7 @@ loadDocuments: async (
                 } else if (Array.isArray(value)) {
                   // Determine the specific array type based on elements
                   let determinedType = "array"; // Default fallback
-                  
+
                   if (value.length > 0) {
                     // Find the first non-null element to determine the type
                     const firstElement = value.find(el => el !== null && el !== undefined);
@@ -1861,7 +1890,7 @@ loadDocuments: async (
                       const elementType = typeof firstElement;
                       if (elementType === 'number') {
                         // Check if all numbers are integers
-                        const allIntegers = value.every(el => 
+                        const allIntegers = value.every(el =>
                           el === null || el === undefined || Number.isInteger(el)
                         );
                         determinedType = allIntegers ? "[]int32" : "[]float64";
@@ -1872,9 +1901,9 @@ loadDocuments: async (
                       }
                     }
                   }
-                  
+
                   attr.type = determinedType;
-                  
+
                   // Initialize arrayElements set if not exists
                   if (!attr.arrayElements) {
                     attr.arrayElements = new Set();
@@ -1911,7 +1940,7 @@ loadDocuments: async (
           ).map(([name, info]) => {
             const uniqueValues = Array.from(info.values);
             let sampleValues: any[] = [];
-            
+
             // For array fields, use individual elements as sample values
             // Check for 'array' OR Turbopuffer types like '[]int32', '[]string', etc.
             const isArrayType = info.type === "array" || info.type.startsWith("[]");
@@ -1954,13 +1983,13 @@ loadDocuments: async (
               range:
                 info.type === "number"
                   ? {
-                      min: Math.min(
-                        ...uniqueValues.filter((v) => typeof v === "number")
-                      ),
-                      max: Math.max(
-                        ...uniqueValues.filter((v) => typeof v === "number")
-                      ),
-                    }
+                    min: Math.min(
+                      ...uniqueValues.filter((v) => typeof v === "number")
+                    ),
+                    max: Math.max(
+                      ...uniqueValues.filter((v) => typeof v === "number")
+                    ),
+                  }
                   : undefined,
             };
           });
@@ -1984,7 +2013,7 @@ loadDocuments: async (
               // Add all attributes except special internal ones
               discoveredAttributes.forEach(attr => {
                 if (attr.name !== '$dist' &&
-                    attr.name !== 'attributes'
+                  attr.name !== 'attributes'
                 ) {
                   defaultColumns.add(attr.name);
                 }
@@ -2165,8 +2194,8 @@ loadDocuments: async (
           const state = get();
           const documentsToExport = documentIds
             ? state.documents.filter((doc) =>
-                documentIds.includes(String(doc.id))
-              )
+              documentIds.includes(String(doc.id))
+            )
             : state.documents;
 
           if (documentsToExport.length === 0) {

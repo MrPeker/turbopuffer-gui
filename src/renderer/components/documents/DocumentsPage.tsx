@@ -542,8 +542,8 @@ export const DocumentsPage: React.FC = () => {
       {isRawQueryMode ? (
         <RawQueryBar namespaceId={namespaceId || ''} initialQuery={initialRawQuery} />
       ) : (
-        <FilterBar 
-          className="sticky top-0 z-10" 
+        <FilterBar
+          className="sticky top-0 z-10"
           pageSize={pageSize}
           onPageSizeChange={(newSize) => {
             setPageSize(newSize);
@@ -585,27 +585,27 @@ export const DocumentsPage: React.FC = () => {
             <QueryPerformanceMetrics lastQueryResult={lastQueryResult} />
           </>
         ) :
-        /* Priority 2: Show aggregation results when in aggregation mode (Count without grouping) */
-        isAggregationMode && lastQueryResult ? (
-          <RawResponseViewer response={lastQueryResult} />
-        ) :
-        /* Priority 3: Show raw response if no documents but we have query results */
-        documents.length === 0 && lastQueryResult && !loading && !error ? (
-          <RawResponseViewer response={lastQueryResult} />
-        ) : (
-          /* Priority 4: Show documents table (default) */
-          <>
-            <DocumentsTable
-              documents={documents}
-              loading={loading}
-              onDocumentClick={handleDocumentClick}
-              selectedDocuments={new Set(Array.from(selectedDocuments).map(String))}
-              onInitialLoad={handleInitialLoad}
-              activeDocumentId={activeDocumentId}
-            />
-            <QueryPerformanceMetrics lastQueryResult={lastQueryResult} />
-          </>
-        )}
+          /* Priority 2: Show aggregation results when in aggregation mode (Count without grouping) */
+          isAggregationMode && lastQueryResult ? (
+            <RawResponseViewer response={lastQueryResult} />
+          ) :
+            /* Priority 3: Show raw response if no documents but we have query results */
+            documents.length === 0 && lastQueryResult && !loading && !error ? (
+              <RawResponseViewer response={lastQueryResult} />
+            ) : (
+              /* Priority 4: Show documents table (default) */
+              <>
+                <DocumentsTable
+                  documents={documents}
+                  loading={loading}
+                  onDocumentClick={handleDocumentClick}
+                  selectedDocuments={new Set(Array.from(selectedDocuments).map(String))}
+                  onInitialLoad={handleInitialLoad}
+                  activeDocumentId={activeDocumentId}
+                />
+                <QueryPerformanceMetrics lastQueryResult={lastQueryResult} />
+              </>
+            )}
       </div>
 
       {/* Import Dialog */}
