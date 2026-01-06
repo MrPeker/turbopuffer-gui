@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turbopuffer GUI - Desktop Client for Turbopuffer</title>
+  <meta name="description" content="A third-party, open-source desktop GUI client for Turbopuffer - the blazing-fast vector and full-text search engine.">
+  <link rel="icon" type="image/png" href="icon.png">
+  <style>
+    :root {
+      --bg-primary: #0a0a0a;
+      --bg-secondary: #141414;
+      --bg-tertiary: #1a1a1a;
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --border: #27272a;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Header */
+    header {
+      padding: 1.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo img {
+      width: 32px;
+      height: 32px;
+    }
+
+    .logo span {
+      font-weight: 600;
+      font-size: 1.125rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 5rem 0;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 2rem;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .hero-buttons .btn {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+    }
+
+    /* Warning Banner */
+    .warning-banner {
+      background: rgba(234, 179, 8, 0.1);
+      border: 1px solid rgba(234, 179, 8, 0.3);
+      border-radius: 0.5rem;
+      padding: 1rem 1.5rem;
+      margin: 2rem auto;
+      max-width: 600px;
+      text-align: left;
+    }
+
+    .warning-banner strong {
+      color: #eab308;
+    }
+
+    .warning-banner p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* Screenshots */
+    .screenshots {
+      padding: 4rem 0;
+    }
+
+    .screenshots h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .screenshot-grid {
+      display: grid;
+      gap: 2rem;
+    }
+
+    .screenshot-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+
+    .screenshot-item img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .screenshot-caption {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .screenshot-caption h3 {
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .screenshot-caption p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* Features */
+    .features {
+      padding: 4rem 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .features h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feature-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* Tech Stack */
+    .tech-stack {
+      padding: 4rem 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .tech-stack h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .tech-badges {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .tech-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    footer {
+      padding: 3rem 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    footer p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .hero p {
+        font-size: 1rem;
+      }
+
+      .header-content {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .nav-links {
+        gap: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="header-content">
+        <a href="#" class="logo">
+          <img src="icon.png" alt="Turbopuffer GUI">
+          <span>Turbopuffer GUI</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#screenshots">Screenshots</a>
+          <a href="https://github.com/MrPeker/turbopuffer-gui" target="_blank">GitHub</a>
+          <a href="https://github.com/MrPeker/turbopuffer-gui/releases" class="btn btn-primary">Download</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <span class="hero-badge">Open Source &bull; Cross-Platform</span>
+        <h1>Turbopuffer GUI</h1>
+        <p>A third-party, open-source desktop client for Turbopuffer - the blazing-fast vector and full-text search engine.</p>
+        <div class="hero-buttons">
+          <a href="https://github.com/MrPeker/turbopuffer-gui/releases" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download
+          </a>
+          <a href="https://github.com/MrPeker/turbopuffer-gui" class="btn btn-secondary" target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            View on GitHub
+          </a>
+        </div>
+        <div class="warning-banner">
+          <p><strong>Beta Software:</strong> This application is in beta and for testing purposes only. Do not use with production data.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screenshots" id="screenshots">
+      <div class="container">
+        <h2>Screenshots</h2>
+        <div class="screenshot-grid">
+          <div class="screenshot-item">
+            <img src="screenshots/connections.png" alt="Connection Management">
+            <div class="screenshot-caption">
+              <h3>Connection Management</h3>
+              <p>Securely store and manage multiple Turbopuffer connections with encrypted API key storage.</p>
+            </div>
+          </div>
+          <div class="screenshot-item">
+            <img src="screenshots/namespaces.png" alt="Namespace Browser">
+            <div class="screenshot-caption">
+              <h3>Namespace Browser</h3>
+              <p>Browse and manage all namespaces in your Turbopuffer instance.</p>
+            </div>
+          </div>
+          <div class="screenshot-item">
+            <img src="screenshots/documents.png" alt="Document Explorer">
+            <div class="screenshot-caption">
+              <h3>Document Explorer</h3>
+              <p>Explore documents with advanced filtering and search capabilities.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="container">
+        <h2>Features</h2>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>Connection Management</h3>
+            <p>Securely store and manage multiple Turbopuffer connections with encrypted API key storage using OS-native encryption.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Namespace Browser</h3>
+            <p>View and manage all namespaces in your Turbopuffer instance with an intuitive interface.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Document Explorer</h3>
+            <p>Browse, search, and filter documents with pagination and cursor-based navigation.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Schema Designer</h3>
+            <p>Visual schema design tool for configuring vector dimensions, full-text search, and attribute indexes.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Advanced Filtering</h3>
+            <p>Build complex filters using a visual filter builder or raw query mode for power users.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Aggregations</h3>
+            <p>Run aggregation queries with group-by support to analyze your data.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tech-stack">
+      <div class="container">
+        <h2>Built With</h2>
+        <div class="tech-badges">
+          <span class="tech-badge">Electron 36</span>
+          <span class="tech-badge">React 19</span>
+          <span class="tech-badge">TypeScript</span>
+          <span class="tech-badge">Vite</span>
+          <span class="tech-badge">Tailwind CSS</span>
+          <span class="tech-badge">Radix UI</span>
+          <span class="tech-badge">Zustand</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>This is an unofficial community project and is not affiliated with <a href="https://turbopuffer.com" target="_blank">Turbopuffer</a>.</p>
+      <p>Licensed under the <a href="https://github.com/MrPeker/turbopuffer-gui/blob/main/LICENSE" target="_blank">MIT License</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>
