@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turbopuffer GUI - Desktop Client for Turbopuffer</title>
+  <meta name="description" content="A third-party, open-source desktop GUI client for Turbopuffer - the blazing-fast vector and full-text search engine.">
+  <link rel="icon" type="image/png" href="icon.png">
+  <style>
+    :root {
+      --bg-primary: #0a0a0a;
+      --bg-secondary: #141414;
+      --bg-tertiary: #1a1a1a;
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --border: #27272a;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Header */
+    header {
+      padding: 1.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo img {
+      width: 32px;
+      height: 32px;
+    }
+
+    .logo span {
+      font-weight: 600;
+      font-size: 1.125rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 5rem 0;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 2rem;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .hero-buttons .btn {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+    }
+
+    /* Warning Banner */
+    .warning-banner {
+      background: rgba(234, 179, 8, 0.1);
+      border: 1px solid rgba(234, 179, 8, 0.3);
+      border-radius: 0.5rem;
+      padding: 1rem 1.5rem;
+      margin: 2rem auto;
+      max-width: 600px;
+      text-align: left;
+    }
+
+    .warning-banner strong {
+      color: #eab308;
+    }
+
+    .warning-banner p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* Screenshots */
+    .screenshots {
+      padding: 4rem 0;
+    }
+
+    .screenshots h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .screenshot-grid {
+      display: grid;
+      gap: 2rem;
+    }
+
+    .screenshot-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+
+    .screenshot-item img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .screenshot-caption {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .screenshot-caption h3 {
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .screenshot-caption p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* Features */
+    .features {
+      padding: 4rem 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .features h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feature-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* Downloads */
+    .downloads {
+      padding: 4rem 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .downloads h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .downloads-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .download-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+
+    .download-card:hover {
+      border-color: var(--accent);
+    }
+
+    .download-card svg {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+    }
+
+    .download-card h3 {
+      font-size: 1.125rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .download-card .download-type {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+
+    .download-card .btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .download-card .btn.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .download-version {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .download-version a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .download-version a:hover {
+      text-decoration: underline;
+    }
+
+    /* Tech Stack */
+    .tech-stack {
+      padding: 4rem 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .tech-stack h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .tech-badges {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .tech-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    footer {
+      padding: 3rem 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    footer p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2rem;
+      }
+
+      .hero p {
+        font-size: 1rem;
+      }
+
+      .header-content {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .nav-links {
+        gap: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="header-content">
+        <a href="#" class="logo">
+          <img src="icon.png" alt="Turbopuffer GUI">
+          <span>Turbopuffer GUI</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#screenshots">Screenshots</a>
+          <a href="#downloads">Downloads</a>
+          <a href="https://github.com/MrPeker/turbopuffer-gui" target="_blank">GitHub</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <span class="hero-badge">Open Source &bull; Cross-Platform</span>
+        <h1>Turbopuffer GUI</h1>
+        <p>A third-party, open-source desktop client for Turbopuffer - the blazing-fast vector and full-text search engine.</p>
+        <div class="hero-buttons">
+          <a href="#downloads" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download
+          </a>
+          <a href="https://github.com/MrPeker/turbopuffer-gui" class="btn btn-secondary" target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            View on GitHub
+          </a>
+        </div>
+        <div class="warning-banner">
+          <p><strong>Beta Software:</strong> This application is in beta and for testing purposes only. Do not use with production data.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screenshots" id="screenshots">
+      <div class="container">
+        <h2>Screenshots</h2>
+        <div class="screenshot-grid">
+          <div class="screenshot-item">
+            <img src="screenshots/connections.png" alt="Connection Management">
+            <div class="screenshot-caption">
+              <h3>Connection Management</h3>
+              <p>Securely store and manage multiple Turbopuffer connections with encrypted API key storage.</p>
+            </div>
+          </div>
+          <div class="screenshot-item">
+            <img src="screenshots/namespaces.png" alt="Namespace Browser">
+            <div class="screenshot-caption">
+              <h3>Namespace Browser</h3>
+              <p>Browse and manage all namespaces in your Turbopuffer instance.</p>
+            </div>
+          </div>
+          <div class="screenshot-item">
+            <img src="screenshots/documents.png" alt="Document Explorer">
+            <div class="screenshot-caption">
+              <h3>Document Explorer</h3>
+              <p>Explore documents with advanced filtering and search capabilities.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="container">
+        <h2>Features</h2>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <h3>Connection Management</h3>
+            <p>Securely store and manage multiple Turbopuffer connections with encrypted API key storage using OS-native encryption.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Namespace Browser</h3>
+            <p>View and manage all namespaces in your Turbopuffer instance with an intuitive interface.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Document Explorer</h3>
+            <p>Browse, search, and filter documents with pagination and cursor-based navigation.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Schema Designer</h3>
+            <p>Visual schema design tool for configuring vector dimensions, full-text search, and attribute indexes.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Advanced Filtering</h3>
+            <p>Build complex filters using a visual filter builder or raw query mode for power users.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Aggregations</h3>
+            <p>Run aggregation queries with group-by support to analyze your data.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="downloads" id="downloads">
+      <div class="container">
+        <h2>Download</h2>
+        <p class="downloads-subtitle">Available for macOS, Windows, and Linux</p>
+        <div class="download-grid">
+          <!-- macOS -->
+          <div class="download-card">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            <h3>macOS</h3>
+            <p class="download-type">.dmg installer</p>
+            <a id="download-mac" href="#" class="btn btn-primary disabled">Loading...</a>
+          </div>
+          <!-- Windows -->
+          <div class="download-card">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/></svg>
+            <h3>Windows</h3>
+            <p class="download-type">.exe installer</p>
+            <a id="download-win" href="#" class="btn btn-primary disabled">Loading...</a>
+          </div>
+          <!-- Linux -->
+          <div class="download-card">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.311.001-.465.003-.653.014-1.293.106-1.903.311-.296.1-.575.229-.828.406-.239.168-.451.374-.627.625-.19.27-.336.57-.448.89-.107.305-.18.623-.225.95-.046.33-.059.658-.049.986.008.273.03.544.07.813.04.268.095.532.162.794.068.26.153.516.247.769.093.256.202.507.314.757.11.25.235.495.357.74.12.245.256.485.385.724.13.24.275.477.409.713.136.237.283.47.42.703.137.232.286.462.424.692.14.229.29.457.428.683.137.226.284.45.418.674.136.225.283.448.416.67.135.222.28.443.413.664.134.22.278.44.411.66.133.219.276.437.407.655.13.218.27.435.4.651.13.217.268.432.396.648.128.215.265.43.392.643.126.215.26.428.387.641.126.213.26.426.386.638.124.212.257.423.382.634.126.21.259.42.386.629.127.208.261.416.39.622.128.207.262.412.392.618.13.204.264.408.395.611.13.202.265.404.397.605.131.2.267.4.4.598.134.198.27.396.405.593.134.196.272.392.408.586.135.194.274.387.411.58.137.193.277.385.415.576.137.19.278.38.417.57.139.188.28.377.42.563.14.187.283.373.424.559.141.185.285.369.428.552.143.183.288.365.432.547.144.181.29.362.436.542.145.18.293.358.44.537.146.178.295.355.443.531.148.177.298.352.447.527.149.175.3.348.45.522.151.172.303.344.455.516.152.17.306.34.459.509.152.168.307.336.461.503.154.166.31.332.465.496.155.164.312.327.469.49.157.162.315.323.473.483.158.16.317.319.476.478.16.157.32.314.48.471.16.156.323.311.484.465.162.153.325.306.488.458.163.152.328.302.492.452.164.15.33.298.495.446.166.148.333.295.5.441.167.145.335.29.503.434.168.144.337.286.506.428.17.142.34.282.51.422.17.14.342.279.512.416.172.138.344.274.517.41.172.136.346.27.52.404.173.133.348.266.522.397.175.132.35.262.526.391.176.13.352.258.529.385.177.128.355.254.533.38.178.126.357.25.535.374.179.124.358.246.538.368.18.122.36.243.54.363.182.12.364.238.546.356.182.118.366.235.549.35.183.116.368.231.552.345.185.114.37.226.556.338.186.112.373.222.56.332.187.109.375.218.563.325.188.107.377.213.567.318.19.105.38.209.57.312.19.103.382.204.574.305.192.1.384.2.577.298.192.098.386.195.58.291.193.096.388.19.583.284.195.093.39.185.586.277.196.091.393.181.59.27.197.088.394.176.592.263.198.086.397.171.596.255.198.084.398.167.598.249.2.082.4.162.601.242.201.08.402.158.604.235.202.078.404.154.607.23.203.076.407.15.611.224.204.073.408.145.613.216.205.071.41.141.616.21.206.07.413.138.62.205.207.068.414.134.622.199.208.066.416.13.625.194.209.064.419.127.629.189.21.062.421.123.632.183.211.06.422.119.634.177.212.059.424.115.637.171.213.057.427.111.64.165.214.055.428.108.643.16.215.053.43.104.646.154.216.051.433.1.65.149.217.049.435.096.653.143.218.047.436.093.655.138.219.045.439.089.658.132.22.044.44.085.661.126.221.042.443.082.665.121.222.04.444.078.667.115.223.038.446.074.67.109.224.036.448.07.673.103.224.034.45.066.675.098.226.032.452.062.679.092.227.03.454.058.681.086.227.028.455.054.684.08.228.026.457.05.686.074.229.024.458.046.688.068.23.022.46.042.69.062.23.02.462.038.693.056.232.018.463.034.695.05.232.016.465.03.698.044.234.014.467.026.701.038.234.012.469.022.704.031.235.01.47.018.706.025.236.008.472.014.709.019.237.006.474.01.711.014.237.004.476.006.714.008.238.002.476.002.715.002h.001c.238 0 .477-.001.715-.003.238-.002.477-.004.714-.008.238-.004.475-.008.711-.014.238-.005.474-.011.71-.019.236-.008.471-.016.706-.026.235-.01.47-.02.704-.031.234-.012.467-.024.701-.038.233-.014.466-.028.698-.044.232-.016.464-.032.695-.05.232-.018.463-.036.693-.056.231-.02.461-.04.69-.062.23-.022.459-.044.688-.068.229-.024.458-.048.686-.074.228-.026.456-.052.684-.08.227-.028.454-.056.681-.086.227-.03.454-.06.679-.092.226-.032.451-.064.675-.098.225-.034.449-.068.673-.103.224-.036.447-.072.67-.11.223-.038.446-.076.667-.116.223-.04.444-.08.665-.122.221-.042.441-.083.661-.126.22-.044.439-.088.658-.133.219-.046.437-.091.655-.139.218-.048.435-.095.653-.144.217-.05.433-.1.65-.15.215-.052.43-.104.644-.158.214-.055.427-.11.64-.166.213-.057.425-.114.637-.172.212-.06.424-.118.634-.178.211-.061.422-.122.632-.184.21-.063.419-.126.628-.19.209-.065.417-.13.625-.195.208-.066.415-.133.622-.2.207-.068.413-.137.619-.206.206-.07.411-.14.616-.212.205-.072.409-.144.613-.217.203-.074.407-.148.609-.223.203-.076.404-.152.606-.229.201-.078.402-.156.602-.235.2-.08.399-.161.598-.242.198-.082.396-.165.593-.248.197-.084.393-.169.589-.254.195-.087.39-.173.584-.261.194-.089.387-.178.58-.268.192-.091.384-.183.575-.275.191-.093.381-.187.571-.282.19-.096.378-.192.567-.289.188-.098.375-.196.562-.296.187-.1.372-.201.557-.303.185-.103.369-.206.553-.31.184-.105.366-.211.548-.317.182-.108.363-.216.543-.325.181-.11.361-.22.54-.331.179-.112.357-.224.534-.338.178-.114.355-.229.531-.345.177-.116.352-.233.527-.351.175-.119.349-.238.522-.358.174-.121.346-.243.518-.365.172-.123.343-.247.514-.372.171-.126.341-.252.509-.379.169-.128.337-.256.504-.385.168-.13.334-.26.499-.392.166-.132.331-.264.495-.398.164-.134.327-.269.49-.405.163-.136.324-.273.484-.41.161-.139.321-.278.48-.418.159-.141.317-.282.474-.424.158-.143.314-.286.469-.431.156-.145.31-.291.464-.437.155-.148.308-.296.46-.445.153-.15.305-.301.455-.452.152-.152.302-.305.451-.458.15-.154.298-.309.446-.464.148-.157.295-.314.44-.471.147-.159.292-.318.436-.478.145-.161.288-.322.43-.485.144-.163.285-.326.426-.491.142-.166.282-.331.421-.498.14-.168.279-.336.416-.505.139-.17.275-.34.411-.511.137-.172.272-.344.406-.518.135-.174.269-.349.401-.524.134-.176.265-.353.396-.531.132-.178.262-.357.39-.537.131-.18.259-.361.386-.543.129-.182.255-.365.381-.549.127-.184.252-.369.376-.555.126-.186.249-.373.371-.56.124-.188.245-.377.366-.567.122-.19.242-.381.36-.573.121-.192.239-.385.356-.578.119-.194.236-.389.351-.585.117-.196.232-.393.346-.59.115-.198.229-.397.341-.597.114-.2.225-.4.336-.602.112-.202.222-.404.33-.607.11-.204.218-.408.325-.613.109-.206.215-.412.32-.62.107-.207.212-.415.315-.624.105-.209.208-.419.31-.63.103-.211.204-.423.304-.636.101-.213.201-.427.299-.641.099-.215.196-.43.293-.646.097-.217.192-.434.286-.652.095-.219.188-.438.28-.658.093-.22.184-.441.273-.663.091-.222.18-.445.268-.669.089-.224.176-.449.262-.674.087-.226.172-.452.256-.679.085-.228.168-.456.25-.685.083-.229.164-.459.243-.69.081-.231.16-.463.238-.695.079-.233.156-.466.232-.7.077-.235.152-.469.226-.705.075-.236.148-.473.22-.71.073-.238.144-.476.213-.715.071-.239.141-.479.209-.719.069-.241.137-.482.203-.724.067-.243.132-.486.196-.729.066-.244.129-.489.191-.734.064-.246.125-.492.185-.739.062-.247.122-.495.18-.744.06-.249.118-.498.174-.748.058-.25.115-.501.169-.752.056-.252.111-.504.164-.757.054-.253.106-.507.157-.761.052-.255.102-.51.151-.765.05-.256.098-.513.144-.77.048-.258.094-.516.139-.774.046-.259.09-.518.133-.778.044-.26.086-.521.127-.782.042-.262.082-.523.121-.786.04-.263.078-.526.114-.79.038-.264.074-.528.109-.793.036-.266.07-.531.103-.797.034-.267.066-.534.096-.801.032-.268.063-.536.092-.805.03-.269.058-.539.085-.809.028-.27.054-.541.079-.812.026-.272.05-.544.073-.816.024-.273.046-.546.067-.82.022-.274.042-.548.061-.823.02-.276.038-.551.055-.827.018-.277.034-.554.049-.831.016-.278.03-.556.044-.835.014-.279.026-.558.037-.838.012-.28.022-.56.031-.841.01-.281.018-.562.024-.843.008-.282.014-.564.019-.847.006-.283.01-.566.013-.85.004-.284.006-.567.008-.851.002-.284.002-.568.002-.853v-.001c0-.284-.001-.569-.003-.853-.002-.284-.004-.568-.008-.851-.004-.284-.008-.567-.014-.85-.006-.283-.012-.565-.019-.847-.008-.281-.016-.562-.025-.843-.01-.28-.02-.561-.031-.841-.012-.28-.024-.559-.038-.838-.014-.279-.028-.557-.044-.835-.016-.277-.032-.554-.05-.831-.018-.276-.036-.551-.056-.827-.02-.274-.04-.549-.062-.823-.022-.273-.044-.546-.068-.82-.024-.272-.048-.544-.074-.816-.026-.271-.052-.542-.08-.812-.028-.27-.056-.54-.086-.809-.03-.269-.06-.538-.093-.805-.033-.267-.067-.534-.103-.8-.036-.265-.074-.53-.113-.794-.04-.263-.081-.526-.124-.788-.044-.261-.089-.522-.136-.782-.047-.26-.096-.52-.146-.778-.052-.258-.105-.516-.159-.773-.056-.256-.113-.512-.172-.766-.06-.254-.121-.508-.184-.761-.064-.252-.129-.504-.196-.755-.068-.25-.138-.5-.209-.749-.072-.248-.146-.496-.222-.743-.076-.246-.154-.491-.233-.736-.08-.244-.162-.487-.246-.729-.084-.242-.17-.483-.257-.724-.088-.24-.178-.479-.27-.717-.092-.238-.186-.474-.282-.71-.096-.236-.195-.47-.295-.704-.1-.233-.203-.466-.307-.697-.104-.231-.211-.461-.319-.69-.109-.229-.22-.456-.332-.683-.113-.226-.229-.452-.346-.676-.117-.224-.237-.447-.359-.669-.122-.222-.246-.442-.371-.662-.126-.219-.255-.437-.385-.654-.13-.216-.263-.432-.397-.647-.135-.214-.272-.427-.41-.639-.139-.212-.28-.422-.423-.632-.143-.209-.288-.417-.435-.624-.147-.207-.296-.412-.447-.617-.151-.204-.304-.407-.458-.609-.155-.201-.312-.401-.47-.6-.159-.199-.32-.396-.482-.592-.163-.196-.328-.391-.494-.585-.167-.193-.336-.385-.506-.576-.171-.19-.344-.379-.518-.567-.174-.188-.351-.374-.529-.559-.178-.185-.358-.368-.539-.551-.182-.182-.365-.363-.55-.543-.186-.18-.373-.358-.562-.534-.19-.176-.381-.352-.574-.526-.194-.174-.389-.346-.586-.517-.198-.17-.397-.34-.598-.508-.202-.168-.405-.334-.61-.499-.205-.165-.413-.329-.622-.491-.21-.163-.421-.323-.633-.483-.214-.16-.43-.318-.646-.475-.218-.157-.437-.312-.658-.466-.223-.154-.446-.306-.67-.457-.227-.151-.455-.3-.684-.448-.231-.148-.463-.294-.697-.439-.235-.145-.471-.288-.708-.429-.239-.142-.479-.282-.72-.42-.243-.139-.487-.276-.732-.411-.247-.136-.495-.27-.743-.402-.251-.133-.503-.263-.756-.392-.255-.13-.511-.257-.768-.383-.26-.127-.52-.252-.781-.375-.264-.123-.529-.245-.794-.366-.268-.12-.538-.239-.808-.356-.273-.117-.546-.232-.821-.345-.277-.114-.555-.226-.834-.336-.282-.111-.564-.22-.848-.327-.286-.108-.573-.214-.861-.318-.291-.104-.582-.207-.875-.308-.295-.101-.591-.2-.889-.298-.3-.098-.6-.194-.902-.288-.305-.095-.61-.188-.916-.279-.309-.092-.619-.181-.931-.269-.314-.088-.629-.175-.945-.26-.319-.085-.638-.168-.959-.249-.324-.082-.648-.161-.974-.239-.329-.079-.658-.155-.988-.23-.333-.075-.668-.148-1.003-.219-.338-.072-.677-.141-1.018-.209-.343-.068-.686-.134-1.031-.198-.348-.064-.696-.126-1.046-.186-.353-.061-.706-.119-1.061-.175-.357-.057-.716-.111-1.076-.164-.362-.053-.725-.104-1.089-.152-.367-.05-.735-.097-1.104-.142-.372-.046-.744-.089-1.118-.131-.377-.042-.754-.082-1.133-.119-.382-.038-.764-.074-1.148-.108-.387-.034-.774-.066-1.163-.096-.391-.03-.784-.058-1.177-.084-.396-.026-.793-.05-1.191-.071-.401-.022-.803-.042-1.206-.059-.406-.018-.812-.033-1.22-.046-.41-.014-.822-.025-1.234-.034-.415-.01-.831-.017-1.248-.022-.42-.006-.84-.009-1.262-.01H12z"/></svg>
+            <h3>Linux</h3>
+            <p class="download-type">.deb / .rpm</p>
+            <a id="download-linux" href="#" class="btn btn-primary disabled">Loading...</a>
+          </div>
+        </div>
+        <p class="download-version">
+          <span id="version-info">Loading latest release...</span>
+          <br>
+          <a href="https://github.com/MrPeker/turbopuffer-gui/releases" target="_blank">View all releases</a>
+        </p>
+      </div>
+    </section>
+
+    <section class="tech-stack">
+      <div class="container">
+        <h2>Built With</h2>
+        <div class="tech-badges">
+          <span class="tech-badge">Electron 36</span>
+          <span class="tech-badge">React 19</span>
+          <span class="tech-badge">TypeScript</span>
+          <span class="tech-badge">Vite</span>
+          <span class="tech-badge">Tailwind CSS</span>
+          <span class="tech-badge">Radix UI</span>
+          <span class="tech-badge">Zustand</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>This is an unofficial community project and is not affiliated with <a href="https://turbopuffer.com" target="_blank">Turbopuffer</a>.</p>
+      <p>Licensed under the <a href="https://github.com/MrPeker/turbopuffer-gui/blob/main/LICENSE" target="_blank">MIT License</a>.</p>
+    </div>
+  </footer>
+
+  <script>
+    async function loadReleases() {
+      try {
+        const response = await fetch('https://api.github.com/repos/MrPeker/turbopuffer-gui/releases/latest');
+        if (!response.ok) throw new Error('No releases found');
+
+        const release = await response.json();
+        const version = release.tag_name;
+        const assets = release.assets;
+
+        document.getElementById('version-info').textContent = 'Latest: ' + version;
+
+        const macAsset = assets.find(a => a.name.endsWith('.dmg') || (a.name.endsWith('.zip') && a.name.includes('darwin')));
+        const winAsset = assets.find(a => a.name.endsWith('.exe') || a.name.includes('Setup'));
+        const debAsset = assets.find(a => a.name.endsWith('.deb'));
+        const rpmAsset = assets.find(a => a.name.endsWith('.rpm'));
+
+        const macBtn = document.getElementById('download-mac');
+        const winBtn = document.getElementById('download-win');
+        const linuxBtn = document.getElementById('download-linux');
+
+        if (macAsset) {
+          macBtn.href = macAsset.browser_download_url;
+          macBtn.textContent = 'Download';
+          macBtn.classList.remove('disabled');
+        } else {
+          macBtn.textContent = 'Not available';
+        }
+
+        if (winAsset) {
+          winBtn.href = winAsset.browser_download_url;
+          winBtn.textContent = 'Download';
+          winBtn.classList.remove('disabled');
+        } else {
+          winBtn.textContent = 'Not available';
+        }
+
+        if (debAsset || rpmAsset) {
+          linuxBtn.href = debAsset ? debAsset.browser_download_url : rpmAsset.browser_download_url;
+          linuxBtn.textContent = debAsset ? 'Download .deb' : 'Download .rpm';
+          linuxBtn.classList.remove('disabled');
+
+          if (debAsset && rpmAsset) {
+            const rpmLink = document.createElement('a');
+            rpmLink.href = rpmAsset.browser_download_url;
+            rpmLink.className = 'btn btn-secondary';
+            rpmLink.textContent = 'Download .rpm';
+            rpmLink.style.marginTop = '0.5rem';
+            linuxBtn.parentNode.appendChild(rpmLink);
+          }
+        } else {
+          linuxBtn.textContent = 'Not available';
+        }
+      } catch (error) {
+        const versionInfo = document.getElementById('version-info');
+        versionInfo.textContent = 'No releases yet. ';
+        const buildLink = document.createElement('a');
+        buildLink.href = 'https://github.com/MrPeker/turbopuffer-gui#development';
+        buildLink.target = '_blank';
+        buildLink.textContent = 'Build from source';
+        versionInfo.appendChild(buildLink);
+
+        ['download-mac', 'download-win', 'download-linux'].forEach(id => {
+          const btn = document.getElementById(id);
+          btn.textContent = 'Coming soon';
+        });
+      }
+    }
+
+    loadReleases();
+  </script>
+</body>
+</html>
