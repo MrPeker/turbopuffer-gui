@@ -1,5 +1,5 @@
 export class PermissionService {
-  private isReadOnly: boolean = false;
+  private isReadOnly = false;
 
   setReadOnly(readOnly: boolean): void {
     this.isReadOnly = readOnly;

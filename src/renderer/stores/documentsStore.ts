@@ -2222,9 +2222,10 @@ loadDocuments: async (
           const allDocuments: Document[] = [];
           let lastId: string | number | null = null;
           const batchSize = 10_000; // Turbopuffer max top_k limit
+          let hasMore = true;
 
           // Page through all documents using id pagination (Turbopuffer recommended approach)
-          while (true) {
+          while (hasMore) {
             const filters: TurbopufferFilter | undefined = lastId !== null
               ? ["id", "Gt", lastId]
               : undefined;
@@ -2242,17 +2243,15 @@ loadDocuments: async (
             const rows = result.rows || [];
 
             if (rows.length === 0) {
-              break;
+              hasMore = false;
+            } else {
+              allDocuments.push(...rows);
+              onProgress?.(allDocuments.length);
+              hasMore = rows.length >= batchSize;
+              if (hasMore) {
+                lastId = rows[rows.length - 1].id;
+              }
             }
-
-            allDocuments.push(...rows);
-            onProgress?.(allDocuments.length);
-
-            if (rows.length < batchSize) {
-              break;
-            }
-
-            lastId = rows[rows.length - 1].id;
           }
 
           if (allDocuments.length === 0) {

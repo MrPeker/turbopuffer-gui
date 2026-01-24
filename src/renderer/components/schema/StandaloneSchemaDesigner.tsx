@@ -159,9 +159,10 @@ export const StandaloneSchemaDesigner: React.FC = () => {
         return [42, 100, 1000][index % 3];
       case 'uuid':
         return crypto.randomUUID();
-      case 'datetime':
+      case 'datetime': {
         const dates = ['2024-01-15T10:30:00Z', '2024-02-20T14:15:00Z', '2024-03-10T09:45:00Z'];
         return dates[index % 3];
+      }
       case 'bool':
         return [true, false, true][index % 3];
       case '[]string':

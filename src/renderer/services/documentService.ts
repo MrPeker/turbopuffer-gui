@@ -352,8 +352,9 @@ async listDocuments(
     // First, query all documents with the given filters
     const allDocuments: Document[] = [];
     let cursor: string | number | undefined;
+    let hasMore = true;
 
-    while (true) {
+    while (hasMore) {
       const { documents, nextCursor } = await this.listDocuments(namespaceId, {
         limit: 1000,
         cursor,
@@ -362,10 +363,7 @@ async listDocuments(
       });
 
       allDocuments.push(...documents);
-
-      if (!nextCursor) {
-        break;
-      }
+      hasMore = !!nextCursor;
       cursor = nextCursor;
     }
 
