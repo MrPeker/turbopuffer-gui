@@ -41,12 +41,19 @@ const createWindow = () => {
     minWidth: 800,
     minHeight: 600,
     title: 'Turbopuffer Client',
+    show: false, // Don't show until ready to prevent white flash
+    backgroundColor: '#121417', // Match dark theme background (HSL 220 15% 8%)
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: false, // Required for Turbopuffer API requests; domain-restricted above
     },
+  });
+
+  // Show window when ready to prevent white flash
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
   });
 
   // and load the index.html of the app.

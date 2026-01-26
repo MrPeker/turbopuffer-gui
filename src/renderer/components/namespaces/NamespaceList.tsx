@@ -1,8 +1,7 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, memo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { NamespaceWithRegion } from '../../../types/connection';
-import type { Namespace } from '../../../types/namespace';
 import {
   Table,
   TableBody,
@@ -24,8 +23,136 @@ import {
   Copy,
   FolderOpen
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { formatBytes, formatNumber, formatDate } from '../../utils/formatBytes';
+
+interface NamespaceRowProps {
+  namespace: NamespaceWithRegion;
+  showRegionColumn: boolean;
+  onRowClick: (namespace: NamespaceWithRegion) => void;
+  onRowHover: (namespaceId: string, regionId?: string) => void;
+  onRowLeave: () => void;
+  onDelete: (namespaceId: string) => void;
+  onCopy: (text: string) => void;
+}
+
+/**
+ * Memoized row component that subscribes only to its own metadata.
+ * This prevents re-rendering all rows when one row's metadata loads.
+ */
+const NamespaceRow = memo(function NamespaceRow({
+  namespace,
+  showRegionColumn,
+  onRowClick,
+  onRowHover,
+  onRowLeave,
+  onDelete,
+  onCopy,
+}: NamespaceRowProps) {
+  // Subscribe to ONLY this namespace's metadata using a granular selector
+  const cacheKey = namespace.regionId ? `${namespace.id}:${namespace.regionId}` : namespace.id;
+
+  const metadata = useNamespacesStore((state) => {
+    const cached = state.metadataCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      return cached.metadata;
+    }
+    return undefined;
+  });
+
+  const isLoading = useNamespacesStore((state) => state.metadataLoading.has(cacheKey));
+
+  return (
+    <TableRow
+      className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
+      onClick={() => onRowClick(namespace)}
+      onMouseEnter={() => onRowHover(namespace.id, namespace.regionId)}
+      onMouseLeave={onRowLeave}
+    >
+      <TableCell className="py-3 px-4">
+        <FolderOpen className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />
+      </TableCell>
+      <TableCell className="py-3 px-4 font-mono text-sm text-tp-text font-medium">
+        {namespace.id}
+      </TableCell>
+      {showRegionColumn && (
+        <TableCell className="py-3 px-4">
+          <Badge variant="outline" className="text-[9px] h-5 px-1.5 font-mono whitespace-nowrap" title={namespace.regionName}>
+            {namespace.regionId}
+          </Badge>
+        </TableCell>
+      )}
+      <TableCell className="py-3 px-4 text-right text-xs text-tp-text-muted tabular-nums">
+        {isLoading ? (
+          <Skeleton className="h-4 w-16 ml-auto" />
+        ) : metadata ? (
+          formatNumber(metadata.approx_row_count)
+        ) : (
+          <span className="text-tp-text-muted/50">—</span>
+        )}
+      </TableCell>
+      <TableCell className="py-3 px-4 text-right text-xs text-tp-text-muted tabular-nums">
+        {isLoading ? (
+          <Skeleton className="h-4 w-16 ml-auto" />
+        ) : metadata ? (
+          formatBytes(metadata.approx_logical_bytes)
+        ) : (
+          <span className="text-tp-text-muted/50">—</span>
+        )}
+      </TableCell>
+      <TableCell className="py-3 px-4 text-xs text-tp-text-muted">
+        {isLoading ? (
+          <Skeleton className="h-4 w-20" />
+        ) : metadata ? (
+          formatDate(metadata.created_at)
+        ) : (
+          <span className="text-tp-text-muted/50">—</span>
+        )}
+      </TableCell>
+      <TableCell className="py-3 px-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+              <MoreHorizontal className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-tp-surface border-tp-border-strong">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onRowClick(namespace);
+              }}
+              className="text-sm"
+            >
+              <ArrowRight className="h-3 w-3 mr-1.5" />
+              open
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopy(namespace.id);
+              }}
+              className="text-sm"
+            >
+              <Copy className="h-3 w-3 mr-1.5" />
+              copy id
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-tp-border-subtle" />
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(namespace.id);
+              }}
+              className="text-tp-danger focus:text-tp-danger text-sm"
+            >
+              <Trash2 className="h-3 w-3 mr-1.5" />
+              delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 interface NamespaceListProps {
   namespaces: NamespaceWithRegion[];
@@ -38,19 +165,15 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
   const navigate = useNavigate();
   const { connectionId } = useParams<{ connectionId: string }>();
 
-  // Zustand store
-  const {
-    deletingNamespace,
-    deleteDialogNamespace,
-    setDeleteDialogNamespace,
-    deleteNamespace,
-    addRecentNamespace,
-    fetchMetadataForNamespace,
-    getNamespaceMetadata,
-    isMetadataLoading,
-  } = useNamespacesStore();
+  // Only subscribe to the specific store actions we need (not the metadata cache)
+  const deletingNamespace = useNamespacesStore((state) => state.deletingNamespace);
+  const deleteDialogNamespace = useNamespacesStore((state) => state.deleteDialogNamespace);
+  const setDeleteDialogNamespace = useNamespacesStore((state) => state.setDeleteDialogNamespace);
+  const deleteNamespace = useNamespacesStore((state) => state.deleteNamespace);
+  const addRecentNamespace = useNamespacesStore((state) => state.addRecentNamespace);
+  const fetchMetadataForNamespace = useNamespacesStore((state) => state.fetchMetadataForNamespace);
 
-  // Debounced metadata fetch on hover (200ms delay to avoid scroll jank)
+  // Debounced metadata fetch on hover
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleRowHover = useCallback((namespaceId: string, regionId?: string) => {
@@ -59,7 +182,7 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
     }
     hoverTimeoutRef.current = setTimeout(() => {
       fetchMetadataForNamespace(namespaceId, regionId);
-    }, 200);
+    }, 150); // Reduced from 200ms for snappier feel
   }, [fetchMetadataForNamespace]);
 
   const handleRowLeave = useCallback(() => {
@@ -69,15 +192,15 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
     }
   }, []);
 
-  const handleDelete = async (namespaceId: string) => {
+  const handleDelete = useCallback(async (namespaceId: string) => {
     try {
       await deleteNamespace(namespaceId);
     } catch (error) {
       console.error('Failed to delete namespace:', error);
     }
-  };
+  }, [deleteNamespace]);
 
-  const handleNamespaceClick = (namespace: NamespaceWithRegion) => {
+  const handleNamespaceClick = useCallback((namespace: NamespaceWithRegion) => {
     if (!connectionId) return;
 
     // Add to recent namespaces with region info
@@ -94,11 +217,15 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
       const regionParam = namespace.regionId ? `?region=${encodeURIComponent(namespace.regionId)}` : '';
       navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents${regionParam}`);
     }
-  };
+  }, [connectionId, addRecentNamespace, intendedDestination, navigate]);
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
-  };
+  }, []);
+
+  const handleOpenDeleteDialog = useCallback((namespaceId: string) => {
+    setDeleteDialogNamespace(namespaceId);
+  }, [setDeleteDialogNamespace]);
 
   return (
     <>
@@ -125,103 +252,18 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
                 </TableCell>
               </TableRow>
             ) : (
-              namespaces.map((namespace) => {
-                const metadata = getNamespaceMetadata(namespace.id, namespace.regionId);
-                const isLoading = isMetadataLoading(namespace.id, namespace.regionId);
-
-                return (
-                  <TableRow
-                    key={`${namespace.id}:${namespace.regionId}`}
-                    className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
-                    onClick={() => handleNamespaceClick(namespace)}
-                    onMouseEnter={() => handleRowHover(namespace.id, namespace.regionId)}
-                    onMouseLeave={handleRowLeave}
-                  >
-                    <TableCell className="py-3 px-4">
-                      <FolderOpen className="h-3.5 w-3.5 text-tp-accent/70 flex-shrink-0" />
-                    </TableCell>
-                    <TableCell className="py-3 px-4 font-mono text-sm text-tp-text font-medium">
-                      {namespace.id}
-                    </TableCell>
-                    {showRegionColumn && (
-                      <TableCell className="py-3 px-4">
-                        <Badge variant="outline" className="text-[9px] h-5 px-1.5 font-mono whitespace-nowrap" title={namespace.regionName}>
-                          {namespace.regionId}
-                        </Badge>
-                      </TableCell>
-                    )}
-                    <TableCell className="py-3 px-4 text-right text-xs text-tp-text-muted tabular-nums">
-                      {isLoading ? (
-                        <Skeleton className="h-4 w-16 ml-auto" />
-                      ) : metadata ? (
-                        formatNumber(metadata.approx_row_count)
-                      ) : (
-                        <span className="text-tp-text-muted/50">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-3 px-4 text-right text-xs text-tp-text-muted tabular-nums">
-                      {isLoading ? (
-                        <Skeleton className="h-4 w-16 ml-auto" />
-                      ) : metadata ? (
-                        formatBytes(metadata.approx_logical_bytes)
-                      ) : (
-                        <span className="text-tp-text-muted/50">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-3 px-4 text-xs text-tp-text-muted">
-                      {isLoading ? (
-                        <Skeleton className="h-4 w-20" />
-                      ) : metadata ? (
-                        formatDate(metadata.created_at)
-                      ) : (
-                        <span className="text-tp-text-muted/50">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-3 px-4">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                          <MoreHorizontal className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-tp-surface border-tp-border-strong">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleNamespaceClick(namespace);
-                          }}
-                          className="text-sm"
-                        >
-                          <ArrowRight className="h-3 w-3 mr-1.5" />
-                          open
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(namespace.id);
-                          }}
-                          className="text-sm"
-                        >
-                          <Copy className="h-3 w-3 mr-1.5" />
-                          copy id
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-tp-border-subtle" />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteDialogNamespace(namespace.id);
-                          }}
-                          className="text-tp-danger focus:text-tp-danger text-sm"
-                        >
-                          <Trash2 className="h-3 w-3 mr-1.5" />
-                          delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-                );
-              })
+              namespaces.map((namespace) => (
+                <NamespaceRow
+                  key={`${namespace.id}:${namespace.regionId}`}
+                  namespace={namespace}
+                  showRegionColumn={showRegionColumn}
+                  onRowClick={handleNamespaceClick}
+                  onRowHover={handleRowHover}
+                  onRowLeave={handleRowLeave}
+                  onDelete={handleOpenDeleteDialog}
+                  onCopy={copyToClipboard}
+                />
+              ))
             )}
           </TableBody>
         </Table>
