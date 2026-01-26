@@ -3,6 +3,7 @@ import { useConnections } from "../../contexts/ConnectionContext";
 import { TURBOPUFFER_REGIONS } from "../../../types/connection";
 import type { ConnectionFormData } from "../../../types/connection";
 import { turbopufferService } from "../../services/turbopufferService";
+import { RegionMultiSelect } from "./RegionMultiSelect";
 
 export function NewConnectionForm() {
   const { saveConnection, testConnection } = useConnections();
@@ -15,7 +16,7 @@ export function NewConnectionForm() {
 
   const [formData, setFormData] = useState<ConnectionFormData>({
     name: "",
-    regionId: TURBOPUFFER_REGIONS[0].id,
+    regionIds: TURBOPUFFER_REGIONS.map(r => r.id), // Default: all regions selected
     apiKey: "",
     isReadOnly: false,
   });
@@ -23,7 +24,7 @@ export function NewConnectionForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.apiKey) {
+    if (!formData.name || !formData.apiKey || formData.regionIds.length === 0) {
       return;
     }
 
@@ -38,22 +39,28 @@ export function NewConnectionForm() {
   };
 
   const handleTest = async () => {
-    if (!formData.apiKey) return;
+    if (!formData.apiKey || formData.regionIds.length === 0) return;
 
     setIsTesting(true);
     setTestResult(null);
 
     try {
-      const region = TURBOPUFFER_REGIONS.find(r => r.id === formData.regionId);
+      // Test with the first selected region (API key is valid across all regions)
+      const region = TURBOPUFFER_REGIONS.find(r => r.id === formData.regionIds[0]);
       if (!region) {
-        throw new Error('Invalid region selected');
+        throw new Error('No valid region selected');
       }
-      
+
       const result = await turbopufferService.testConnection(
         formData.apiKey,
         region
       );
-      setTestResult(result);
+      setTestResult({
+        ...result,
+        message: result.success
+          ? `Connection successful (tested via ${region.location})`
+          : result.message,
+      });
     } catch (error) {
       setTestResult({
         success: false,
@@ -87,20 +94,14 @@ export function NewConnectionForm() {
           </div>
 
           <div>
-            <label>Region</label>
-            <select
-              value={formData.regionId}
-              onChange={(e) =>
-                setFormData({ ...formData, regionId: e.target.value })
-              }
-              required
-            >
-              {TURBOPUFFER_REGIONS.map((region) => (
-                <option key={region.id} value={region.id}>
-                  {region.name} ({region.id}) • {region.location}
-                </option>
-              ))}
-            </select>
+            <label>Regions</label>
+            <p className="text-xs text-tp-text-muted mb-2">
+              Select which regions to include in this connection
+            </p>
+            <RegionMultiSelect
+              selectedRegionIds={formData.regionIds}
+              onChange={(regionIds) => setFormData({ ...formData, regionIds })}
+            />
           </div>
 
           <div>
@@ -151,13 +152,13 @@ export function NewConnectionForm() {
             <button
               type="button"
               onClick={handleTest}
-              disabled={!formData.apiKey || isTesting}
+              disabled={!formData.apiKey || formData.regionIds.length === 0 || isTesting}
             >
               {isTesting ? "Testing..." : "Test Connection"}
             </button>
             <button
               type="submit"
-              disabled={!formData.name || !formData.apiKey || isSaving}
+              disabled={!formData.name || !formData.apiKey || formData.regionIds.length === 0 || isSaving}
             >
               {isSaving ? "Creating..." : "Create Connection"}
             </button>

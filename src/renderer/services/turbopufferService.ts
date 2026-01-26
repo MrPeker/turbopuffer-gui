@@ -3,9 +3,12 @@ import type { TurbopufferRegion, TestConnectionResult } from '../../types/connec
 import { settingsService } from './settingsService';
 
 export class TurbopufferService {
-  private client: Turbopuffer | null = null;
-  private currentRegion: string | null = null;
+  private clients: Map<string, Turbopuffer> = new Map();
   private currentApiKey: string | null = null;
+  private currentRegionIds: Set<string> = new Set();
+
+  // Legacy single-client support (for backward compatibility during transition)
+  private primaryRegionId: string | null = null;
 
   /**
    * Log API requests based on the configured logging level
@@ -47,42 +50,62 @@ export class TurbopufferService {
   }
 
   /**
-   * Initialize or update the Turbopuffer client with new credentials
+   * Initialize clients for multiple regions
    */
-  async initializeClient(apiKey: string, region: TurbopufferRegion): Promise<void> {
-    if (this.currentApiKey === apiKey && this.currentRegion === region.id && this.client) {
-      return; // Client already initialized with same credentials
+  async initializeClients(apiKey: string, regions: TurbopufferRegion[]): Promise<void> {
+    const regionIds = new Set(regions.map(r => r.id));
+
+    // Check if already initialized with same configuration
+    if (
+      this.currentApiKey === apiKey &&
+      this.currentRegionIds.size === regionIds.size &&
+      [...regionIds].every(id => this.currentRegionIds.has(id))
+    ) {
+      return; // Already initialized with same regions
     }
 
     const settings = await settingsService.getSettings();
-    
-    // Create client configuration
-    const config: any = {
-      apiKey,
-      region: region.id,
-    };
 
-    // Apply custom endpoint if configured
-    if (settings.api.customEndpoint) {
-      config.baseURL = settings.api.customEndpoint;
-    }
+    // Clear existing clients
+    this.clients.clear();
 
-    // Apply timeout (convert seconds to milliseconds)
-    if (settings.connection.requestTimeout) {
-      config.timeout = settings.connection.requestTimeout * 1000;
-    }
-
-    // Apply retry configuration
-    if (settings.connection.retryAttempts > 0) {
-      config.retry = {
-        retries: settings.connection.retryAttempts,
+    // Create a client for each region
+    for (const region of regions) {
+      const config: any = {
+        apiKey,
+        region: region.id,
       };
-    }
 
-    this.client = new Turbopuffer(config);
+      // Apply custom endpoint if configured
+      if (settings.api.customEndpoint) {
+        config.baseURL = settings.api.customEndpoint;
+      }
+
+      // Apply timeout (convert seconds to milliseconds)
+      if (settings.connection.requestTimeout) {
+        config.timeout = settings.connection.requestTimeout * 1000;
+      }
+
+      // Apply retry configuration
+      if (settings.connection.retryAttempts > 0) {
+        config.retry = {
+          retries: settings.connection.retryAttempts,
+        };
+      }
+
+      this.clients.set(region.id, new Turbopuffer(config));
+    }
 
     this.currentApiKey = apiKey;
-    this.currentRegion = region.id;
+    this.currentRegionIds = regionIds;
+    this.primaryRegionId = regions.length > 0 ? regions[0].id : null;
+  }
+
+  /**
+   * Initialize or update a single Turbopuffer client (legacy method for backward compatibility)
+   */
+  async initializeClient(apiKey: string, region: TurbopufferRegion): Promise<void> {
+    await this.initializeClients(apiKey, [region]);
   }
 
   /**
@@ -146,28 +169,84 @@ export class TurbopufferService {
   }
 
   /**
-   * Get the current client instance
+   * Get the primary client instance (first region, for legacy compatibility)
    */
   getClient(): Turbopuffer | null {
-    return this.client;
+    if (this.primaryRegionId) {
+      return this.clients.get(this.primaryRegionId) || null;
+    }
+    // Fallback to first client if any
+    const firstClient = this.clients.values().next();
+    return firstClient.done ? null : firstClient.value;
   }
 
   /**
-   * List all namespaces
+   * Get a client for a specific region
+   */
+  getClientForRegion(regionId: string): Turbopuffer | null {
+    return this.clients.get(regionId) || null;
+  }
+
+  /**
+   * Get all initialized clients
+   */
+  getAllClients(): Map<string, Turbopuffer> {
+    return new Map(this.clients);
+  }
+
+  /**
+   * Get all region IDs that have initialized clients
+   */
+  getInitializedRegionIds(): string[] {
+    return Array.from(this.clients.keys());
+  }
+
+  /**
+   * List all namespaces from the primary client
    */
   async listNamespaces(): Promise<string[]> {
-    if (!this.client) {
+    const client = this.getClient();
+    if (!client) {
       throw new Error('Client not initialized');
     }
 
-    const namespaceIds = [];
-    const namespaces = await this.client.namespaces();
-    
+    const namespaceIds: string[] = [];
+    const namespaces = await client.namespaces();
+
     for await (const namespace of namespaces) {
       namespaceIds.push(namespace.id);
     }
-    
+
     return namespaceIds;
+  }
+
+  /**
+   * List namespaces from a specific region
+   */
+  async listNamespacesForRegion(regionId: string): Promise<string[]> {
+    const client = this.clients.get(regionId);
+    if (!client) {
+      throw new Error(`Client not initialized for region: ${regionId}`);
+    }
+
+    const namespaceIds: string[] = [];
+    const namespaces = await client.namespaces();
+
+    for await (const namespace of namespaces) {
+      namespaceIds.push(namespace.id);
+    }
+
+    return namespaceIds;
+  }
+
+  /**
+   * Clear all clients
+   */
+  clearClients(): void {
+    this.clients.clear();
+    this.currentApiKey = null;
+    this.currentRegionIds.clear();
+    this.primaryRegionId = null;
   }
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import type { Document } from "@/types/document";
 import {
   AlertCircle,
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const DocumentsPage: React.FC = () => {
   const { connectionId, namespaceId } = useParams<{ connectionId: string; namespaceId: string }>();
+  const [searchParams] = useSearchParams();
+  const regionId = searchParams.get('region');
   const { getConnectionById, turbopufferClient, clientError, setActiveConnection, isActiveConnectionReadOnly, getDelimiterPreference } = useConnections();
   const connection = connectionId ? getConnectionById(connectionId) : null;
   const { toast } = useToast();
@@ -111,8 +114,8 @@ export const DocumentsPage: React.FC = () => {
 
   // Single effect to handle initialization and loading
   useEffect(() => {
-    // Create a unique key for this initialization
-    const initKey = `${connectionId}-${namespaceId}-${pageSize}-${!!turbopufferClient}`;
+    // Create a unique key for this initialization (include regionId to reinit on region change)
+    const initKey = `${connectionId}-${namespaceId}-${regionId}-${pageSize}-${!!turbopufferClient}`;
 
     // Only proceed if we have a turbopuffer client
     if (!turbopufferClient) {
@@ -155,10 +158,10 @@ export const DocumentsPage: React.FC = () => {
         setCurrentPage(1);
       }
 
-      // Initialize the client with the current connection
+      // Initialize the client with the region from URL (or use primary region)
       const initialized = await initializeClient(
         connectionId,
-        connection.region
+        regionId
       );
 
       if (initialized) {
@@ -174,7 +177,7 @@ export const DocumentsPage: React.FC = () => {
     };
 
     initializeAndLoad();
-  }, [namespaceId, connectionId, pageSize, !!turbopufferClient, !!connection]); // Include connection availability
+  }, [namespaceId, connectionId, regionId, pageSize, !!turbopufferClient, !!connection]); // Include regionId for multi-region support
 
   const handleRefresh = () => {
     refresh();
@@ -188,7 +191,7 @@ export const DocumentsPage: React.FC = () => {
       resetInitialization();
       const initialized = await initializeClient(
         connection.id,
-        connection.region
+        regionId
       );
       if (initialized) {
         loadDocuments(false, false, pageSize);
@@ -451,6 +454,11 @@ export const DocumentsPage: React.FC = () => {
               );
             });
           })()}
+          {regionId && (
+            <Badge variant="outline" className="ml-2 text-[9px] h-4 px-1.5 font-mono">
+              {regionId}
+            </Badge>
+          )}
         </nav>
 
         {/* Document Actions - Tier 3 (subtle) */}

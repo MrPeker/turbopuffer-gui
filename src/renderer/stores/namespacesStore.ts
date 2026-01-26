@@ -3,7 +3,7 @@ import { devtools, subscribeWithSelector } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { enableMapSet } from "immer";
 import type { Namespace, NamespaceMetadata, NamespacesResponse } from "../../types/namespace";
-import type { TurbopufferRegion } from "../../types/connection";
+import type { TurbopufferRegion, NamespaceWithRegion, RegionError } from "../../types/connection";
 import { namespaceService } from "../services/namespaceService";
 import { turbopufferService } from "../services/turbopufferService";
 
@@ -22,12 +22,17 @@ interface RecentNamespaceEntry {
 
 interface NamespacesState {
   // Data
-  namespaces: Namespace[];
+  namespaces: NamespaceWithRegion[];
   totalCount: number | null;
   recentNamespaces: Namespace[];
+  regionErrors: RegionError[];
 
   // Connection State
   currentConnectionId: string | null;
+  currentRegions: TurbopufferRegion[];
+
+  // Region Filter
+  selectedRegionFilter: string | 'all';
 
   // UI State
   isLoading: boolean;
@@ -70,7 +75,8 @@ interface NamespacesState {
 
   // Actions - Connection
   setConnectionId: (connectionId: string | null) => void;
-  initializeClient: (connectionId: string, region: TurbopufferRegion) => Promise<boolean>;
+  initializeClient: (connectionId: string, regions: TurbopufferRegion[]) => Promise<boolean>;
+  setRegionFilter: (filter: string | 'all') => void;
 
   // Actions - Data Loading
   loadNamespaces: (force?: boolean, prefix?: string, isLoadMore?: boolean) => Promise<void>;
@@ -110,13 +116,14 @@ interface NamespacesState {
   loadRecentNamespaces: (connectionId?: string) => void;
 
   // Actions - Metadata
-  fetchMetadataForNamespace: (namespaceId: string) => Promise<void>;
-  fetchMetadataForNamespaces: (namespaceIds: string[]) => Promise<void>;
-  getNamespaceMetadata: (namespaceId: string) => NamespaceMetadata | undefined;
-  isMetadataLoading: (namespaceId: string) => boolean;
+  fetchMetadataForNamespace: (namespaceId: string, regionId?: string) => Promise<void>;
+  fetchMetadataForNamespaces: (namespaceIds: string[], regionId?: string) => Promise<void>;
+  getNamespaceMetadata: (namespaceId: string, regionId?: string) => NamespaceMetadata | undefined;
+  isMetadataLoading: (namespaceId: string, regionId?: string) => boolean;
 
   // Selectors (computed state)
-  getFilteredNamespaces: () => Namespace[];
+  getFilteredNamespaces: () => NamespaceWithRegion[];
+  getRegionErrors: () => RegionError[];
 
   // Utilities
   clearCache: () => void;
@@ -132,8 +139,12 @@ export const useNamespacesStore = create<NamespacesState>()(
         namespaces: [],
         totalCount: null,
         recentNamespaces: [],
+        regionErrors: [],
 
         currentConnectionId: null,
+        currentRegions: [],
+
+        selectedRegionFilter: 'all',
 
         isLoading: false,
         isRefreshing: false,
@@ -175,6 +186,9 @@ export const useNamespacesStore = create<NamespacesState>()(
               state.error = null;
               state.isClientInitialized = false;
               state.initializationAttempts = 0;
+              state.regionErrors = [];
+              state.currentRegions = [];
+              state.selectedRegionFilter = 'all';
 
               // Restore per-connection UI state from cache
               if (connectionId) {
@@ -185,7 +199,13 @@ export const useNamespacesStore = create<NamespacesState>()(
           }
         },
 
-        initializeClient: async (connectionId, region) => {
+        setRegionFilter: (filter) => {
+          set((state) => {
+            state.selectedRegionFilter = filter;
+          });
+        },
+
+        initializeClient: async (connectionId, regions) => {
           const state = get();
 
           if (state.initializationAttempts >= state.maxInitAttempts) {
@@ -204,13 +224,14 @@ export const useNamespacesStore = create<NamespacesState>()(
             // Get the connection details with decrypted API key
             const connectionDetails = await window.electronAPI.getConnectionForUse(connectionId);
 
-            // Initialize client with API key and region
-            await turbopufferService.initializeClient(connectionDetails.apiKey, region);
+            // Initialize clients for all regions
+            await turbopufferService.initializeClients(connectionDetails.apiKey, regions);
             const client = turbopufferService.getClient();
             namespaceService.setClient(client);
 
             set((state) => {
               state.isClientInitialized = true;
+              state.currentRegions = regions;
               state.error = null;
               state.initializationAttempts = 0; // Reset counter on success
             });
@@ -260,26 +281,28 @@ export const useNamespacesStore = create<NamespacesState>()(
               state.isLoadingMore = true;
             }
             state.error = null;
+            state.regionErrors = [];
           });
 
           try {
-            const response = await namespaceService.listNamespaces({
-              prefix,
-              page_size: 1000
-            });
+            // Use multi-region fetching
+            const { namespaces, errors } = await namespaceService.listNamespacesFromAllRegions(
+              state.currentRegions
+            );
 
             set((state) => {
               if (prefix && isLoadMore) {
                 // Merge results when loading more
                 const existingIds = new Set(state.namespaces.map(ns => ns.id));
-                const newNamespaces = response.namespaces.filter(ns => !existingIds.has(ns.id));
+                const newNamespaces = namespaces.filter(ns => !existingIds.has(ns.id));
                 state.namespaces = [...state.namespaces, ...newNamespaces];
                 state.loadedPrefixes.add(prefix);
               } else {
-                state.namespaces = response.namespaces;
+                state.namespaces = namespaces;
                 state.loadedPrefixes = new Set();
               }
               state.totalCount = state.namespaces.length;
+              state.regionErrors = errors;
 
               // Update cache
               state.namespacesCache.set(cacheKey, {
@@ -620,35 +643,57 @@ export const useNamespacesStore = create<NamespacesState>()(
         // Selectors
         getFilteredNamespaces: () => {
           const state = get();
-          if (!state.searchTerm) {
-            return state.namespaces;
+          let filtered = state.namespaces;
+
+          // Apply region filter
+          if (state.selectedRegionFilter !== 'all') {
+            if (state.selectedRegionFilter === 'gcp') {
+              filtered = filtered.filter(ns => ns.regionProvider === 'gcp');
+            } else if (state.selectedRegionFilter === 'aws') {
+              filtered = filtered.filter(ns => ns.regionProvider === 'aws');
+            } else {
+              // Filter by specific region ID
+              filtered = filtered.filter(ns => ns.regionId === state.selectedRegionFilter);
+            }
           }
 
-          const term = state.searchTerm.toLowerCase();
-          return state.namespaces.filter(ns =>
-            ns.id.toLowerCase().includes(term)
-          );
+          // Apply search term filter
+          if (state.searchTerm) {
+            const term = state.searchTerm.toLowerCase();
+            filtered = filtered.filter(ns =>
+              ns.id.toLowerCase().includes(term)
+            );
+          }
+
+          return filtered;
+        },
+
+        getRegionErrors: () => {
+          return get().regionErrors;
         },
 
         // Metadata Actions
-        fetchMetadataForNamespace: async (namespaceId) => {
+        fetchMetadataForNamespace: async (namespaceId, regionId) => {
           const state = get();
 
+          // Use composite key for cache when regionId is provided (same namespace can exist in multiple regions)
+          const cacheKey = regionId ? `${namespaceId}:${regionId}` : namespaceId;
+
           // Skip if already loading or cached
-          if (state.metadataLoading.has(namespaceId)) return;
-          const cached = state.metadataCache.get(namespaceId);
+          if (state.metadataLoading.has(cacheKey)) return;
+          const cached = state.metadataCache.get(cacheKey);
           if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return;
 
           // Mark as loading
           set((state) => {
-            state.metadataLoading.add(namespaceId);
+            state.metadataLoading.add(cacheKey);
           });
 
           try {
-            const metadata = await namespaceService.getNamespaceMetadata(namespaceId);
+            const metadata = await namespaceService.getNamespaceMetadata(namespaceId, regionId);
             set((state) => {
-              state.metadataLoading.delete(namespaceId);
-              state.metadataCache.set(namespaceId, {
+              state.metadataLoading.delete(cacheKey);
+              state.metadataCache.set(cacheKey, {
                 metadata,
                 timestamp: Date.now(),
               });
@@ -656,7 +701,7 @@ export const useNamespacesStore = create<NamespacesState>()(
           } catch (error) {
             console.error(`Failed to fetch metadata for ${namespaceId}:`, error);
             set((state) => {
-              state.metadataLoading.delete(namespaceId);
+              state.metadataLoading.delete(cacheKey);
             });
           }
         },
@@ -703,16 +748,18 @@ export const useNamespacesStore = create<NamespacesState>()(
           });
         },
 
-        getNamespaceMetadata: (namespaceId) => {
-          const cached = get().metadataCache.get(namespaceId);
+        getNamespaceMetadata: (namespaceId, regionId) => {
+          const cacheKey = regionId ? `${namespaceId}:${regionId}` : namespaceId;
+          const cached = get().metadataCache.get(cacheKey);
           if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
             return cached.metadata;
           }
           return undefined;
         },
 
-        isMetadataLoading: (namespaceId) => {
-          return get().metadataLoading.has(namespaceId);
+        isMetadataLoading: (namespaceId, regionId) => {
+          const cacheKey = regionId ? `${namespaceId}:${regionId}` : namespaceId;
+          return get().metadataLoading.has(cacheKey);
         },
 
         // Utilities
@@ -727,6 +774,9 @@ export const useNamespacesStore = create<NamespacesState>()(
             state.namespaces = [];
             state.totalCount = null;
             state.currentConnectionId = null;
+            state.currentRegions = [];
+            state.regionErrors = [];
+            state.selectedRegionFilter = 'all';
             state.isLoading = false;
             state.isRefreshing = false;
             state.isSearching = false;

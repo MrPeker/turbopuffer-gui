@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { useNavigate, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useConnections } from "../../contexts/ConnectionContext";
 import { useSettings } from "../../contexts/SettingsContext";
 import { TurbopufferLogo } from "../TurbopufferLogo";
@@ -395,10 +395,14 @@ function NavigationGroup({
 function MainNavigation({ isCollapsed }: { isCollapsed: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { connectionId, namespaceId } = useParams<{
     connectionId?: string;
     namespaceId?: string;
   }>();
+
+  // Get region from URL to preserve it when navigating between pages
+  const regionId = searchParams.get('region');
 
   const isSelected = (path: string) => {
     if (path === "/connections") {
@@ -422,11 +426,14 @@ function MainNavigation({ isCollapsed }: { isCollapsed: boolean }) {
       return;
     }
 
+    // Preserve region param when navigating to namespace-specific pages
+    const regionParam = regionId ? `?region=${encodeURIComponent(regionId)}` : '';
+
     // Build hierarchical paths based on current context
     if (item.key === "documents" && connectionId && namespaceId) {
-      navigate(`/connections/${connectionId}/namespaces/${namespaceId}/documents`);
+      navigate(`/connections/${connectionId}/namespaces/${namespaceId}/documents${regionParam}`);
     } else if (item.key === "schema" && connectionId && namespaceId) {
-      navigate(`/connections/${connectionId}/namespaces/${namespaceId}/schema`);
+      navigate(`/connections/${connectionId}/namespaces/${namespaceId}/schema${regionParam}`);
     } else {
       navigate(item.path);
     }

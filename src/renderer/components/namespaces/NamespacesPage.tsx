@@ -8,6 +8,9 @@ import { CreateNamespaceDialog } from './CreateNamespaceDialog';
 import { PageHeader } from '../layout/PageHeader';
 import { RecentNamespaces } from './RecentNamespaces';
 import type { Namespace } from '../../../types/namespace';
+import { getEffectiveRegions } from '../../../types/connection';
+
+type ViewMode = 'list' | 'tree';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -52,6 +55,8 @@ export function NamespacesPage() {
     searchTerm,
     viewMode,
     intendedDestination: storeIntendedDestination,
+    currentRegions,
+    selectedRegionFilter,
     setConnectionId,
     initializeClient,
     loadNamespaces,
@@ -64,6 +69,8 @@ export function NamespacesPage() {
     setIntendedDestination,
     loadMoreForPrefix,
     getFilteredNamespaces,
+    setRegionFilter,
+    getRegionErrors,
   } = useNamespacesStore();
 
   const connection = connectionId ? getConnectionById(connectionId) : null;
@@ -120,14 +127,17 @@ export function NamespacesPage() {
 
   // Initialize connection and load namespaces
   useEffect(() => {
-    if (connection && connectionId && connection.region) {
+    if (connection && connectionId) {
+      const regions = getEffectiveRegions(connection);
+      if (regions.length === 0) return;
+
       // Set connection in store
       setConnectionId(connectionId);
 
-      // Initialize client
-      initializeClient(connectionId, connection.region).then((success) => {
+      // Initialize clients for all regions
+      initializeClient(connectionId, regions).then((success) => {
         if (success) {
-          // Load namespaces after client is initialized
+          // Load namespaces after clients are initialized
           loadNamespaces();
         }
       });
@@ -264,6 +274,25 @@ export function NamespacesPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Region Filter */}
+            {currentRegions.length > 1 && (
+              <Select value={selectedRegionFilter} onValueChange={setRegionFilter}>
+                <SelectTrigger className="h-7 w-[140px] text-[11px] bg-tp-bg border-tp-border-strong">
+                  <SelectValue placeholder="All Regions" />
+                </SelectTrigger>
+                <SelectContent className="bg-tp-surface border-tp-border-strong">
+                  <SelectItem value="all" className="text-[11px]">All Regions</SelectItem>
+                  <SelectItem value="gcp" className="text-[11px]">GCP Only</SelectItem>
+                  <SelectItem value="aws" className="text-[11px]">AWS Only</SelectItem>
+                  {currentRegions.map(region => (
+                    <SelectItem key={region.id} value={region.id} className="text-[11px] font-mono">
+                      {region.location}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {viewMode === 'tree' && (
               <div className="flex items-center gap-1.5 px-2 py-1 bg-tp-bg border-l border-tp-border-subtle">
                 <span className="text-[10px] text-tp-text-muted uppercase tracking-widest font-bold">delim</span>
@@ -327,6 +356,23 @@ export function NamespacesPage() {
                     connections
                   </Button>
                 )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {getRegionErrors().length > 0 && (
+            <Alert className="bg-amber-500/10 border-amber-500/30">
+              <AlertCircle className="h-3 w-3 text-amber-500" />
+              <AlertTitle className="text-xs uppercase tracking-wider text-amber-600">some regions failed to load</AlertTitle>
+              <AlertDescription className="text-[11px] text-tp-text-muted space-y-1">
+                {getRegionErrors().map((err) => (
+                  <div key={err.regionId} className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[9px] h-4 px-1 font-mono">
+                      {err.regionId}
+                    </Badge>
+                    <span>{err.error}</span>
+                  </div>
+                ))}
               </AlertDescription>
             </Alert>
           )}

@@ -172,7 +172,7 @@ interface DocumentsState {
   logFilterChange: () => void;
 
   // Async Actions
-  initializeClient: (connectionId: string, region: TurbopufferRegion) => Promise<boolean>;
+  initializeClient: (connectionId: string, regionId?: string | null) => Promise<boolean>;
 loadDocuments: (
           force?: boolean,
           loadMore?: boolean,
@@ -964,14 +964,14 @@ export const useDocumentsStore = create<DocumentsState>()(
         },
 
         // Async Actions
-        initializeClient: async (connectionId, region) => {
+        initializeClient: async (connectionId, regionId) => {
           const state = get();
-          
+
           // Check if already initialized
           if (state.isClientInitialized && documentService.getClient()) {
             return true;
           }
-          
+
           // Check retry limit
           if (state.initializationAttempts >= state.maxInitAttempts) {
             set((state) => {
@@ -979,28 +979,38 @@ export const useDocumentsStore = create<DocumentsState>()(
             });
             return false;
           }
-          
+
           // Increment attempt counter
           set((state) => {
             state.initializationAttempts++;
           });
-          
+
           try {
-            const connectionWithKey =
-              await window.electronAPI.getConnectionForUse(connectionId);
-            await turbopufferService.initializeClient(
-              connectionWithKey.apiKey,
-              region
-            );
-            documentService.setClient(turbopufferService.getClient()!);
-            
+            // Get the region-specific client if regionId is provided
+            // The clients should already be initialized by ConnectionContext.setActiveConnection()
+            let client;
+            if (regionId) {
+              client = turbopufferService.getClientForRegion(regionId);
+              if (!client) {
+                throw new Error(`No client available for region: ${regionId}`);
+              }
+            } else {
+              // Fall back to primary client (first region)
+              client = turbopufferService.getClient();
+              if (!client) {
+                throw new Error('No Turbopuffer client available');
+              }
+            }
+
+            documentService.setClient(client);
+
             // Mark as initialized on success
             set((state) => {
               state.isClientInitialized = true;
               state.initializationAttempts = 0; // Reset attempts on success
               state.error = null;
             });
-            
+
             return true;
           } catch (error) {
             console.error("Failed to initialize client:", error);

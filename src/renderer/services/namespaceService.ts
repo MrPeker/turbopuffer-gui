@@ -6,7 +6,13 @@ import type {
   NamespaceSchema,
   NamespacesResponse
 } from '../../types/namespace';
+import type {
+  TurbopufferRegion,
+  NamespaceWithRegion,
+  RegionError
+} from '../../types/connection';
 import { permissionService } from './permissionService';
+import { turbopufferService } from './turbopufferService';
 
 export class NamespaceService {
   private client: Turbopuffer | null = null;
@@ -172,12 +178,85 @@ export class NamespaceService {
     return response.namespaces;
   }
 
-  async getNamespaceMetadata(namespaceId: string): Promise<NamespaceMetadata> {
-    if (!this.client) {
+  /**
+   * List namespaces from all configured regions in parallel
+   */
+  async listNamespacesFromAllRegions(
+    regions: TurbopufferRegion[]
+  ): Promise<{
+    namespaces: NamespaceWithRegion[];
+    errors: RegionError[];
+  }> {
+    const allClients = turbopufferService.getAllClients();
+
+    if (allClients.size === 0) {
+      throw new Error('No Turbopuffer clients initialized');
+    }
+
+    // Filter to only regions that have clients
+    const regionsWithClients = regions.filter(r => allClients.has(r.id));
+
+    // Fetch namespaces from all regions in parallel
+    const results = await Promise.allSettled(
+      regionsWithClients.map(async (region) => {
+        const client = allClients.get(region.id);
+        if (!client) {
+          throw new Error(`Client not found for region: ${region.id}`);
+        }
+
+        const namespaces: NamespaceWithRegion[] = [];
+        const iterator = await client.namespaces({ page_size: 1000 });
+
+        for await (const namespace of iterator) {
+          namespaces.push({
+            id: namespace.id,
+            regionId: region.id,
+            regionName: region.location, // Use human-readable location name
+            regionProvider: region.provider,
+          });
+        }
+
+        return { region, namespaces };
+      })
+    );
+
+    // Aggregate results
+    const allNamespaces: NamespaceWithRegion[] = [];
+    const errors: RegionError[] = [];
+
+    results.forEach((result, idx) => {
+      const region = regionsWithClients[idx];
+      if (result.status === 'fulfilled') {
+        allNamespaces.push(...result.value.namespaces);
+      } else {
+        errors.push({
+          regionId: region.id,
+          regionName: region.location, // Use human-readable location name
+          error: result.reason instanceof Error ? result.reason.message : 'Unknown error',
+        });
+      }
+    });
+
+    // Sort namespaces alphabetically by ID
+    allNamespaces.sort((a, b) => a.id.localeCompare(b.id));
+
+    return { namespaces: allNamespaces, errors };
+  }
+
+  async getNamespaceMetadata(namespaceId: string, regionId?: string): Promise<NamespaceMetadata> {
+    // Use region-specific client if regionId provided, otherwise fall back to default
+    let client: Turbopuffer | null;
+    if (regionId) {
+      client = turbopufferService.getClientForRegion(regionId);
+    } else {
+      client = this.client || turbopufferService.getClient();
+    }
+
+    if (!client) {
       throw new Error('Turbopuffer client not initialized');
     }
 
-    const ns = this.client.namespace(namespaceId);
+    const ns = client.namespace(namespaceId);
 
     try {
       const metadata = await ns.metadata();

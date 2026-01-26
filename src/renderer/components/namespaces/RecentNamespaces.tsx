@@ -37,7 +37,9 @@ export function RecentNamespaces({ className, connectionId, intendedDestination 
     if (intendedDestination) {
       navigate(intendedDestination);
     } else {
-      navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents`);
+      // Include regionId in URL if available so DocumentsPage knows which region to use
+      const regionParam = namespace.regionId ? `?region=${encodeURIComponent(namespace.regionId)}` : '';
+      navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents${regionParam}`);
     }
   };
 

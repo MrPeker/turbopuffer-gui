@@ -1,6 +1,7 @@
 import React, { useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
+import type { NamespaceWithRegion } from '../../../types/connection';
 import type { Namespace } from '../../../types/namespace';
 import {
   Table,
@@ -11,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,12 +28,13 @@ import { cn } from '@/lib/utils';
 import { formatBytes, formatNumber, formatDate } from '../../utils/formatBytes';
 
 interface NamespaceListProps {
-  namespaces: Namespace[];
+  namespaces: NamespaceWithRegion[];
   isRefreshing?: boolean;
   intendedDestination?: string | null;
+  showRegionColumn?: boolean;
 }
 
-export function NamespaceList({ namespaces, isRefreshing, intendedDestination }: NamespaceListProps) {
+export function NamespaceList({ namespaces, isRefreshing, intendedDestination, showRegionColumn = true }: NamespaceListProps) {
   const navigate = useNavigate();
   const { connectionId } = useParams<{ connectionId: string }>();
 
@@ -50,12 +53,12 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
   // Debounced metadata fetch on hover (200ms delay to avoid scroll jank)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleRowHover = useCallback((namespaceId: string) => {
+  const handleRowHover = useCallback((namespaceId: string, regionId?: string) => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
     hoverTimeoutRef.current = setTimeout(() => {
-      fetchMetadataForNamespace(namespaceId);
+      fetchMetadataForNamespace(namespaceId, regionId);
     }, 200);
   }, [fetchMetadataForNamespace]);
 
@@ -74,17 +77,22 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
     }
   };
 
-  const handleNamespaceClick = (namespace: Namespace) => {
+  const handleNamespaceClick = (namespace: NamespaceWithRegion) => {
     if (!connectionId) return;
 
-    // Add to recent namespaces
-    addRecentNamespace(connectionId, namespace);
+    // Add to recent namespaces with region info
+    addRecentNamespace(connectionId, {
+      id: namespace.id,
+      regionId: namespace.regionId
+    });
 
     // If there's an intended destination, navigate there instead
     if (intendedDestination) {
       navigate(intendedDestination);
     } else {
-      navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents`);
+      // Include regionId in URL so DocumentsPage knows which region to use
+      const regionParam = namespace.regionId ? `?region=${encodeURIComponent(namespace.regionId)}` : '';
+      navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents${regionParam}`);
     }
   };
 
@@ -100,6 +108,9 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
             <TableRow className="border-b border-tp-border-subtle hover:bg-transparent">
               <TableHead className="h-9 px-4 w-[24px]"></TableHead>
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">namespace</TableHead>
+              {showRegionColumn && (
+                <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">region</TableHead>
+              )}
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted text-right w-[100px]">rows</TableHead>
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted text-right w-[100px]">size</TableHead>
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted w-[120px]">created</TableHead>
@@ -109,21 +120,21 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
           <TableBody>
             {namespaces.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={6} className="h-24 text-center text-xs text-tp-text-muted">
+                <TableCell colSpan={showRegionColumn ? 7 : 6} className="h-24 text-center text-xs text-tp-text-muted">
                   no namespaces found
                 </TableCell>
               </TableRow>
             ) : (
               namespaces.map((namespace) => {
-                const metadata = getNamespaceMetadata(namespace.id);
-                const isLoading = isMetadataLoading(namespace.id);
+                const metadata = getNamespaceMetadata(namespace.id, namespace.regionId);
+                const isLoading = isMetadataLoading(namespace.id, namespace.regionId);
 
                 return (
                   <TableRow
-                    key={namespace.id}
+                    key={`${namespace.id}:${namespace.regionId}`}
                     className="cursor-pointer hover:bg-tp-surface-alt/80 border-b border-tp-border-subtle/50 h-12 transition-colors"
                     onClick={() => handleNamespaceClick(namespace)}
-                    onMouseEnter={() => handleRowHover(namespace.id)}
+                    onMouseEnter={() => handleRowHover(namespace.id, namespace.regionId)}
                     onMouseLeave={handleRowLeave}
                   >
                     <TableCell className="py-3 px-4">
@@ -132,6 +143,13 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination }:
                     <TableCell className="py-3 px-4 font-mono text-sm text-tp-text font-medium">
                       {namespace.id}
                     </TableCell>
+                    {showRegionColumn && (
+                      <TableCell className="py-3 px-4">
+                        <Badge variant="outline" className="text-[9px] h-5 px-1.5 font-mono whitespace-nowrap" title={namespace.regionName}>
+                          {namespace.regionId}
+                        </Badge>
+                      </TableCell>
+                    )}
                     <TableCell className="py-3 px-4 text-right text-xs text-tp-text-muted tabular-nums">
                       {isLoading ? (
                         <Skeleton className="h-4 w-16 ml-auto" />

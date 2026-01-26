@@ -2,15 +2,18 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ConnectionAPI, ConnectionFormData } from './types/connection';
+import type { ConnectionAPI, ConnectionFormData, ConnectionUpdateData } from './types/connection';
 import type { SettingsAPI, Settings } from './types/settings';
 import type { UpdateAPI } from './types/update';
 
 const connectionAPI: ConnectionAPI = {
-  saveConnection: (connection: ConnectionFormData) => 
+  saveConnection: (connection: ConnectionFormData) =>
     ipcRenderer.invoke('connection:save', connection),
-  
-  loadConnections: () => 
+
+  updateConnection: (connection: ConnectionUpdateData) =>
+    ipcRenderer.invoke('connection:update', connection),
+
+  loadConnections: () =>
     ipcRenderer.invoke('connection:load'),
   
   testConnection: (connectionId: string) => 
@@ -27,6 +30,12 @@ const connectionAPI: ConnectionAPI = {
 
   getConnectionForUse: (connectionId: string) =>
     ipcRenderer.invoke('connection:getForUse', connectionId),
+
+  canUseBiometric: () =>
+    ipcRenderer.invoke('connection:canUseBiometric'),
+
+  revealApiKey: (connectionId: string) =>
+    ipcRenderer.invoke('connection:revealApiKey', connectionId),
 };
 
 const settingsAPI: SettingsAPI = {

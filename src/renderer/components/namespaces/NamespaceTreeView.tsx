@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
-import type { Namespace } from '../../../types/namespace';
+import type { NamespaceWithRegion } from '../../../types/connection';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { formatBytes, formatNumber, formatDate } from '../../utils/formatBytes';
 
 interface NamespaceTreeViewProps {
-  namespaces: Namespace[];
+  namespaces: NamespaceWithRegion[];
   delimiter: string;
   connectionId: string;
   isRefreshing?: boolean;
@@ -38,6 +38,7 @@ interface TreeNode {
   children: TreeNode[];
   hasMore?: boolean;
   isLoading?: boolean;
+  regionId?: string; // For leaf nodes (actual namespaces)
 }
 
 export function NamespaceTreeView({
@@ -71,13 +72,13 @@ export function NamespaceTreeView({
   // Debounced metadata fetch on hover (200ms delay to avoid scroll jank)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleNodeHover = useCallback((namespaceId: string, isFolder: boolean) => {
+  const handleNodeHover = useCallback((namespaceId: string, isFolder: boolean, regionId?: string) => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
     if (!isFolder) {
       hoverTimeoutRef.current = setTimeout(() => {
-        fetchMetadataForNamespace(namespaceId);
+        fetchMetadataForNamespace(namespaceId, regionId);
       }, 200);
     }
   }, [fetchMetadataForNamespace]);
@@ -95,7 +96,7 @@ export function NamespaceTreeView({
   }, [delimiter, resetExpandedFolders]);
 
   // Build tree structure from flat namespace list
-  const buildTree = useCallback((namespaceList: Namespace[]): TreeNode[] => {
+  const buildTree = useCallback((namespaceList: NamespaceWithRegion[]): TreeNode[] => {
     const root: TreeNode[] = [];
     const nodeMap = new Map<string, TreeNode>();
 
@@ -118,7 +119,8 @@ export function NamespaceTreeView({
             fullPath: currentPath,
             isFolder: !isLast,
             children: [],
-            hasMore: !isLast // Folders might have more items to load
+            hasMore: !isLast, // Folders might have more items to load
+            regionId: isLast ? namespace.regionId : undefined // Store regionId for leaf nodes
           };
           nodeMap.set(currentPath, node);
           parentNode.push(node);
@@ -199,11 +201,20 @@ export function NamespaceTreeView({
 
   const handleNamespaceClick = (namespace: TreeNode) => {
     if (!namespace.isFolder) {
+      // Add to recent namespaces with region info
+      const { addRecentNamespace } = useNamespacesStore.getState();
+      addRecentNamespace(connectionId, {
+        id: namespace.id,
+        regionId: namespace.regionId
+      });
+
       // If there's an intended destination, navigate there instead
       if (intendedDestination) {
         navigate(intendedDestination);
       } else {
-        navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents`);
+        // Include regionId in URL so DocumentsPage knows which region to use
+        const regionParam = namespace.regionId ? `?region=${encodeURIComponent(namespace.regionId)}` : '';
+        navigate(`/connections/${connectionId}/namespaces/${namespace.id}/documents${regionParam}`);
       }
     }
   };
@@ -223,11 +234,11 @@ export function NamespaceTreeView({
   const renderTreeNode = (node: TreeNode, level = 0) => {
     const isExpanded = expandedFolders.has(node.id);
     const isLoading = loadingFolders.has(node.id);
-    const metadata = !node.isFolder ? getNamespaceMetadata(node.id) : undefined;
-    const metadataLoading = !node.isFolder && isMetadataLoading(node.id);
+    const metadata = !node.isFolder ? getNamespaceMetadata(node.id, node.regionId) : undefined;
+    const metadataLoading = !node.isFolder && isMetadataLoading(node.id, node.regionId);
 
     return (
-      <div key={node.id}>
+      <div key={node.regionId ? `${node.id}:${node.regionId}` : node.id}>
         <div
           className={cn(
             "flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded cursor-pointer group",
@@ -235,7 +246,7 @@ export function NamespaceTreeView({
           )}
           style={{ paddingLeft: `${level * 20 + 8}px` }}
           onClick={() => node.isFolder ? toggleFolder(node.id) : handleNamespaceClick(node)}
-          onMouseEnter={() => handleNodeHover(node.id, node.isFolder)}
+          onMouseEnter={() => handleNodeHover(node.id, node.isFolder, node.regionId)}
           onMouseLeave={handleNodeLeave}
         >
           {node.isFolder ? (

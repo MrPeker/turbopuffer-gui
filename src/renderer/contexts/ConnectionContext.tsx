@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import type { Connection, ConnectionFormData, TestConnectionResult } from '../../types/connection';
+import type { Connection, ConnectionFormData, ConnectionUpdateData, TestConnectionResult } from '../../types/connection';
+import { getEffectiveRegions } from '../../types/connection';
 import { Turbopuffer } from '@turbopuffer/turbopuffer';
 import { turbopufferService } from '../services/turbopufferService';
 import { settingsService } from '../services/settingsService';
@@ -15,6 +16,7 @@ interface ConnectionContextType {
   isActiveConnectionReadOnly: boolean;
   loadConnections: () => Promise<void>;
   saveConnection: (connection: ConnectionFormData) => Promise<Connection>;
+  updateConnection: (connection: ConnectionUpdateData) => Promise<Connection>;
   deleteConnection: (connectionId: string) => Promise<void>;
   testConnection: (connectionId: string) => Promise<TestConnectionResult>;
   getConnectionById: (connectionId: string) => Connection | undefined;
@@ -62,6 +64,19 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateConnection = async (updateData: ConnectionUpdateData): Promise<Connection> => {
+    setError(null);
+    try {
+      const updatedConnection = await window.electronAPI.updateConnection(updateData);
+      await loadConnections(); // Reload to get updated list
+      return updatedConnection;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update connection';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
   const deleteConnection = async (connectionId: string) => {
     setError(null);
     try {
@@ -79,18 +94,19 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     try {
       // Get the connection details with decrypted API key
       const connectionDetails = await window.electronAPI.getConnectionForUse(connectionId);
-      
-      // Test using the renderer-side service
+
+      // Get effective regions (supporting migration from old format)
+      const regions = getEffectiveRegions(connectionDetails);
+      if (regions.length === 0) {
+        throw new Error('No regions configured for this connection');
+      }
+
+      // Test using the first region (API key is valid across all regions)
       const result = await turbopufferService.testConnection(
         connectionDetails.apiKey,
-        connectionDetails.region
+        regions[0]
       );
-      
-      // Update the connection status in storage
-      if (result.success) {
-        // You might want to update the connection's test status here
-      }
-      
+
       return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to test connection';
@@ -139,10 +155,16 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       permissionService.setReadOnly(readOnly);
       setIsActiveConnectionReadOnly(readOnly);
 
-      // Initialize the Turbopuffer client
-      await turbopufferService.initializeClient(
+      // Get effective regions (supporting migration from old format)
+      const regions = getEffectiveRegions(connectionDetails);
+      if (regions.length === 0) {
+        throw new Error('No regions configured for this connection');
+      }
+
+      // Initialize Turbopuffer clients for all regions
+      await turbopufferService.initializeClients(
         connectionDetails.apiKey,
-        connectionDetails.region
+        regions
       );
 
       const client = turbopufferService.getClient();
@@ -179,6 +201,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         isActiveConnectionReadOnly,
         loadConnections,
         saveConnection,
+        updateConnection,
         deleteConnection,
         testConnection,
         getConnectionById,

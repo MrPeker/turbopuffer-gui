@@ -1,5 +1,7 @@
 export interface Namespace {
   id: string;
+  /** Optional regionId for tracking which region this namespace belongs to */
+  regionId?: string;
   /** @deprecated Document count queries can cause 429 rate limit errors. Avoid using this property. */
   documentCount?: number;
   // Metadata fields (populated when fetched via getNamespaceMetadata)

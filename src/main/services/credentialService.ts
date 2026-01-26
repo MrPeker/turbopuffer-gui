@@ -1,10 +1,11 @@
 import { safeStorage, app } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { Turbopuffer } from '@turbopuffer/turbopuffer';
-import type { 
-  Connection, 
-  ConnectionFormData, 
-  StoredConnection, 
+import type {
+  Connection,
+  ConnectionFormData,
+  ConnectionUpdateData,
+  StoredConnection,
   TurbopufferRegion,
   TestConnectionResult,
   ConnectionWithKey
@@ -65,10 +66,14 @@ export class CredentialService {
 
   async saveConnection(connectionData: ConnectionFormData): Promise<Connection> {
     const connections = await this.loadStoredConnections();
-    
-    const region = this.regions.find(r => r.id === connectionData.regionId);
-    if (!region) {
-      throw new Error('Invalid region selected');
+
+    // Validate and map regionIds to full region objects
+    const regions = connectionData.regionIds
+      .map(id => this.regions.find(r => r.id === id))
+      .filter((r): r is TurbopufferRegion => r !== undefined);
+
+    if (regions.length === 0) {
+      throw new Error('At least one valid region must be selected');
     }
 
     // Encrypt the API key
@@ -77,7 +82,7 @@ export class CredentialService {
     const newConnection: StoredConnection = {
       id: uuidv4(),
       name: connectionData.name,
-      region,
+      regions,
       apiKeyEncrypted: encryptedApiKey,
       lastUsed: new Date(),
       createdAt: new Date(),
@@ -89,6 +94,51 @@ export class CredentialService {
 
     // Return without encrypted key
     const { apiKeyEncrypted: _, ...connectionWithoutKey } = newConnection;
+    return connectionWithoutKey;
+  }
+
+  async updateConnection(updateData: ConnectionUpdateData): Promise<Connection> {
+    const connections = await this.loadStoredConnections();
+    const connectionIndex = connections.findIndex(c => c.id === updateData.id);
+
+    if (connectionIndex === -1) {
+      throw new Error('Connection not found');
+    }
+
+    const existingConnection = connections[connectionIndex];
+
+    // Update regions if provided
+    let regions = existingConnection.regions;
+    if (updateData.regionIds) {
+      regions = updateData.regionIds
+        .map(id => this.regions.find(r => r.id === id))
+        .filter((r): r is TurbopufferRegion => r !== undefined);
+
+      if (regions.length === 0) {
+        throw new Error('At least one valid region must be selected');
+      }
+    }
+
+    // Update API key if provided
+    let apiKeyEncrypted = existingConnection.apiKeyEncrypted;
+    if (updateData.apiKey) {
+      apiKeyEncrypted = this.encryptString(updateData.apiKey);
+    }
+
+    // Create updated connection
+    const updatedConnection: StoredConnection = {
+      ...existingConnection,
+      name: updateData.name ?? existingConnection.name,
+      regions,
+      isReadOnly: updateData.isReadOnly ?? existingConnection.isReadOnly,
+      apiKeyEncrypted,
+    };
+
+    connections[connectionIndex] = updatedConnection;
+    await this.saveStoredConnections(connections);
+
+    // Return without encrypted key
+    const { apiKeyEncrypted: _, ...connectionWithoutKey } = updatedConnection;
     return connectionWithoutKey;
   }
 
@@ -121,27 +171,56 @@ export class CredentialService {
     };
   }
 
+  /**
+   * Get just the API key for a connection (used for copy/reveal feature)
+   * Note: Authentication should be handled by the caller before invoking this
+   */
+  async getApiKeyForConnection(connectionId: string): Promise<string> {
+    const connections = await this.loadStoredConnections();
+    const connection = connections.find(c => c.id === connectionId);
+
+    if (!connection) {
+      throw new Error('Connection not found');
+    }
+
+    return this.decryptString(connection.apiKeyEncrypted);
+  }
+
   async testConnection(connectionId: string): Promise<TestConnectionResult> {
     try {
       const connection = await this.getConnectionForUse(connectionId);
-      
+
+      // Get effective regions (supporting migration from old format)
+      const regions = connection.regions?.length > 0
+        ? connection.regions
+        : connection.region
+          ? [connection.region]
+          : [];
+
+      if (regions.length === 0) {
+        throw new Error('No regions configured for this connection');
+      }
+
+      // Test with the first region (API key is valid across all regions)
+      const testRegion = regions[0];
+
       // Initialize Turbopuffer client
       const client = new Turbopuffer({
         apiKey: connection.apiKey,
-        region: connection.region.id,
+        region: testRegion.id,
       });
-      
+
       // Test the connection by listing namespaces
       const namespaces = await client.namespaces();
       const namespaceIds = [];
-      
+
       for await (const namespace of namespaces) {
         namespaceIds.push(namespace.id);
       }
 
       return {
         success: true,
-        message: 'Connection successful',
+        message: `Connection successful (tested via ${testRegion.location})`,
         namespaces: namespaceIds,
       };
     } catch (error) {
@@ -171,25 +250,50 @@ export class CredentialService {
     try {
       const data = await fs.readFile(this.connectionsPath, 'utf-8');
       const connections = JSON.parse(data);
-      
+
       // Convert date strings back to Date objects and Buffer data
       interface StoredConnectionData {
         id: string;
         name: string;
-        region: TurbopufferRegion;
+        region?: TurbopufferRegion;
+        regions?: TurbopufferRegion[];
         apiKeyEncrypted: string;
         lastUsed: string;
         createdAt: string;
         testStatus?: 'success' | 'failed' | 'testing';
         isReadOnly?: boolean;
       }
-      
-      return connections.map((conn: StoredConnectionData) => ({
-        ...conn,
-        apiKeyEncrypted: Buffer.from(conn.apiKeyEncrypted, 'base64'),
-        lastUsed: new Date(conn.lastUsed),
-        createdAt: new Date(conn.createdAt),
-      }));
+
+      let needsMigration = false;
+
+      const migratedConnections = connections.map((conn: StoredConnectionData) => {
+        const base = {
+          ...conn,
+          apiKeyEncrypted: Buffer.from(conn.apiKeyEncrypted, 'base64'),
+          lastUsed: new Date(conn.lastUsed),
+          createdAt: new Date(conn.createdAt),
+        };
+
+        // Migration: convert old single-region format to new multi-region format
+        if (!conn.regions && conn.region) {
+          needsMigration = true;
+          return {
+            ...base,
+            regions: [conn.region],
+            region: undefined, // Remove deprecated field
+          };
+        }
+
+        return base;
+      });
+
+      // Persist migrated connections if any were updated
+      if (needsMigration) {
+        await this.saveStoredConnections(migratedConnections);
+        console.log('Migrated connections from single-region to multi-region format');
+      }
+
+      return migratedConnections;
     } catch (error) {
       // File doesn't exist or is corrupted, return empty array
       return [];

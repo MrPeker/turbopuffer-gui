@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Connection } from '../../../types/connection';
+import { getEffectiveRegions } from '../../../types/connection';
 import { useConnections } from '../../contexts/ConnectionContext';
+import { EditConnectionDialog } from './EditConnectionDialog';
 import {
   Table,
   TableBody,
@@ -21,8 +23,14 @@ import {
   RefreshCw,
   TestTube,
   Copy,
-  Database
+  Database,
+  Edit,
+  Key,
+  ShieldCheck,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface ConnectionListProps {
@@ -36,6 +44,12 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
   const [deletingConnection, setDeletingConnection] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
   const [deleteDialogConnection, setDeleteDialogConnection] = useState<Connection | null>(null);
+  const [editDialogConnection, setEditDialogConnection] = useState<Connection | null>(null);
+  const [apiKeyDialogConnection, setApiKeyDialogConnection] = useState<Connection | null>(null);
+  const [isCopyingApiKey, setIsCopyingApiKey] = useState(false);
+  const [revealedApiKey, setRevealedApiKey] = useState<string | null>(null);
+  const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
+  const [isRevealingApiKey, setIsRevealingApiKey] = useState(false);
 
   const handleSelect = (connection: Connection) => {
     navigate(`/connections/${connection.id}/namespaces`);
@@ -78,8 +92,65 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
     navigator.clipboard.writeText(text);
   };
 
-  const getProviderPrefix = (provider: string) => {
-    return provider.toUpperCase();
+  const handleRevealApiKey = async (connection: Connection, skipConfirmation = false) => {
+    // Check if system authentication is available
+    const canUseBiometric = await window.electronAPI.canUseBiometric();
+
+    // If auth is available, it will be triggered by revealApiKey
+    // If not, show confirmation dialog (unless skipped)
+    if (!canUseBiometric && !skipConfirmation) {
+      setApiKeyDialogConnection(connection);
+      return;
+    }
+
+    setIsRevealingApiKey(true);
+    try {
+      const apiKey = await window.electronAPI.revealApiKey(connection.id);
+      setRevealedApiKey(apiKey);
+      setIsApiKeyVisible(false); // Start with masked view
+      setApiKeyDialogConnection(connection);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to reveal API key';
+      if (message.includes('Authentication required')) {
+        toast.error('Authentication cancelled', {
+          description: 'System authentication is required to reveal the API key.',
+        });
+      } else {
+        toast.error('Failed to reveal API key', { description: message });
+      }
+    } finally {
+      setIsRevealingApiKey(false);
+    }
+  };
+
+  const handleCopyRevealedApiKey = async () => {
+    if (!revealedApiKey) return;
+
+    setIsCopyingApiKey(true);
+    try {
+      await navigator.clipboard.writeText(revealedApiKey);
+      toast.success('API key copied to clipboard', {
+        description: 'The key will remain in your clipboard until you copy something else.',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast.error('Failed to copy', {
+        description: 'Could not copy to clipboard. Please copy manually.'
+      });
+    } finally {
+      setIsCopyingApiKey(false);
+    }
+  };
+
+  const closeApiKeyDialog = () => {
+    setApiKeyDialogConnection(null);
+    setRevealedApiKey(null);
+    setIsApiKeyVisible(false);
+  };
+
+  const getMaskedApiKey = (apiKey: string) => {
+    if (apiKey.length <= 8) return '••••••••';
+    return apiKey.substring(0, 4) + '••••••••' + apiKey.substring(apiKey.length - 4);
   };
 
   return (
@@ -89,7 +160,7 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
           <TableHeader className="bg-tp-surface sticky top-0 z-10">
             <TableRow className="border-b border-tp-border-subtle hover:bg-transparent">
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">connection</TableHead>
-              <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">region</TableHead>
+              <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">regions</TableHead>
               <TableHead className="h-9 px-4 text-xs font-bold uppercase tracking-widest text-tp-text-muted">last used</TableHead>
               <TableHead className="h-9 px-4 w-[60px]"></TableHead>
             </TableRow>
@@ -104,6 +175,9 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
             ) : (
               connections.map((connection) => {
                 const isTesting = testingConnection === connection.id;
+                const regions = getEffectiveRegions(connection);
+                const hasGcp = regions.some(r => r.provider === 'gcp');
+                const hasAws = regions.some(r => r.provider === 'aws');
 
                 return (
                   <TableRow
@@ -119,10 +193,20 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
                     </TableCell>
                     <TableCell className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-tp-accent text-xs font-mono">{getProviderPrefix(connection.region.provider)}</span>
+                        {hasGcp && (
+                          <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
+                            GCP
+                          </Badge>
+                        )}
+                        {hasAws && (
+                          <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
+                            AWS
+                          </Badge>
+                        )}
                         <span className="text-tp-border-strong/60">│</span>
-                        <span className="text-sm text-tp-text">{connection.region.location}</span>
-                        <span className="text-xs text-tp-text-faint font-mono ml-1">({connection.region.id})</span>
+                        <span className="text-xs text-tp-text-muted">
+                          {regions.length} region{regions.length !== 1 ? 's' : ''}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="py-3 px-4 text-sm text-tp-text-muted font-mono">
@@ -157,12 +241,33 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              copyToClipboard(connection.region.id);
+                              setEditDialogConnection(connection);
+                            }}
+                            className="text-sm"
+                          >
+                            <Edit className="h-3 w-3 mr-1.5" />
+                            edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(regions.map(r => r.id).join(', '));
                             }}
                             className="text-sm"
                           >
                             <Copy className="h-3 w-3 mr-1.5" />
-                            copy region id
+                            copy region ids
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRevealApiKey(connection);
+                            }}
+                            disabled={isRevealingApiKey}
+                            className="text-sm"
+                          >
+                            <Key className="h-3 w-3 mr-1.5" />
+                            reveal api key
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="bg-tp-border-subtle" />
                           <DropdownMenuItem
@@ -216,6 +321,105 @@ export function ConnectionList({ connections, onTestResult }: ConnectionListProp
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* API Key Dialog - shows revealed key or confirmation for non-auth platforms */}
+      <Dialog open={!!apiKeyDialogConnection} onOpenChange={(open) => !open && closeApiKeyDialog()}>
+        <DialogContent className="bg-tp-surface border-tp-border-strong">
+          <DialogHeader>
+            <DialogTitle className="text-sm uppercase tracking-wider flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-tp-accent" />
+              {revealedApiKey ? 'api key' : 'reveal api key'}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-tp-text-muted">
+              {revealedApiKey ? (
+                <>API key for "{apiKeyDialogConnection?.name}"</>
+              ) : (
+                <>
+                  You are about to reveal the API key for "{apiKeyDialogConnection?.name}".
+                  <br /><br />
+                  <span className="text-amber-500 font-medium">
+                    Keep your API key secure. Never share it publicly or commit it to version control.
+                  </span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {revealedApiKey && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-tp-bg border border-tp-border-subtle rounded px-3 py-2 font-mono text-sm break-all">
+                  {isApiKeyVisible ? revealedApiKey : getMaskedApiKey(revealedApiKey)}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 flex-shrink-0"
+                  onClick={() => setIsApiKeyVisible(!isApiKeyVisible)}
+                >
+                  {isApiKeyVisible ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-amber-500 font-medium">
+                Keep your API key secure. Never share it publicly or commit it to version control.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={closeApiKeyDialog}>
+              {revealedApiKey ? 'close' : 'cancel'}
+            </Button>
+            {revealedApiKey ? (
+              <Button
+                size="sm"
+                onClick={handleCopyRevealedApiKey}
+                disabled={isCopyingApiKey}
+              >
+                {isCopyingApiKey ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1.5 animate-spin" />
+                    copying...
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3 w-3 mr-1.5" />
+                    copy to clipboard
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => apiKeyDialogConnection && handleRevealApiKey(apiKeyDialogConnection, true)}
+                disabled={isRevealingApiKey}
+              >
+                {isRevealingApiKey ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1.5 animate-spin" />
+                    revealing...
+                  </>
+                ) : (
+                  <>
+                    <Key className="h-3 w-3 mr-1.5" />
+                    reveal api key
+                  </>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <EditConnectionDialog
+        connection={editDialogConnection}
+        isOpen={!!editDialogConnection}
+        onClose={() => setEditDialogConnection(null)}
+      />
     </>
   );
 }

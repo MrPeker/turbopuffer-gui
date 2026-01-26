@@ -9,7 +9,9 @@ export interface TurbopufferRegion {
 export interface Connection {
   id: string;
   name: string;
-  region: TurbopufferRegion;
+  regions: TurbopufferRegion[];
+  /** @deprecated For migration from single-region connections only */
+  region?: TurbopufferRegion;
   lastUsed: Date;
   createdAt: Date;
   testStatus?: 'success' | 'failed' | 'testing';
@@ -20,15 +22,39 @@ export interface ConnectionWithKey extends Connection {
   apiKey: string;
 }
 
+export interface RegionError {
+  regionId: string;
+  regionName: string;
+  error: string;
+}
+
 export interface StoredConnection extends Connection {
   apiKeyEncrypted: Buffer;
 }
 
 export interface ConnectionFormData {
   name: string;
-  regionId: string;
+  regionIds: string[];
   apiKey: string;
   isReadOnly?: boolean;
+}
+
+export interface ConnectionUpdateData {
+  id: string;
+  name?: string;
+  regionIds?: string[];
+  apiKey?: string; // Optional - only update if provided
+  isReadOnly?: boolean;
+}
+
+export interface NamespaceWithRegion {
+  id: string;
+  regionId: string;
+  regionName: string;
+  regionProvider: 'aws' | 'gcp';
+  approx_row_count?: number;
+  approx_logical_bytes?: number;
+  created_at?: string;
 }
 
 export interface TestConnectionResult {
@@ -62,10 +88,23 @@ export const TURBOPUFFER_REGIONS: TurbopufferRegion[] = [
 
 export type ConnectionAPI = {
   saveConnection: (connection: ConnectionFormData) => Promise<Connection>;
+  updateConnection: (connection: ConnectionUpdateData) => Promise<Connection>;
   loadConnections: () => Promise<Connection[]>;
   testConnection: (connectionId: string) => Promise<TestConnectionResult>;
   testConnectionDirect: (connectionData: { regionId: string; apiKey: string }) => Promise<TestConnectionResult>;
   deleteConnection: (connectionId: string) => Promise<void>;
   getRegions: () => Promise<TurbopufferRegion[]>;
   getConnectionForUse: (connectionId: string) => Promise<ConnectionWithKey>;
+  canUseBiometric: () => Promise<boolean>;
+  revealApiKey: (connectionId: string) => Promise<string>;
 };
+
+export function getEffectiveRegions(connection: Connection): TurbopufferRegion[] {
+  if (connection.regions && connection.regions.length > 0) {
+    return connection.regions;
+  }
+  if (connection.region) {
+    return [connection.region];
+  }
+  return [];
+}
