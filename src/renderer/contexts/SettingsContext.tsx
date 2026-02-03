@@ -70,8 +70,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const exportSettings = async () => {
     setError(null);
     try {
-      const filePath = await settingsService.exportSettings();
-      console.log('Settings exported to:', filePath);
+      await settingsService.exportSettings();
     } catch (err) {
       // User canceled or error occurred
       if (err instanceof Error && !err.message.includes('canceled')) {

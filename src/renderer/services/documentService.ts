@@ -26,107 +26,30 @@ export class DocumentService {
     namespaceId: string,
     params: DocumentsQueryParams
   ): Promise<DocumentsQueryResponse> {
-    console.log("🚀 CHECKPOINT 5: API Call - queryDocuments");
-    console.log("📡 API Request Details:", {
-      namespaceId,
-      method: "queryDocuments",
-      timestamp: new Date().toISOString(),
-    });
-    console.log("📋 Query Parameters:", {
-      rank_by: params.rank_by,
-      rank_by_json: JSON.stringify(params.rank_by),
-      top_k: params.top_k,
-      filters: params.filters,
-      include_attributes: params.include_attributes,
-      aggregate_by: params.aggregate_by,
-      vector_encoding: params.vector_encoding,
-      consistency: params.consistency,
-    });
-    console.log("🔍 Filter Structure Analysis:");
-    if (params.filters) {
-      console.log("  - Filter exists:", true);
-      console.log(
-        "  - Filter type:",
-        Array.isArray(params.filters) ? "Array" : typeof params.filters
-      );
-      console.log(
-        "  - Filter content:",
-        JSON.stringify(params.filters, null, 2)
-      );
-
-      // Analyze filter structure for debugging
-      if (Array.isArray(params.filters)) {
-        if (params.filters.length >= 3 && params.filters[1] === "Eq") {
-          console.log("  - Detected EQUALS filter:", {
-            attribute: params.filters[0],
-            operator: params.filters[1],
-            value: params.filters[2],
-            valueType: typeof params.filters[2],
-          });
-        }
-      }
-    } else {
-      console.log("  - Filter exists:", false);
-      console.log("  - This will return ALL documents (no filtering)");
-    }
-
     if (!this.client) {
       throw new Error("Turbopuffer client not initialized");
     }
 
     const ns = this.client.namespace(namespaceId);
 
-    try {
-      console.log("📤 Making API call to Turbopuffer...");
-      const result = await ns.query({
-        rank_by: params.rank_by,
-        top_k: params.top_k,
-        filters: params.filters,
-        include_attributes: params.include_attributes,
-        aggregate_by: params.aggregate_by,
-        group_by: params.group_by, // NEW: Pass group_by parameter
-        vector_encoding: params.vector_encoding,
-        consistency: params.consistency,
-      });
+    const result = await ns.query({
+      rank_by: params.rank_by,
+      top_k: params.top_k,
+      filters: params.filters,
+      include_attributes: params.include_attributes,
+      aggregate_by: params.aggregate_by,
+      group_by: params.group_by,
+      vector_encoding: params.vector_encoding,
+      consistency: params.consistency,
+    });
 
-      console.log("📥 API Response Received:", {
-        rowsCount: result.rows?.length || 0,
-        hasAggregations: !!result.aggregations,
-        hasAggregationGroups: !!result.aggregation_groups, // NEW: Log grouped results
-        hasBilling: !!result.billing,
-        hasPerformance: !!result.performance,
-      });
-
-      if (result.rows && result.rows.length > 0) {
-        console.log("📄 Sample Results (first 2 documents):");
-        result.rows.slice(0, 2).forEach((doc, index) => {
-          console.log(`  Document ${index + 1}:`, {
-            id: doc.id,
-            hasVector: !!doc.vector,
-            hasAttributes: !!doc.attributes,
-            attributeKeys: doc.attributes ? Object.keys(doc.attributes) : [],
-            attributes: doc.attributes,
-          });
-        });
-      } else {
-        console.log("⚠️ No documents returned from API");
-      }
-
-      return {
-        rows: result.rows || [],
-        aggregations: result.aggregations,
-        aggregation_groups: result.aggregation_groups, // NEW: Include grouped results
-        billing: result.billing,
-        performance: result.performance,
-      };
-    } catch (error) {
-      console.error("💥 API call failed:", error);
-      console.error("❌ Error details:", {
-        message: error instanceof Error ? error.message : "Unknown error",
-        error,
-      });
-      throw error;
-    }
+    return {
+      rows: result.rows || [],
+      aggregations: result.aggregations,
+      aggregation_groups: result.aggregation_groups,
+      billing: result.billing,
+      performance: result.performance,
+    };
   }
 
   async searchDocuments(

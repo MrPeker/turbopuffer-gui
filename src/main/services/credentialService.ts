@@ -290,7 +290,6 @@ export class CredentialService {
       // Persist migrated connections if any were updated
       if (needsMigration) {
         await this.saveStoredConnections(migratedConnections);
-        console.log('Migrated connections from single-region to multi-region format');
       }
 
       return migratedConnections;
@@ -324,9 +323,6 @@ export class CredentialService {
     }
 
     try {
-      console.log('Testing connection with Turbopuffer SDK...');
-      console.log('API Key prefix:', connectionData.apiKey.substring(0, 10) + '...');
-      console.log('Region:', region.name);
       
       // Initialize Turbopuffer client
       const client = new Turbopuffer({
@@ -342,7 +338,6 @@ export class CredentialService {
         namespaceIds.push(namespace.id);
       }
       
-      console.log('Connection successful! Found', namespaceIds.length, 'namespaces');
       
       return {
         success: true,

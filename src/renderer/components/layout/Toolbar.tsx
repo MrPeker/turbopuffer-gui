@@ -1,19 +1,16 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 
 interface ToolbarProps {
   title?: string;
   breadcrumbs?: { label: string; key: string }[];
   actions?: React.ReactNode;
-  menuItems?: Array<{ key: string; label: string; onAction: () => void }>;
 }
 
 export function Toolbar({
   title,
   breadcrumbs = [],
   actions,
-  menuItems,
 }: ToolbarProps) {
   const location = useLocation();
 
@@ -60,17 +57,6 @@ export function Toolbar({
 
         <div className="flex items-center gap-2">
           {actions}
-          {menuItems && menuItems.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                console.log("Menu not yet implemented");
-              }}
-            >
-              Menu
-            </Button>
-          )}
         </div>
       </div>
     </header>

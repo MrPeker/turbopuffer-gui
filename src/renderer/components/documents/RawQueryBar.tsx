@@ -330,7 +330,6 @@ export const RawQueryBar: React.FC<RawQueryBarProps> = ({ namespaceId, initialQu
                             endColumn: position.column,
                           });
 
-                          console.log('Monaco completion triggered:', textUntilPosition);
 
                           const suggestions = [];
 
@@ -591,7 +590,6 @@ export const RawQueryBar: React.FC<RawQueryBarProps> = ({ namespaceId, initialQu
                           });
                         }
 
-                        console.log('Monaco suggestions:', suggestions);
                         return { suggestions };
 
                         } catch (error) {
