@@ -37,52 +37,54 @@
 
 @layer base {
   :root {
-    /* Terminal-inspired Turbopuffer theme - Light mode (optional) */
-    --background: 210 20% 98%;
-    --foreground: 220 15% 15%;
-    --card: 210 20% 96%;
-    --card-foreground: 220 15% 15%;
-    --popover: 210 20% 98%;
-    --popover-foreground: 220 15% 15%;
-    --primary: 200 55% 40%;
+    /* Terminal-inspired Turbopuffer theme - Light mode
+       "Paper terminal" feel: muted, low-glare backgrounds
+       Avoids pure white per aesthetic guidelines */
+    --background: 220 12% 94%;
+    --foreground: 220 20% 12%;
+    --card: 220 10% 91%;
+    --card-foreground: 220 20% 12%;
+    --popover: 220 12% 94%;
+    --popover-foreground: 220 20% 12%;
+    --primary: 200 60% 38%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 15% 90%;
-    --secondary-foreground: 220 15% 15%;
-    --muted: 210 15% 92%;
-    --muted-foreground: 220 12% 45%;
-    --accent: 200 55% 40%;
+    --secondary: 220 10% 88%;
+    --secondary-foreground: 220 20% 12%;
+    --muted: 220 10% 88%;
+    --muted-foreground: 220 15% 40%;
+    --accent: 200 60% 38%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 10% 85%;
-    --input: 220 10% 85%;
-    --ring: 210 65% 50%;
+    --border: 220 12% 82%;
+    --input: 220 12% 82%;
+    --ring: 200 60% 45%;
     --radius: 0px;
 
-    /* Turbopuffer-specific tokens */
-    --tp-bg: 210 20% 98%;
-    --tp-surface: 210 20% 96%;
-    --tp-surface-alt: 210 15% 94%;
-    --tp-border-subtle: 220 10% 85%;
-    --tp-border-strong: 220 12% 75%;
-    --tp-text: 220 15% 15%;
-    --tp-text-muted: 220 12% 45%;
-    --tp-text-faint: 220 10% 60%;
-    --tp-accent: 200 55% 40%;
-    --tp-accent-soft: 200 85% 40%;
-    --tp-success: 142 70% 45%;
-    --tp-warning: 38 92% 50%;
-    --tp-danger: 0 72% 51%;
+    /* Turbopuffer-specific tokens - paper terminal light theme */
+    --tp-bg: 220 12% 94%;
+    --tp-surface: 220 10% 91%;
+    --tp-surface-alt: 220 8% 88%;
+    --tp-border-subtle: 220 12% 82%;
+    --tp-border-strong: 220 14% 72%;
+    --tp-text: 220 20% 12%;
+    --tp-text-muted: 220 15% 40%;
+    --tp-text-faint: 220 12% 55%;
+    --tp-accent: 200 60% 38%;
+    --tp-accent-soft: 200 70% 45%;
+    --tp-success: 142 65% 38%;
+    --tp-warning: 38 85% 45%;
+    --tp-danger: 0 72% 48%;
 
-    /* Sidebar */
-    --sidebar-background: 210 18% 95%;
-    --sidebar-foreground: 220 15% 20%;
-    --sidebar-primary: 200 55% 40%;
+    /* Sidebar - slightly cooler/darker for contrast */
+    --sidebar-background: 220 14% 90%;
+    --sidebar-foreground: 220 20% 15%;
+    --sidebar-primary: 200 60% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 15% 90%;
-    --sidebar-accent-foreground: 220 15% 15%;
-    --sidebar-border: 220 10% 85%;
-    --sidebar-ring: 200 55% 40%;
+    --sidebar-accent: 220 10% 85%;
+    --sidebar-accent-foreground: 220 20% 12%;
+    --sidebar-border: 220 12% 80%;
+    --sidebar-ring: 200 60% 38%;
   }
 
   .dark {

@@ -1,11 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Play, 
-  AlertCircle, 
+import {
+  Play,
+  AlertCircle,
   Clock,
   Code2,
   Database,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useConnection } from '@/renderer/contexts/ConnectionContext';
+import { useSettings } from '@/renderer/contexts/SettingsContext';
 import { turbopufferService } from '@/renderer/services/turbopufferService';
 import { useDocumentsStore } from '@/renderer/stores/documentsStore';
 
@@ -27,6 +28,7 @@ interface RawQueryBarProps {
 
 export const RawQueryBar: React.FC<RawQueryBarProps> = ({ namespaceId, initialQuery }) => {
   const { activeConnection } = useConnection();
+  const { settings } = useSettings();
   const { toast } = useToast();
   const { setRawQueryResults, clearDocuments, attributes } = useDocumentsStore();
   const [query, setQuery] = useState(initialQuery || '{\n  "rank_by": ["id", "asc"],\n  "top_k": 1000,\n  "include_attributes": true\n}');
@@ -35,9 +37,15 @@ export const RawQueryBar: React.FC<RawQueryBarProps> = ({ namespaceId, initialQu
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<any>(null);
 
-  // Force dark theme for Monaco (light theme not yet tested)
-  // TODO: Re-enable theme switching once light theme is validated
-  const monacoTheme = 'vs-dark';
+  // Derive Monaco theme from settings (supports light/dark/system)
+  const monacoTheme = useMemo(() => {
+    const themeSetting = settings?.appearance?.theme ?? 'dark';
+    if (themeSetting === 'system') {
+      // Check system preference
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'vs-dark' : 'light';
+    }
+    return themeSetting === 'dark' ? 'vs-dark' : 'light';
+  }, [settings?.appearance?.theme]);
 
   const executeQuery = async () => {
     if (!activeConnection) {
