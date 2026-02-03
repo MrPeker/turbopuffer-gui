@@ -119,7 +119,6 @@ export const DocumentsPage: React.FC = () => {
 
     // Only proceed if we have a turbopuffer client
     if (!turbopufferClient) {
-      console.log('⏭️ Waiting for turbopuffer client...');
       // Reset initialization when client is not ready
       if (hasInitialized) {
         setHasInitialized(false);
@@ -129,21 +128,16 @@ export const DocumentsPage: React.FC = () => {
 
     // Skip if we've already initialized with these exact params
     if (hasInitialized && lastInitKey === initKey) {
-      console.log('⏭️ Skipping re-initialization - already initialized:', initKey);
       return;
     }
 
     const initializeAndLoad = async () => {
       if (!namespaceId || !connectionId) {
-        console.log('⏭️ Skipping - missing namespace or connection ID');
         return;
       }
 
-      console.log('🚀 Starting initialization:', initKey);
-
       // Wait for connection to be loaded from storage
       if (!connection) {
-        console.log('⏭️ Waiting for connection to load...');
         return;
       }
 
@@ -152,7 +146,6 @@ export const DocumentsPage: React.FC = () => {
 
       // Set namespace if it changed
       if (currentNamespaceId !== namespaceId) {
-        console.log('📁 Namespace changed, setting new namespace');
         await setNamespace(namespaceId);
         // Reset to first page when changing namespaces
         setCurrentPage(1);
@@ -165,14 +158,12 @@ export const DocumentsPage: React.FC = () => {
       );
 
       if (initialized) {
-        console.log('✅ Client initialized, loading documents');
         // Load documents with current page size
         await loadDocuments(false, false, pageSize);
 
         // Mark as initialized with this specific key
         setHasInitialized(true);
         setLastInitKey(initKey);
-        console.log('✅ Initialization complete:', initKey);
       }
     };
 

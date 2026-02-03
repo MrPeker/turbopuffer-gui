@@ -266,18 +266,12 @@ export const useDocumentsStore = create<DocumentsState>()(
 
         // Actions
         setConnectionId: (connectionId) => {
-          console.log('🔌 Setting connection ID:', connectionId);
           set((state) => {
             state.currentConnectionId = connectionId;
           });
         },
         setNamespace: async (namespaceId) => {
           const state = get();
-          console.log('📁 Setting namespace:', {
-            newNamespaceId: namespaceId,
-            currentNamespaceId: state.currentNamespaceId,
-            currentConnectionId: state.currentConnectionId
-          });
           if (state.currentNamespaceId !== namespaceId) {
             set((state) => {
               state.currentNamespaceId = namespaceId;
@@ -313,26 +307,18 @@ export const useDocumentsStore = create<DocumentsState>()(
 
             // Load query history from disk if we have connection ID (non-blocking)
             if (state.currentConnectionId && namespaceId) {
-              console.log('📚 Loading query history for:', {
-                connectionId: state.currentConnectionId,
-                namespaceId
-              });
               // Don't await - load in background to avoid blocking page navigation
               window.electronAPI.loadQueryHistory(
                 state.currentConnectionId,
                 namespaceId
               ).then((history) => {
-                console.log('📚 Loaded query history:', {
-                  saved: history.saved?.length || 0,
-                  recent: history.recent?.length || 0
-                });
                 const historyKey = `${state.currentConnectionId}:${namespaceId}`;
                 set((state) => {
                   state.filterHistory.set(historyKey, history.saved || []);
                   state.recentFilterHistory.set(historyKey, history.recent || []);
                 });
-              }).catch((error) => {
-                console.error('Failed to load query history:', error);
+              }).catch(() => {
+                // Silently ignore query history load failures
               });
             }
           }
@@ -361,26 +347,11 @@ export const useDocumentsStore = create<DocumentsState>()(
           }),
 
         addFilter: (attribute, operator, rawValue) => {
-          console.log("🔍 CHECKPOINT 2: Filter Storage");
-          console.log("addFilter called with raw value:", {
-            attribute,
-            operator,
-            rawValue,
-            rawValueType: typeof rawValue,
-            isArray: Array.isArray(rawValue),
-          });
-
           // Get the field type from attributes
           const state = get();
           const attributeInfo = state.attributes.find(a => a.name === attribute);
           const fieldType = attributeInfo?.type;
-          
-          console.log("🔍 Field type lookup:", {
-            attribute,
-            fieldType,
-            attributeInfo
-          });
-          
+
           // Convert the raw value to the correct type
           let typedValue: any = rawValue;
           
@@ -406,14 +377,6 @@ export const useDocumentsStore = create<DocumentsState>()(
               : rawValue;
           }
           
-          console.log("🔍 Type conversion result:", {
-            fieldType,
-            rawValue,
-            typedValue,
-            typedValueType: typeof typedValue,
-            isArray: Array.isArray(typedValue)
-          });
-
           // Create human-readable display value
           let displayValue: string;
           if (typedValue === null) {
@@ -438,25 +401,13 @@ export const useDocumentsStore = create<DocumentsState>()(
             displayValue,
           };
 
-          console.log("Filter object created:", newFilter);
-
           set((state) => {
-            console.log(
-              "Before adding filter - activeFilters:",
-              state.activeFilters.length
-            );
             state.activeFilters = [...state.activeFilters, newFilter];
             state.isQueryMode = true;
             // Reset pagination when filters change
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
-            console.log(
-              "After adding filter - activeFilters:",
-              state.activeFilters.length
-            );
-            console.log("Current activeFilters:", state.activeFilters);
-            console.log("Query mode set to:", state.isQueryMode);
           });
 
           // Log the filter change
@@ -467,14 +418,6 @@ export const useDocumentsStore = create<DocumentsState>()(
         },
 
         updateFilter: (filterId, attribute, operator, rawValue) => {
-          console.log("updateFilter called:", {
-            filterId,
-            attribute,
-            operator,
-            rawValue,
-            rawValueType: typeof rawValue
-          });
-
           // Get the field type from attributes
           const state = get();
           const attributeInfo = state.attributes.find(a => a.name === attribute);
@@ -713,19 +656,8 @@ export const useDocumentsStore = create<DocumentsState>()(
         saveToFilterHistory: async (name) => {
           const state = get();
           const { currentConnectionId, currentNamespaceId, searchText, activeFilters } = state;
-          
-          console.log('💾 saveToFilterHistory called:', {
-            name,
-            currentConnectionId,
-            currentNamespaceId,
-            searchText,
-            activeFilters: activeFilters.length
-          });
-          
-          if (!currentConnectionId || !currentNamespaceId) {
-            console.log('💾 Cannot save - missing connection or namespace');
-            return;
-          }
+
+          if (!currentConnectionId || !currentNamespaceId) return;
           
           const newEntry: FilterHistoryEntry = {
             id: `${Date.now()}-${Math.random()}`,
@@ -737,8 +669,6 @@ export const useDocumentsStore = create<DocumentsState>()(
             description: generateFilterDescription(activeFilters, searchText)
           };
           
-          console.log('💾 Creating saved filter entry:', newEntry);
-          
           try {
             // Save to disk
             await window.electronAPI.addSavedFilter(
@@ -746,7 +676,6 @@ export const useDocumentsStore = create<DocumentsState>()(
               currentNamespaceId,
               newEntry
             );
-            console.log('💾 Saved filter to disk successfully');
 
             // Update local state
             const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
@@ -754,10 +683,9 @@ export const useDocumentsStore = create<DocumentsState>()(
               const namespaceHistory = state.filterHistory.get(historyKey) || [];
               const updatedHistory = [newEntry, ...namespaceHistory].slice(0, 20);
               state.filterHistory.set(historyKey, updatedHistory);
-              console.log('💾 Updated local filter history, now has', updatedHistory.length, 'entries');
             });
-          } catch (error) {
-            console.error('Failed to save filter to history:', error);
+          } catch {
+            // Silently ignore save failures
           }
         },
         
@@ -844,25 +772,10 @@ export const useDocumentsStore = create<DocumentsState>()(
           const state = get();
           const { currentConnectionId, currentNamespaceId } = state;
 
-          console.log('📖 getNamespaceRecentHistory called:', {
-            currentConnectionId,
-            currentNamespaceId,
-            hasConnectionId: !!currentConnectionId,
-            hasNamespaceId: !!currentNamespaceId,
-            mapSize: state.recentFilterHistory.size,
-            allKeys: Array.from(state.recentFilterHistory.keys())
-          });
-
           if (!currentConnectionId || !currentNamespaceId) return [];
 
           const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
-          const history = state.recentFilterHistory.get(historyKey) || [];
-          console.log('📖 Returning recent history:', {
-            historyKey,
-            count: history.length
-          });
-
-          return history;
+          return state.recentFilterHistory.get(historyKey) || [];
         },
         
         applyRecentFilter: (historyId) => {
@@ -891,25 +804,12 @@ export const useDocumentsStore = create<DocumentsState>()(
         logFilterChange: async () => {
           const state = get();
           const { currentConnectionId, currentNamespaceId, searchText, activeFilters } = state;
-          
-          console.log('📝 logFilterChange called:', {
-            currentConnectionId,
-            currentNamespaceId,
-            searchText,
-            activeFilters: activeFilters.length
-          });
-          
-          if (!currentConnectionId || !currentNamespaceId) {
-            console.log('📝 Skipping logFilterChange - missing connection or namespace');
-            return;
-          }
-          
+
+          if (!currentConnectionId || !currentNamespaceId) return;
+
           // Don't log if no filters or search
-          if (searchText.length === 0 && activeFilters.length === 0) {
-            console.log('📝 Skipping logFilterChange - no filters or search');
-            return;
-          }
-          
+          if (searchText.length === 0 && activeFilters.length === 0) return;
+
           const newEntry: RecentFilterEntry = {
             id: `${Date.now()}-${Math.random()}`,
             searchText,
@@ -917,9 +817,7 @@ export const useDocumentsStore = create<DocumentsState>()(
             timestamp: Date.now(),
             description: generateFilterDescription(activeFilters, searchText)
           };
-          
-          console.log('📝 Creating filter history entry:', newEntry);
-          
+
           try {
             // Save to disk
             await window.electronAPI.addRecentFilter(
@@ -927,8 +825,7 @@ export const useDocumentsStore = create<DocumentsState>()(
               currentNamespaceId,
               newEntry
             );
-            console.log('📝 Saved filter to disk successfully');
-            
+
             // Update local state
             const historyKey = `${currentConnectionId}:${currentNamespaceId}`;
             set((state) => {
@@ -949,17 +846,10 @@ export const useDocumentsStore = create<DocumentsState>()(
                 // Keep only the last 30 entries per namespace
                 const updatedHistory = [newEntry, ...recentHistory].slice(0, 30);
                 state.recentFilterHistory.set(historyKey, updatedHistory);
-                console.log('📝 Updated recent filter history:', {
-                  historyKey,
-                  newEntryCount: updatedHistory.length,
-                  firstEntry: updatedHistory[0]
-                });
-              } else {
-                console.log('📝 Skipping duplicate filter entry');
               }
             });
-          } catch (error) {
-            console.error('Failed to log filter change:', error);
+          } catch {
+            // Silently ignore filter history save failures
           }
         },
 
@@ -1031,27 +921,11 @@ loadDocuments: async (
           page = 1
         ) => {
           const state = get();
-          console.log("📊 loadDocuments called:", {
-            force,
-            loadMore,
-            limit,
-            page,
-            currentPage: state.currentPage,
-            previousCursors: state.previousCursors.length,
-            nextCursor: state.nextCursor,
-            currentNamespaceId: state.currentNamespaceId,
-            isLoading: state.isLoading,
-            searchText: state.searchText,
-            activeFilters: state.activeFilters,
-            activeFiltersLength: state.activeFilters.length,
-            isQueryMode: state.isQueryMode,
-          });
 
           if (!state.currentNamespaceId || state.isLoading) return;
 
           // Check if client is initialized
           if (!state.isClientInitialized || !documentService.getClient()) {
-            console.warn("Turbopuffer client not initialized, skipping load");
             set((state) => {
               if (!state.error) {
                 state.error = "Client not initialized. Please wait...";
@@ -1063,16 +937,11 @@ loadDocuments: async (
           const cacheKey = `${state.currentConnectionId}:${state.currentNamespaceId}-${
             state.searchText
           }-${JSON.stringify(state.activeFilters)}-${page}-${limit}`;
-          console.log("🔑 Cache key:", cacheKey);
 
           // Check cache first (only for non-forced loads)
           if (!force) {
             const cached = state.documentsCache.get(cacheKey);
             if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-              console.log(
-                "📂 Using cached documents:",
-                cached.documents.length
-              );
               set((state) => {
                 state.documents = cached.documents;
                 state.totalCount = cached.totalCount;
@@ -1104,17 +973,8 @@ loadDocuments: async (
             const shouldUseQueryMode =
               state.activeFilters.length > 0 ||
               state.searchText.trim().length > 0;
-            console.log("🔍 Query mode check:", {
-              isQueryMode: state.isQueryMode,
-              shouldUseQueryMode,
-              hasFilters: state.activeFilters.length > 0,
-              hasSearchText: state.searchText.trim().length > 0,
-            });
 
             if (shouldUseQueryMode) {
-              console.log("🔍 CHECKPOINT 4: Filter Processing & Conversion");
-              console.log("Query mode activated - processing filters...");
-
               // Build query filters
               const filters: TurbopufferFilter[] = [];
 
@@ -1128,17 +988,7 @@ loadDocuments: async (
               }
 
               // Add attribute filters
-              console.log(
-                "🔍 Building filters from activeFilters:",
-                state.activeFilters
-              );
               state.activeFilters.forEach((filter) => {
-                console.log("🔍 Processing filter:", filter);
-                
-                // Debug: Check field info for this attribute
-                const fieldInfo = state.attributes.find(attr => attr.name === filter.attribute);
-                console.log("🔍 Field info for", filter.attribute, ":", fieldInfo);
-                
                 switch (filter.operator) {
                   case "equals": {
                     // Check if this is an array field
@@ -1148,17 +998,11 @@ loadDocuments: async (
                     
                     if (isArrayField) {
                       // For arrays, use "Contains" to check if array contains the value
-                      // Value is already correctly typed from addFilter
                       const containsValue = Array.isArray(filter.value) ? filter.value[0] : filter.value;
-                      const arrayFilter = [filter.attribute, "ContainsAny", containsValue];
-                      console.log("🔍 Adding ARRAY filter (ContainsAny):", arrayFilter);
-                      filters.push(arrayFilter as TurbopufferFilter);
+                      filters.push([filter.attribute, "ContainsAny", containsValue] as TurbopufferFilter);
                     } else {
                       // For non-arrays, use standard equality
-                      // Value is already correctly typed
-                      const nonArrayFilter = [filter.attribute, "Eq", filter.value];
-                      console.log("🔍 Adding NON-ARRAY filter (Eq):", nonArrayFilter);
-                      filters.push(nonArrayFilter as TurbopufferFilter);
+                      filters.push([filter.attribute, "Eq", filter.value] as TurbopufferFilter);
                     }
                     break;
                   }
@@ -1317,8 +1161,6 @@ loadDocuments: async (
                   ? filters[0]
                   : ["And", filters];
 
-              console.log("🔍 Executing query with filters:", combinedFilter);
-
               // First get the total count for filtered results
               const countResult = await documentService.queryDocuments(
                 state.currentNamespaceId,
@@ -1343,28 +1185,23 @@ loadDocuments: async (
                 // Going forward - use the last document ID from current page
                 cursor = state.documents[state.documents.length - 1].id;
                 const cursorFilter: TurbopufferFilter = ["id", "Gt", cursor];
-                finalFilter = combinedFilter 
+                finalFilter = combinedFilter
                   ? ["And", [combinedFilter, cursorFilter]]
                   : cursorFilter;
-                console.log("🔍 Forward pagination with cursor in filtered mode:", cursor);
               } else if (page < state.currentPage && state.previousCursors.length > 0) {
                 // Going backward - use cursor from stack
-                const cursorIndex = page - 2; // page-2 because we want the cursor before the target page
+                const cursorIndex = page - 2;
                 if (cursorIndex >= 0 && cursorIndex < state.previousCursors.length) {
                   cursor = state.previousCursors[cursorIndex];
                   const cursorFilter: TurbopufferFilter = ["id", "Gt", cursor];
-                  finalFilter = combinedFilter 
+                  finalFilter = combinedFilter
                     ? ["And", [combinedFilter, cursorFilter]]
                     : cursorFilter;
-                  console.log("🔍 Backward pagination with cursor in filtered mode:", cursor);
                 } else if (page === 1) {
-                  // Going back to first page - use original filter only
                   finalFilter = combinedFilter;
                 }
               } else if (page === 1 || state.currentPage === 0) {
-                // First page or initial load - use original filter only
                 finalFilter = combinedFilter;
-                console.log("🔍 First page in filtered mode - no cursor");
               }
               
               // Helper function to convert ranking expression to Turbopuffer format
@@ -1412,7 +1249,6 @@ loadDocuments: async (
                   if (potentialBM25Fields.length > 0) {
                     // Use first text field as fallback
                     rankBy = [potentialBM25Fields[0], "BM25", state.searchText.trim()];
-                    console.log("🔍 BM25: No fields selected, using first text field:", potentialBM25Fields[0]);
                   } else {
                     // No suitable fields found - set error and return early
                     set((state) => {
@@ -1430,18 +1266,6 @@ loadDocuments: async (
                 // Standard sorting mode
                 rankBy = [state.sortAttribute || "id", state.sortDirection];
               }
-
-              console.log("🔍 Sending filtered pagination query:", {
-                filters: finalFilter,
-                rank_by: rankBy,
-                queryMode: state.queryMode,
-                top_k: limit,
-                currentPage: state.currentPage,
-                targetPage: page,
-                hasDocuments: state.documents.length > 0,
-                lastDocId: state.documents.length > 0 ? state.documents[state.documents.length - 1].id : null,
-                cursor: cursor,
-              });
 
               // Build aggregation query params
               const hasAggregations = state.aggregations.length > 0;
@@ -1511,14 +1335,9 @@ loadDocuments: async (
                 state.aggregationGroups = aggregationGroups; // NEW: Store grouped aggregation results
               });
               
-              console.log("📄 Query results:", {
-                documentsCount: documents.length,
-                result,
-              });
             } else {
               // Browse mode - get total count first, then documents
               if (force || state.totalCount === null || state.unfilteredTotalCount === null) {
-                console.log("📊 Getting total count...");
                 const countResult = await documentService.queryDocuments(
                   state.currentNamespaceId,
                   {
@@ -1527,15 +1346,12 @@ loadDocuments: async (
                 );
                 totalCount = countResult.aggregations?.count || 0;
                 totalPages = Math.ceil(totalCount / limit);
-                console.log("📊 Total count:", totalCount);
               } else {
                 totalCount = state.totalCount;
                 totalPages = Math.ceil(totalCount / limit);
               }
 
               // Get documents using ID-based cursor pagination
-              console.log("📄 Listing documents with cursor pagination...");
-
               // For list mode (no filters), fetch ALL attributes to ensure complete document data
               // Users expect to see all fields when clicking a document, regardless of table columns
               const includeAttributes = true;
@@ -1548,14 +1364,12 @@ loadDocuments: async (
                 // Going forward - use the last document ID from current page
                 cursor = state.documents[state.documents.length - 1].id;
                 paginationFilter = ["id", "Gt", cursor];
-                console.log("📄 Forward pagination with cursor:", cursor);
               } else if (page < state.currentPage && state.previousCursors.length > 0) {
                 // Going backward - use cursor from stack
                 const cursorIndex = page - 2; // page-2 because we want the cursor before the target page
                 if (cursorIndex >= 0 && cursorIndex < state.previousCursors.length) {
                   cursor = state.previousCursors[cursorIndex];
                   paginationFilter = ["id", "Gt", cursor];
-                  console.log("📄 Backward pagination with cursor:", cursor);
                 } else if (page === 1) {
                   // Going back to first page - no cursor needed
                   cursor = null;
@@ -1565,19 +1379,8 @@ loadDocuments: async (
                 // First page or initial load - no cursor needed
                 cursor = null;
                 paginationFilter = undefined;
-                console.log("📄 First page - no cursor");
               }
-              
-              console.log("📄 Sending pagination query:", {
-                filters: paginationFilter,
-                rank_by: ["id", "asc"],
-                top_k: limit,
-                currentPage: state.currentPage,
-                targetPage: page,
-                hasDocuments: state.documents.length > 0,
-                lastDocId: state.documents.length > 0 ? state.documents[state.documents.length - 1].id : null,
-              });
-              
+
               const response = await documentService.queryDocuments(
                 state.currentNamespaceId,
                 {
@@ -1593,13 +1396,6 @@ loadDocuments: async (
               
               // Get the last document ID as next cursor
               const newNextCursor = documents.length > 0 ? documents[documents.length - 1].id : null;
-
-              console.log("📄 Listed documents:", {
-                documentsCount: documents.length,
-                page,
-                cursor,
-                newNextCursor,
-              });
 
               // Update pagination state
               set((state) => {
@@ -1624,24 +1420,6 @@ loadDocuments: async (
               });
             }
 
-            console.log("📄 Final documents data:", {
-              count: documents.length,
-              sampleDocuments: documents.slice(0, 2).map((d) => ({
-                id: d.id,
-                hasAttributes: !!d.attributes,
-                attributeKeys: d.attributes ? Object.keys(d.attributes) : [],
-                attributes: d.attributes,
-              })),
-            });
-
-            console.log("📊 Setting documents state:", {
-              documentsCount: documents.length,
-              totalCount,
-              currentPage: page,
-              pageSize: state.pageSize,
-              totalPages: totalCount !== null ? Math.ceil(totalCount / state.pageSize) : null,
-            });
-            
             set((state) => {
               state.documents = documents;
               state.totalCount = totalCount;
@@ -1663,7 +1441,6 @@ loadDocuments: async (
             });
 
             // Auto-discover attributes from loaded documents
-            console.log("🔍 Starting attribute discovery from documents...");
             get().discoverAttributesFromDocuments(documents);
           } catch (error) {
             console.error("💥 Failed to load documents:", error);
@@ -1732,18 +1509,15 @@ loadDocuments: async (
         loadSchemaAndInitColumns: async () => {
           const state = get();
           if (!state.currentNamespaceId || !state.isClientInitialized) {
-            console.log('⏭️ loadSchemaAndInitColumns: skipping - client not initialized or no namespace');
             return;
           }
 
           try {
-            console.log('📋 Loading schema for namespace:', state.currentNamespaceId);
             // Set the namespace service client
             namespaceService.setClient(turbopufferService.getClient()!);
 
             // Get schema from API
             const schema = await namespaceService.getNamespaceSchema(state.currentNamespaceId);
-            console.log('📋 Schema loaded:', Object.keys(schema));
 
             // Initialize visible columns from schema
             const defaultColumns = new Set<string>();
@@ -1781,8 +1555,6 @@ loadDocuments: async (
               defaultColumns.add('vector');
             }
 
-            console.log('📋 Setting visible columns from schema:', Array.from(defaultColumns));
-            console.log('📋 Setting attributes from schema:', schemaAttributes.map(a => a.name));
             set((state) => {
               // Always set visible columns from schema (schema is source of truth)
               state.visibleColumns = defaultColumns;
@@ -1799,14 +1571,7 @@ loadDocuments: async (
         },
 
         discoverAttributesFromDocuments: (documents) => {
-          console.log("🔍 discoverAttributesFromDocuments called with:", {
-            documentsCount: documents?.length,
-            hasDocuments: !!documents,
-            sampleDocument: documents?.[0],
-          });
-
           if (!documents || documents.length === 0) {
-            console.log("❌ No documents to analyze for attributes");
             return;
           }
 
@@ -1904,17 +1669,6 @@ loadDocuments: async (
             }
           });
 
-          console.log(
-            "🗺️ Discovered attribute map:",
-            Array.from(attributeMap.entries()).map(([name, info]) => ({
-              name,
-              type: info.type,
-              count: info.count,
-              uniqueValues: info.values.size,
-              sampleValues: Array.from(info.values).slice(0, 3),
-            }))
-          );
-
           // Convert to DiscoveredAttribute format
           const discoveredAttributes: DiscoveredAttribute[] = Array.from(
             attributeMap.entries()
@@ -1936,19 +1690,8 @@ loadDocuments: async (
                 limitedElements.sort();
               }
               sampleValues = limitedElements;
-              console.log(`🔍 Array Attribute "${name}" (${info.type}):`, {
-                uniqueArraysCount: uniqueValues.length,
-                uniqueElementsCount: elements.length,
-                sampleElements: sampleValues.slice(0, 20),
-              });
             } else {
               sampleValues = uniqueValues.slice(0, 20);
-              console.log(`🔍 Attribute "${name}":`, {
-                type: info.type,
-                count: info.count,
-                uniqueValuesCount: uniqueValues.length,
-                sampleValues: sampleValues.slice(0, 5),
-              });
             }
 
             return {
@@ -1975,13 +1718,7 @@ loadDocuments: async (
             };
           });
 
-          console.log("✅ Final discovered attributes:", discoveredAttributes);
-
           set((state) => {
-            console.log(
-              "💾 Setting attributes in store:",
-              discoveredAttributes.length
-            );
             state.attributes = discoveredAttributes;
 
             // Initialize visible columns if not set
@@ -2015,10 +1752,6 @@ loadDocuments: async (
                 attributes: discoveredAttributes,
                 timestamp: Date.now(),
               });
-              console.log(
-                "💾 Cached attributes for connection:namespace:",
-                attributesCacheKey
-              );
             }
           });
         },

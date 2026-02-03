@@ -155,13 +155,6 @@ export class AttributeDiscoveryService {
     const types = Array.from(info.types);
     const primaryType = this.determinePrimaryType(types, info.values);
 
-    console.log(`🔬 [AttributeDiscovery] Analyzing "${name}":`, {
-      detectedTypes: types,
-      primaryType,
-      totalValues: info.values.length,
-      sampleRawValues: info.values.slice(0, 3),
-    });
-
     // Get unique values (excluding nulls), preserving original types
     const nonNullValues = info.values.filter(v => v !== null && v !== undefined);
     const seen = new Set<string>();
@@ -174,8 +167,6 @@ export class AttributeDiscoveryService {
     const isArrayType = primaryType === 'array' || primaryType.startsWith('[]');
 
     if (isArrayType) {
-      console.log(`🔬 [AttributeDiscovery] "${name}" is array type (${primaryType}) - flattening elements`);
-
       const flattenAndCollect = (value: any, depth = 0) => {
         if (value === null || value === undefined) return;
         if (Array.isArray(value)) {
@@ -195,9 +186,6 @@ export class AttributeDiscoveryService {
       for (const arr of nonNullValues) {
         flattenAndCollect(arr);
       }
-
-      console.log(`🔬 [AttributeDiscovery] "${name}" flattened to ${uniqueValues.length} unique leaf values:`,
-        uniqueValues.slice(0, 10));
     }
 
     if (!isArrayType) {
@@ -209,16 +197,10 @@ export class AttributeDiscoveryService {
           uniqueValues.push(v);
         }
       }
-
-      console.log(`🔬 [AttributeDiscovery] "${name}" has ${uniqueValues.length} unique values:`,
-        uniqueValues.slice(0, 10));
     }
 
     // Use deduplicated unique values for samples (up to 50 for better coverage)
     const sampleValues = uniqueValues.slice(0, 50);
-
-    console.log(`🔬 [AttributeDiscovery] "${name}" final sampleValues (${sampleValues.length}):`,
-      sampleValues.slice(0, 10));
 
     const result: DiscoveredAttribute = {
       name,
