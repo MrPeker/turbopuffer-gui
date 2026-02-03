@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Database,
   Plus,
@@ -80,6 +80,8 @@ interface IndexBuildingStatus {
 export const SchemaPage: React.FC = () => {
   const navigate = useNavigate();
   const { connectionId, namespaceId } = useParams<{ connectionId: string; namespaceId: string }>();
+  const [searchParams] = useSearchParams();
+  const regionId = searchParams.get('region');
   const { getConnectionById, turbopufferClient, clientError, setActiveConnection, isActiveConnectionReadOnly, activeConnectionId } = useConnections();
   const connection = connectionId ? getConnectionById(connectionId) : null;
   const { toast } = useToast();
@@ -122,7 +124,7 @@ export const SchemaPage: React.FC = () => {
     if (namespaceId && connection && turbopufferClient) {
       loadSchema();
     }
-  }, [namespaceId, connection, turbopufferClient]);
+  }, [namespaceId, connection, turbopufferClient, regionId]);
 
   const loadSchema = async () => {
     if (!namespaceId || !connection || !turbopufferClient) return;
@@ -130,8 +132,13 @@ export const SchemaPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      // Use region-specific client if regionId is provided, otherwise use primary client
+      const client = regionId
+        ? turbopufferService.getClientForRegion(regionId) || turbopufferClient
+        : turbopufferClient;
+
       // Set the client for namespaceService
-      namespaceService.setClient(turbopufferClient);
+      namespaceService.setClient(client);
 
       const schema = await namespaceService.getNamespaceSchema(namespaceId);
 
@@ -381,6 +388,11 @@ export const SchemaPage: React.FC = () => {
             <h1 className="text-sm font-bold uppercase tracking-wider text-tp-text">schema</h1>
             <p className="text-xs text-tp-text-muted mt-0.5">
               <span className="font-mono text-tp-accent">{namespaceId}</span>
+              {regionId && (
+                <Badge variant="outline" className="ml-2 text-[9px] h-4 px-1.5 font-mono">
+                  {regionId}
+                </Badge>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-1.5">
