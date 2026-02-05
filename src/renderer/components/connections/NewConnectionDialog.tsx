@@ -44,14 +44,14 @@ export function NewConnectionDialog({
 
   const [formData, setFormData] = useState<ConnectionFormData>({
     name: "",
-    regionId: TURBOPUFFER_REGIONS[0].id,
+    regionIds: [TURBOPUFFER_REGIONS[0].id],
     apiKey: "",
   });
 
   const resetForm = () => {
     setFormData({
       name: "",
-      regionId: TURBOPUFFER_REGIONS[0].id,
+      regionIds: [TURBOPUFFER_REGIONS[0].id],
       apiKey: "",
     });
     setTestResult(null);
@@ -85,7 +85,7 @@ export function NewConnectionDialog({
 
     try {
       const region = TURBOPUFFER_REGIONS.find(
-        (r) => r.id === formData.regionId
+        (r) => r.id === formData.regionIds[0]
       );
       if (!region) {
         throw new Error("Invalid region selected");
@@ -107,7 +107,7 @@ export function NewConnectionDialog({
   };
 
   const getSelectedRegion = () => {
-    return TURBOPUFFER_REGIONS.find(r => r.id === formData.regionId);
+    return TURBOPUFFER_REGIONS.find(r => r.id === formData.regionIds[0]);
   };
 
   const getProviderPrefix = (provider: string) => {
@@ -144,8 +144,8 @@ export function NewConnectionDialog({
               Region *
             </Label>
             <Select
-              value={formData.regionId}
-              onValueChange={(value) => setFormData({ ...formData, regionId: value })}
+              value={formData.regionIds[0]}
+              onValueChange={(value) => setFormData({ ...formData, regionIds: [value] })}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
