@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,6 +21,7 @@ import {
   FlaskConical
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RegionMultiSelect } from "./RegionMultiSelect";
 
 interface NewConnectionDialogProps {
   isOpen: boolean;
@@ -44,14 +44,14 @@ export function NewConnectionDialog({
 
   const [formData, setFormData] = useState<ConnectionFormData>({
     name: "",
-    regionId: TURBOPUFFER_REGIONS[0].id,
+    regionIds: [TURBOPUFFER_REGIONS[0].id],
     apiKey: "",
   });
 
   const resetForm = () => {
     setFormData({
       name: "",
-      regionId: TURBOPUFFER_REGIONS[0].id,
+      regionIds: [TURBOPUFFER_REGIONS[0].id],
       apiKey: "",
     });
     setTestResult(null);
@@ -61,7 +61,7 @@ export function NewConnectionDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.apiKey) {
+    if (!formData.name || !formData.apiKey || formData.regionIds.length === 0) {
       return;
     }
 
@@ -78,14 +78,14 @@ export function NewConnectionDialog({
   };
 
   const handleTest = async () => {
-    if (!formData.apiKey) return;
+    if (!formData.apiKey || formData.regionIds.length === 0) return;
 
     setIsTesting(true);
     setTestResult(null);
 
     try {
       const region = TURBOPUFFER_REGIONS.find(
-        (r) => r.id === formData.regionId
+        (r) => r.id === formData.regionIds[0]
       );
       if (!region) {
         throw new Error("Invalid region selected");
@@ -104,14 +104,6 @@ export function NewConnectionDialog({
     } finally {
       setIsTesting(false);
     }
-  };
-
-  const getSelectedRegion = () => {
-    return TURBOPUFFER_REGIONS.find(r => r.id === formData.regionId);
-  };
-
-  const getProviderPrefix = (provider: string) => {
-    return provider.toUpperCase();
   };
 
   return (
@@ -140,24 +132,13 @@ export function NewConnectionDialog({
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="region">
-              Region *
+            <Label>
+              Regions *
             </Label>
-            <Select
-              value={formData.regionId}
-              onValueChange={(value) => setFormData({ ...formData, regionId: value })}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TURBOPUFFER_REGIONS.map((region) => (
-                  <SelectItem key={region.id} value={region.id}>
-                    {getProviderPrefix(region.provider)} • {region.location} ({region.id})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <RegionMultiSelect
+              selectedRegionIds={formData.regionIds}
+              onChange={(regionIds) => setFormData({ ...formData, regionIds })}
+            />
           </div>
           
           <div className="space-y-2">
@@ -219,7 +200,7 @@ export function NewConnectionDialog({
               type="button"
               variant="ghost"
               onClick={handleTest}
-              disabled={!formData.apiKey || isTesting}
+              disabled={!formData.apiKey || formData.regionIds.length === 0 || isTesting}
             >
               {isTesting ? (
                 <>
@@ -249,7 +230,7 @@ export function NewConnectionDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={!formData.name || !formData.apiKey || isSaving}
+                disabled={!formData.name || !formData.apiKey || formData.regionIds.length === 0 || isSaving}
               >
                 {isSaving ? (
                   <>
