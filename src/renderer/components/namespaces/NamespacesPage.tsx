@@ -4,7 +4,6 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
 import { NamespaceList } from './NamespaceList';
 import { NamespaceTreeView } from './NamespaceTreeView';
-import { CreateNamespaceDialog } from './CreateNamespaceDialog';
 import { PageHeader } from '../layout/PageHeader';
 import { RecentNamespaces } from './RecentNamespaces';
 import type { Namespace } from '../../../types/namespace';
@@ -61,7 +60,6 @@ export function NamespacesPage() {
     initializeClient,
     loadNamespaces,
     refresh,
-    createNamespace,
     deleteNamespace,
     setSearchTerm,
     searchNamespacesAPI,
@@ -74,7 +72,6 @@ export function NamespacesPage() {
   } = useNamespacesStore();
 
   const connection = connectionId ? getConnectionById(connectionId) : null;
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [delimiter, setDelimiter] = useState('-');
 
   const filteredNamespaces = getFilteredNamespaces();
@@ -93,17 +90,6 @@ export function NamespacesPage() {
       loadNamespaces(true);
     }
   };
-
-  const handleCreateNamespace = async (namespaceId: string) => {
-    try {
-      await createNamespace(namespaceId);
-      setIsCreateDialogOpen(false);
-    } catch (err) {
-      console.error('Failed to create namespace:', err);
-      throw err;
-    }
-  };
-
 
   // Check for intended destination on mount
   useEffect(() => {
@@ -211,7 +197,7 @@ export function NamespacesPage() {
               refresh
             </Button>
             <Button
-              onClick={() => setIsCreateDialogOpen(true)}
+              onClick={() => navigate(`/connections/${connectionId}/namespaces/new/schema`)}
               disabled={isLoading || isActiveConnectionReadOnly}
               title={isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
               size="sm"
@@ -431,7 +417,7 @@ export function NamespacesPage() {
               </p>
               {!searchTerm && (
                 <Button
-                  onClick={() => setIsCreateDialogOpen(true)}
+                  onClick={() => navigate(`/connections/${connectionId}/namespaces/new/schema`)}
                   disabled={isActiveConnectionReadOnly}
                   title={isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
                   size="sm"
@@ -459,11 +445,6 @@ export function NamespacesPage() {
         </div>
       </div>
 
-      <CreateNamespaceDialog
-        isOpen={isCreateDialogOpen}
-        onClose={() => setIsCreateDialogOpen(false)}
-        onCreateNamespace={handleCreateNamespace}
-      />
     </>
   );
 }

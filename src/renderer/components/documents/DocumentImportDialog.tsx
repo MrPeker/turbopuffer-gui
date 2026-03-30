@@ -235,14 +235,17 @@ export const DocumentImportDialog: React.FC<DocumentImportDialogProps> = ({
       }
       setImportProgress(100);
 
-      toast.success('Import successful', {
+      toast({
+        title: 'Import successful',
         description: `Successfully imported ${allDocuments.length} documents in ${batches.length} batch${batches.length > 1 ? 'es' : ''}.`,
       });
 
       onSuccess();
     } catch (error) {
-      toast.error('Import failed', {
+      toast({
+        title: 'Import failed',
         description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
       });
     } finally {
       setImporting(false);

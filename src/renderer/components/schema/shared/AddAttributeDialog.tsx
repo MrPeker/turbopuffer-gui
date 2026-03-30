@@ -124,18 +124,21 @@ export const AddAttributeDialog: React.FC<AddAttributeDialogProps> = ({
                 <SelectValue placeholder="Select data type..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="string">String</SelectItem>
-                <SelectItem value="int">Integer (signed)</SelectItem>
-                <SelectItem value="uint">Integer (unsigned)</SelectItem>
-                <SelectItem value="uuid">UUID</SelectItem>
-                <SelectItem value="datetime">DateTime</SelectItem>
-                <SelectItem value="bool">Boolean</SelectItem>
-                <SelectItem value="[]string">Array of Strings</SelectItem>
-                <SelectItem value="[]int">Array of Integers</SelectItem>
-                <SelectItem value="[]uint">Array of Unsigned Integers</SelectItem>
-                <SelectItem value="[]uuid">Array of UUIDs</SelectItem>
-                <SelectItem value="[]datetime">Array of DateTimes</SelectItem>
-                <SelectItem value="vector">Vector</SelectItem>
+                <SelectItem value="string"><span className="font-mono">string</span> <span className="text-muted-foreground text-xs">String</span></SelectItem>
+                <SelectItem value="int"><span className="font-mono">int</span> <span className="text-muted-foreground text-xs">Integer (signed)</span></SelectItem>
+                <SelectItem value="uint"><span className="font-mono">uint</span> <span className="text-muted-foreground text-xs">Integer (unsigned)</span></SelectItem>
+                <SelectItem value="float"><span className="font-mono">float</span> <span className="text-muted-foreground text-xs">Float</span></SelectItem>
+                <SelectItem value="uuid"><span className="font-mono">uuid</span> <span className="text-muted-foreground text-xs">UUID</span></SelectItem>
+                <SelectItem value="datetime"><span className="font-mono">datetime</span> <span className="text-muted-foreground text-xs">DateTime</span></SelectItem>
+                <SelectItem value="bool"><span className="font-mono">bool</span> <span className="text-muted-foreground text-xs">Boolean</span></SelectItem>
+                <SelectItem value="[]string"><span className="font-mono">[]string</span> <span className="text-muted-foreground text-xs">Array of Strings</span></SelectItem>
+                <SelectItem value="[]int"><span className="font-mono">[]int</span> <span className="text-muted-foreground text-xs">Array of Integers</span></SelectItem>
+                <SelectItem value="[]uint"><span className="font-mono">[]uint</span> <span className="text-muted-foreground text-xs">Array of Unsigned Integers</span></SelectItem>
+                <SelectItem value="[]float"><span className="font-mono">[]float</span> <span className="text-muted-foreground text-xs">Array of Floats</span></SelectItem>
+                <SelectItem value="[]uuid"><span className="font-mono">[]uuid</span> <span className="text-muted-foreground text-xs">Array of UUIDs</span></SelectItem>
+                <SelectItem value="[]datetime"><span className="font-mono">[]datetime</span> <span className="text-muted-foreground text-xs">Array of DateTimes</span></SelectItem>
+                <SelectItem value="[]bool"><span className="font-mono">[]bool</span> <span className="text-muted-foreground text-xs">Array of Booleans</span></SelectItem>
+                <SelectItem value="vector"><span className="font-mono">vector</span> <span className="text-muted-foreground text-xs">Vector</span></SelectItem>
               </SelectContent>
             </Select>
           </div>

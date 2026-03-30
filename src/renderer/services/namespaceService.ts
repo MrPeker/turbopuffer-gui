@@ -4,7 +4,8 @@ import type {
   NamespaceListParams,
   NamespaceMetadata,
   NamespaceSchema,
-  NamespacesResponse
+  NamespacesResponse,
+  VectorType
 } from '../../types/namespace';
 import type {
   TurbopufferRegion,
@@ -62,31 +63,72 @@ export class NamespaceService {
     }
   }
 
-  async createNamespace(namespaceId: string): Promise<void> {
+  async createNamespaceWithDocuments(
+    namespaceId: string,
+    documents: Array<{ id: string | number; vector?: number[]; [key: string]: any }>,
+    schema: NamespaceSchema = {}
+  ): Promise<void> {
     permissionService.checkWritePermission();
 
     if (!this.client) {
       throw new Error('Turbopuffer client not initialized');
     }
 
-    // Namespaces are created implicitly on first write
-    // We'll create an empty document and then delete it
+    if (documents.length === 0) {
+      throw new Error('At least one document is required to create a namespace');
+    }
+
     const ns = this.client.namespace(namespaceId);
-    
+
     try {
-      // Write a temporary document to create the namespace
-      await ns.write({
-        upsert_columns: {
-          id: ['__temp_init__'],
-          vector: [[0.0, 0.0]], // Minimal vector
-        },
-        distance_metric: 'cosine_distance'
+      const ids: (string | number)[] = [];
+      const vectors: number[][] = [];
+      const attributeColumns: Record<string, any[]> = {};
+
+      documents.forEach((doc) => {
+        const { id, vector, ...attrs } = doc;
+        ids.push(id);
+        if (vector) vectors.push(vector);
+
+        Object.entries(attrs).forEach(([key, value]) => {
+          if (!attributeColumns[key]) attributeColumns[key] = [];
+          attributeColumns[key].push(value);
+        });
+
+        // Null-fill missing attributes
+        Object.keys(attributeColumns).forEach((key) => {
+          if (attributeColumns[key].length < ids.length) {
+            attributeColumns[key].push(null);
+          }
+        });
       });
 
-      // Delete the temporary document
-      await ns.write({
-        deletes: ['__temp_init__']
-      });
+      const hasVectors = vectors.length > 0;
+      const allHaveVectors = vectors.length === ids.length;
+
+      if (hasVectors && !allHaveVectors) {
+        throw new Error(
+          `Cannot mix documents with and without vectors in the same batch. ` +
+          `${vectors.length} of ${ids.length} documents have vectors.`
+        );
+      }
+
+      const includeVectors = hasVectors && allHaveVectors;
+
+      const writeParams: Record<string, any> = {
+        upsert_columns: {
+          id: ids,
+          ...(includeVectors && { vector: vectors }),
+          ...attributeColumns,
+        },
+        ...(includeVectors && { distance_metric: 'cosine_distance' }),
+      };
+
+      if (Object.keys(schema).length > 0) {
+        writeParams.schema = schema;
+      }
+
+      await ns.write(writeParams);
     } catch (error) {
       console.error('Failed to create namespace:', error);
       throw error;

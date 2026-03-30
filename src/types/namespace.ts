@@ -38,18 +38,21 @@ export interface AttributeSchema {
   full_text_search?: boolean | FullTextSearchConfig;
 }
 
-export type AttributeType = 
-  | 'string' 
-  | 'int' 
-  | 'uint' 
-  | 'uuid' 
-  | 'datetime' 
-  | 'bool' 
-  | '[]string' 
-  | '[]int' 
-  | '[]uint' 
-  | '[]uuid' 
+export type AttributeType =
+  | 'string'
+  | 'int'
+  | 'uint'
+  | 'float'
+  | 'uuid'
+  | 'datetime'
+  | 'bool'
+  | '[]string'
+  | '[]int'
+  | '[]uint'
+  | '[]float'
+  | '[]uuid'
   | '[]datetime'
+  | '[]bool'
   | VectorType;
 
 export interface VectorType {
@@ -65,6 +68,9 @@ export interface FullTextSearchConfig {
   tokenizer?: string;
   k1?: number;
   b?: number;
+  k3?: number;
+  ascii_folding?: boolean;
+  max_token_length?: number;
 }
 
 /** @deprecated NamespaceStats interface is deprecated to prevent 429 rate limit errors from document counting */

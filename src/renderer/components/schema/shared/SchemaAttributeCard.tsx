@@ -40,14 +40,17 @@ const fieldTypeIcons: Record<string, React.ReactNode> = {
   string: <Type className="h-4 w-4" />,
   int: <Hash className="h-4 w-4" />,
   uint: <Hash className="h-4 w-4" />,
+  float: <Hash className="h-4 w-4" />,
   uuid: <Hash className="h-4 w-4" />,
   datetime: <Calendar className="h-4 w-4" />,
   bool: <ToggleLeft className="h-4 w-4" />,
   '[]string': <List className="h-4 w-4" />,
   '[]int': <List className="h-4 w-4" />,
   '[]uint': <List className="h-4 w-4" />,
+  '[]float': <List className="h-4 w-4" />,
   '[]uuid': <List className="h-4 w-4" />,
   '[]datetime': <List className="h-4 w-4" />,
+  '[]bool': <List className="h-4 w-4" />,
   vector: <Braces className="h-4 w-4" />,
 };
 

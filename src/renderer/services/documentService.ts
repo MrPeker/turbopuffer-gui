@@ -151,13 +151,25 @@ async listDocuments(
       });
     });
 
+    const hasVectors = vectors.length > 0;
+    const allHaveVectors = vectors.length === ids.length;
+
+    if (hasVectors && !allHaveVectors) {
+      throw new Error(
+        `Cannot mix documents with and without vectors in the same batch. ` +
+        `${vectors.length} of ${ids.length} documents have vectors.`
+      );
+    }
+
+    const includeVectors = hasVectors && allHaveVectors;
+
     const writeParams: DocumentWriteParams = {
       upsert_columns: {
         id: ids,
-        ...(vectors.length > 0 && { vector: vectors }),
+        ...(includeVectors && { vector: vectors }),
         ...attributeColumns,
       },
-      distance_metric: distanceMetric,
+      ...(includeVectors && { distance_metric: distanceMetric }),
     };
 
     try {

@@ -23,8 +23,9 @@ const SUPPORTED_LANGUAGES = [
 ];
 
 const TOKENIZERS = [
+  { value: 'word_v3', label: 'Word v3 (Default, Unicode 17.0)' },
   { value: 'word_v2', label: 'Word v2 (Unicode 16.0, with emoji)' },
-  { value: 'word_v1', label: 'Word v1 (Default, Unicode 10.0)' },
+  { value: 'word_v1', label: 'Word v1 (Unicode 10.0)' },
   { value: 'word_v0', label: 'Word v0 (Legacy, no emoji)' },
   { value: 'pre_tokenized_array', label: 'Pre-tokenized Array' },
 ];
@@ -64,7 +65,7 @@ export const FullTextSearchConfig: React.FC<FullTextSearchConfigProps> = ({
         <div>
           <Label htmlFor="fts-tokenizer">Tokenizer</Label>
           <Select
-            value={config.tokenizer || 'word_v1'}
+            value={config.tokenizer || 'word_v3'}
             onValueChange={(value) => updateConfig({ tokenizer: value })}
           >
             <SelectTrigger className="mt-1">
@@ -94,7 +95,7 @@ export const FullTextSearchConfig: React.FC<FullTextSearchConfigProps> = ({
         <div className="flex items-center space-x-2">
           <Checkbox
             id="fts-stopwords"
-            checked={config.remove_stopwords ?? true}
+            checked={config.remove_stopwords ?? false}
             onCheckedChange={(checked) => updateConfig({ remove_stopwords: checked as boolean })}
           />
           <Label htmlFor="fts-stopwords">Remove stopwords</Label>
@@ -108,9 +109,18 @@ export const FullTextSearchConfig: React.FC<FullTextSearchConfigProps> = ({
           />
           <Label htmlFor="fts-case-sensitive">Case sensitive</Label>
         </div>
+
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="fts-ascii-folding"
+            checked={config.ascii_folding ?? false}
+            onCheckedChange={(checked) => updateConfig({ ascii_folding: checked as boolean })}
+          />
+          <Label htmlFor="fts-ascii-folding">ASCII folding</Label>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <Label htmlFor="fts-k1">k1 Parameter</Label>
           <Input
@@ -143,6 +153,38 @@ export const FullTextSearchConfig: React.FC<FullTextSearchConfigProps> = ({
             Document length normalization (default: 0.75)
           </p>
         </div>
+
+        <div>
+          <Label htmlFor="fts-k3">k3 Parameter</Label>
+          <Input
+            id="fts-k3"
+            type="number"
+            step="0.1"
+            min="0.1"
+            value={config.k3 ?? 8.0}
+            onChange={(e) => updateConfig({ k3: parseFloat(e.target.value) })}
+            className="mt-1"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Query term frequency saturation (default: 8.0)
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="fts-max-token-length">Max Token Length</Label>
+        <Input
+          id="fts-max-token-length"
+          type="number"
+          min={1}
+          max={254}
+          value={config.max_token_length ?? 39}
+          onChange={(e) => updateConfig({ max_token_length: parseInt(e.target.value) })}
+          className="mt-1"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Maximum token length in bytes, 1-254 (default: 39)
+        </p>
       </div>
     </div>
   );

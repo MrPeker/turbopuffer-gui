@@ -76,13 +76,6 @@ const SUPPORTED_LANGUAGES = [
   'russian', 'spanish', 'swedish', 'tamil', 'turkish'
 ];
 
-const TOKENIZERS = [
-  { value: 'word_v2', label: 'Word v2 (Unicode 16.0, with emoji)' },
-  { value: 'word_v1', label: 'Word v1 (Default, Unicode 10.0)' },
-  { value: 'word_v0', label: 'Word v0 (Legacy, no emoji)' },
-  { value: 'pre_tokenized_array', label: 'Pre-tokenized Array' },
-];
-
 const fieldTypeIcons: Record<string, React.ReactNode> = {
   string: <Type className="h-4 w-4" />,
   int: <Hash className="h-4 w-4" />,
@@ -127,12 +120,7 @@ export const StandaloneSchemaDesigner: React.FC = () => {
       
       // Always include id
       example.id = i + 1;
-      
-      // Always include vector if not already present
-      if (!attributes.some(attr => attr.name === 'vector')) {
-        example.vector = Array(1536).fill(0).map(() => Math.random() * 2 - 1);
-      }
-      
+
       attributes.forEach(attr => {
         example[attr.name] = generateValueForType(attr.schema.type, i);
       });
@@ -157,6 +145,8 @@ export const StandaloneSchemaDesigner: React.FC = () => {
         return [42, -10, 1000][index % 3];
       case 'uint':
         return [42, 100, 1000][index % 3];
+      case 'float':
+        return [3.14, -2.718, 0.001][index % 3];
       case 'uuid':
         return crypto.randomUUID();
       case 'datetime': {
@@ -171,10 +161,14 @@ export const StandaloneSchemaDesigner: React.FC = () => {
         return [[1, 2, 3], [10, 20], [100]][index % 3];
       case '[]uint':
         return [[1, 2, 3], [10, 20], [100]][index % 3];
+      case '[]float':
+        return [[1.1, 2.2], [3.14], [0.5, 1.5, 2.5]][index % 3];
       case '[]uuid':
         return [[crypto.randomUUID(), crypto.randomUUID()]];
       case '[]datetime':
         return [['2024-01-01T00:00:00Z', '2024-01-02T00:00:00Z']];
+      case '[]bool':
+        return [[true, false], [true], [false, true, false]][index % 3];
       default:
         return `Unknown type: ${type}`;
     }
@@ -223,15 +217,18 @@ export const StandaloneSchemaDesigner: React.FC = () => {
     switch (type) {
       case 'string': return 'string';
       case 'int':
-      case 'uint': return 'number';
+      case 'uint':
+      case 'float': return 'number';
       case 'uuid': return 'string';
       case 'datetime': return 'string'; // ISO date string
       case 'bool': return 'boolean';
       case '[]string': return 'string[]';
       case '[]int':
-      case '[]uint': return 'number[]';
+      case '[]uint':
+      case '[]float': return 'number[]';
       case '[]uuid': return 'string[]';
       case '[]datetime': return 'string[]';
+      case '[]bool': return 'boolean[]';
       default: return 'unknown';
     }
   };

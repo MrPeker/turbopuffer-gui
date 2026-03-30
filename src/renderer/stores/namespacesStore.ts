@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { devtools, subscribeWithSelector } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { enableMapSet } from "immer";
-import type { Namespace, NamespaceMetadata, NamespacesResponse } from "../../types/namespace";
+import type { Namespace, NamespaceMetadata, NamespaceSchema, NamespacesResponse } from "../../types/namespace";
 import type { TurbopufferRegion, NamespaceWithRegion, RegionError } from "../../types/connection";
 import { namespaceService } from "../services/namespaceService";
 import { turbopufferService } from "../services/turbopufferService";
@@ -83,7 +83,7 @@ interface NamespacesState {
   refresh: () => Promise<void>;
 
   // Actions - CRUD
-  createNamespace: (namespaceId: string) => Promise<void>;
+  createNamespace: (namespaceId: string, documents: Array<{ id: string | number; [key: string]: any }>, schema?: NamespaceSchema) => Promise<void>;
   deleteNamespace: (namespaceId: string) => Promise<void>;
   getNamespaceById: (connectionId: string, namespaceId: string) => Promise<Namespace | null>;
 
@@ -338,14 +338,12 @@ export const useNamespacesStore = create<NamespacesState>()(
         },
 
         // CRUD Actions
-        createNamespace: async (namespaceId) => {
+        createNamespace: async (namespaceId, documents, schema = {}) => {
+          await namespaceService.createNamespaceWithDocuments(namespaceId, documents, schema);
           try {
-            await namespaceService.createNamespace(namespaceId);
-            // Reload namespaces to show the new one
             await get().loadNamespaces(true);
-          } catch (error) {
-            console.error('Failed to create namespace:', error);
-            throw error;
+          } catch (refreshError) {
+            console.error('Failed to refresh namespace list after creation:', refreshError);
           }
         },
 
