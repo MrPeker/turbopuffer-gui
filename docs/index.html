@@ -1,562 +1,919 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Turbopuffer GUI - Desktop Client for Turbopuffer</title>
-  <meta name="description" content="A third-party, open-source desktop GUI client for Turbopuffer - the blazing-fast vector and full-text search engine.">
-  <link rel="icon" type="image/png" href="icon.png">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Turbopuffer GUI — The desktop client for Turbopuffer</title>
+  <meta name="description" content="An open-source desktop client for Turbopuffer. Browse namespaces, explore documents, build filters, and design schemas — all from a fast native app." />
+  <link rel="icon" type="image/png" href="icon.png" />
+
+  <meta property="og:title" content="Turbopuffer GUI" />
+  <meta property="og:description" content="The desktop client for Turbopuffer. Browse namespaces, explore documents, build filters." />
+  <meta property="og:image" content="screenshots/documents.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
   <style>
     :root {
-      --bg-primary: #0a0a0a;
-      --bg-secondary: #141414;
-      --bg-tertiary: #1a1a1a;
-      --text-primary: #fafafa;
-      --text-secondary: #a1a1aa;
-      --accent: #3b82f6;
-      --accent-hover: #2563eb;
-      --border: #27272a;
+      --bg: #0a0a0c;
+      --bg-elev: #111114;
+      --bg-card: #131318;
+      --border: #1f1f25;
+      --border-strong: #2a2a32;
+      --text: #f5f5f7;
+      --text-muted: #a1a1aa;
+      --text-dim: #71717a;
+      --accent: #fbbf24;
+      --accent-soft: rgba(251, 191, 36, 0.12);
+      --teal: #22d3ee;
+      --teal-soft: rgba(34, 211, 238, 0.10);
+      --radius: 14px;
+      --radius-sm: 10px;
+      --radius-lg: 20px;
+      --container: 1200px;
     }
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      line-height: 1.6;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-feature-settings: 'ss01', 'cv11';
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
     }
 
+    /* Background atmosphere */
+    .bg-fx {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(900px 600px at 80% -10%, rgba(34, 211, 238, 0.08), transparent 60%),
+        radial-gradient(700px 500px at 10% 10%, rgba(251, 191, 36, 0.05), transparent 60%);
+    }
+    .bg-fx::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, black 30%, transparent 80%);
+    }
+
+    main, header, footer { position: relative; z-index: 1; }
+
     .container {
-      max-width: 1200px;
+      max-width: var(--container);
       margin: 0 auto;
       padding: 0 1.5rem;
     }
 
-    /* Header */
+    /* ───── Header ───── */
     header {
-      padding: 1.5rem 0;
+      position: sticky;
+      top: 0;
+      backdrop-filter: saturate(140%) blur(12px);
+      background: rgba(10, 10, 12, 0.72);
       border-bottom: 1px solid var(--border);
+      z-index: 50;
     }
 
-    .header-content {
+    .header-inner {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      height: 64px;
     }
 
     .logo {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.625rem;
       text-decoration: none;
-      color: var(--text-primary);
-    }
-
-    .logo img {
-      width: 32px;
-      height: 32px;
-    }
-
-    .logo span {
+      color: var(--text);
       font-weight: 600;
-      font-size: 1.125rem;
+      font-size: 0.95rem;
+      letter-spacing: -0.01em;
     }
+    .logo img { width: 28px; height: 28px; border-radius: 6px; }
 
-    .nav-links {
+    .nav {
       display: flex;
-      gap: 1.5rem;
       align-items: center;
+      gap: 0.25rem;
     }
-
-    .nav-links a {
-      color: var(--text-secondary);
+    .nav a {
+      color: var(--text-muted);
       text-decoration: none;
       font-size: 0.875rem;
-      transition: color 0.2s;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+
+    /* GitHub star widget — two-segment pill */
+    .gh-widget {
+      margin-left: 0.5rem;
+      display: inline-flex;
+      align-items: stretch;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card);
+      font-size: 0.825rem;
+      font-weight: 500;
+      transition: border-color 0.15s;
+    }
+    .gh-widget:hover { border-color: var(--accent); }
+    .gh-widget a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.75rem;
+      color: var(--text);
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .gh-widget a:hover { background: rgba(255, 255, 255, 0.04); }
+    .gh-widget svg { width: 14px; height: 14px; }
+    .gh-widget .gh-divider {
+      width: 1px;
+      background: var(--border-strong);
+    }
+    .gh-widget .gh-count {
+      padding: 0.5rem 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 3rem;
+      justify-content: center;
+    }
+    .gh-widget .gh-count .star-icon {
+      width: 12px;
+      height: 12px;
+      color: var(--accent);
+    }
+    .gh-widget .gh-count.is-loading { opacity: 0.55; }
+
+    @media (max-width: 720px) {
+      .nav a:not(.nav-cta) { display: none; }
     }
 
-    .nav-links a:hover {
-      color: var(--text-primary);
-    }
-
+    /* ───── Buttons ───── */
     .btn {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 0.5rem 1rem;
-      border-radius: 0.5rem;
-      font-size: 0.875rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 10px;
+      font-size: 0.925rem;
       font-weight: 500;
       text-decoration: none;
-      transition: all 0.2s;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
     }
+    .btn svg { width: 16px; height: 16px; }
 
     .btn-primary {
       background: var(--accent);
-      color: white;
+      color: #1a1300;
+      font-weight: 600;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 8px 24px -8px rgba(251, 191, 36, 0.4);
     }
-
-    .btn-primary:hover {
-      background: var(--accent-hover);
-    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, 0 12px 28px -8px rgba(251, 191, 36, 0.5); }
 
     .btn-secondary {
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      border-color: var(--border-strong);
     }
+    .btn-secondary:hover { border-color: #3a3a44; background: #18181d; }
 
-    .btn-secondary:hover {
-      background: var(--border);
-    }
+    .btn-ghost { color: var(--text-muted); background: transparent; }
+    .btn-ghost:hover { color: var(--text); }
 
-    /* Hero */
+    .btn.disabled { opacity: 0.5; pointer-events: none; }
+
+    /* ───── Hero ───── */
     .hero {
-      padding: 5rem 0;
+      padding: 6rem 0 4rem;
       text-align: center;
     }
 
-    .hero-badge {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0.875rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
       border-radius: 9999px;
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      margin-bottom: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1.75rem;
     }
+    .pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+    .pill a { color: var(--text); text-decoration: none; font-weight: 500; }
+    .pill a:hover { color: var(--accent); }
 
     .hero h1 {
-      font-size: 3rem;
+      font-size: clamp(2.25rem, 5.5vw, 4rem);
       font-weight: 700;
-      margin-bottom: 1rem;
-      letter-spacing: -0.02em;
+      line-height: 1.05;
+      letter-spacing: -0.035em;
+      max-width: 18ch;
+      margin: 0 auto 1.25rem;
+      background: linear-gradient(180deg, #ffffff 0%, #c5c5cf 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero h1 .accent {
+      background: linear-gradient(180deg, var(--accent) 0%, #f59e0b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
-    .hero p {
-      font-size: 1.25rem;
-      color: var(--text-secondary);
-      max-width: 600px;
-      margin: 0 auto 2rem;
+    .hero-sub {
+      font-size: clamp(1rem, 1.4vw, 1.175rem);
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto 2.25rem;
     }
 
     .hero-buttons {
       display: flex;
-      gap: 1rem;
+      gap: 0.75rem;
       justify-content: center;
       flex-wrap: wrap;
+      margin-bottom: 1.25rem;
     }
 
-    .hero-buttons .btn {
-      padding: 0.75rem 1.5rem;
-      font-size: 1rem;
+    .hero-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.25rem;
+      color: var(--text-dim);
+      font-size: 0.825rem;
     }
+    .hero-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-dim); }
 
-    /* Warning Banner */
-    .warning-banner {
-      background: rgba(234, 179, 8, 0.1);
-      border: 1px solid rgba(234, 179, 8, 0.3);
-      border-radius: 0.5rem;
-      padding: 1rem 1.5rem;
-      margin: 2rem auto;
-      max-width: 600px;
-      text-align: left;
+    /* Hero screenshot */
+    .hero-shot {
+      margin-top: 4rem;
+      position: relative;
     }
-
-    .warning-banner strong {
-      color: #eab308;
+    .hero-shot::before {
+      content: '';
+      position: absolute;
+      inset: -40px -20px 0;
+      background: radial-gradient(60% 60% at 50% 0%, rgba(34, 211, 238, 0.12), transparent 70%),
+                  radial-gradient(40% 60% at 50% 30%, rgba(251, 191, 36, 0.08), transparent 70%);
+      filter: blur(40px);
+      z-index: 0;
     }
-
-    .warning-banner p {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      margin: 0;
-    }
-
-    /* Screenshots */
-    .screenshots {
-      padding: 4rem 0;
-    }
-
-    .screenshots h2 {
-      text-align: center;
-      font-size: 2rem;
-      margin-bottom: 3rem;
-    }
-
-    .screenshot-grid {
-      display: grid;
-      gap: 2rem;
-    }
-
-    .screenshot-item {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 0.75rem;
+    .hero-shot-frame {
+      position: relative;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elev);
+      padding: 6px;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.04) inset,
+        0 30px 80px -20px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(255, 255, 255, 0.03);
       overflow: hidden;
     }
-
-    .screenshot-item img {
+    .hero-shot-frame img {
       width: 100%;
       height: auto;
       display: block;
+      border-radius: calc(var(--radius-lg) - 6px);
     }
 
-    .screenshot-caption {
-      padding: 1rem 1.5rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .screenshot-caption h3 {
-      font-size: 1rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .screenshot-caption p {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      margin: 0;
-    }
-
-    /* Features */
-    .features {
-      padding: 4rem 0;
-      border-top: 1px solid var(--border);
-    }
-
-    .features h2 {
+    /* ───── Platforms strip ───── */
+    .platforms {
+      padding: 3.5rem 0 1rem;
       text-align: center;
-      font-size: 2rem;
-      margin-bottom: 3rem;
+    }
+    .platforms-label {
+      font-size: 0.75rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+    }
+    .platforms-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2.5rem;
+      flex-wrap: wrap;
+      color: var(--text-muted);
+    }
+    .platform-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.625rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .platform-item svg { width: 20px; height: 20px; opacity: 0.85; }
+
+    /* ───── Section base ───── */
+    section { padding: 5rem 0; }
+
+    .section-eyebrow {
+      font-size: 0.75rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+    .section-title {
+      font-size: clamp(1.75rem, 3vw, 2.5rem);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+    .section-sub {
+      font-size: 1.0625rem;
+      color: var(--text-muted);
+      max-width: 580px;
     }
 
-    .feature-grid {
+    /* ───── Feature rows ───── */
+    .feature-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
+      grid-template-columns: 1fr 1.35fr;
+      gap: 4rem;
+      align-items: center;
+    }
+    .feature-row.reverse { grid-template-columns: 1.35fr 1fr; }
+    .feature-row.reverse .feature-text { order: 2; }
+    .feature-row.reverse .feature-art { order: 1; }
+
+    @media (max-width: 900px) {
+      .feature-row,
+      .feature-row.reverse {
+        grid-template-columns: 1fr;
+        gap: 2.5rem;
+      }
+      .feature-row.reverse .feature-text { order: 1; }
+      .feature-row.reverse .feature-art { order: 2; }
     }
 
-    .feature-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 0.75rem;
-      padding: 1.5rem;
+    .feature-list {
+      list-style: none;
+      margin-top: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .feature-list li {
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+    .feature-list li::before {
+      content: '';
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      margin-top: 0.2rem;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fbbf24' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='4 8 7 11 12 5'/></svg>");
+      background-repeat: no-repeat;
+      background-position: center;
     }
 
-    .feature-card h3 {
-      font-size: 1rem;
-      margin-bottom: 0.5rem;
+    .feature-art {
+      position: relative;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elev);
+      padding: 4px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.5);
+    }
+    .feature-art img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: calc(var(--radius) - 4px);
+    }
+    .feature-art::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius);
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 30%);
     }
 
-    .feature-card p {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      margin: 0;
-    }
-
-    /* Downloads */
-    .downloads {
-      padding: 4rem 0;
+    /* ───── Capability grid ───── */
+    .capabilities {
       border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
     }
-
-    .downloads h2 {
+    .cap-header {
       text-align: center;
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
+      max-width: 640px;
+      margin: 0 auto 3rem;
     }
+    .cap-header .section-sub { margin: 0 auto; }
 
-    .downloads-subtitle {
-      text-align: center;
-      color: var(--text-secondary);
+    .cap-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .cap-card {
+      background: var(--bg);
+      padding: 1.75rem;
+      transition: background 0.15s;
+    }
+    .cap-card:hover { background: var(--bg-card); }
+    .cap-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+    .cap-icon svg { width: 18px; height: 18px; }
+    .cap-card h3 {
+      font-size: 0.975rem;
+      font-weight: 600;
+      margin-bottom: 0.375rem;
+      letter-spacing: -0.01em;
+    }
+    .cap-card p {
       font-size: 0.875rem;
-      margin-bottom: 2.5rem;
+      color: var(--text-muted);
+      line-height: 1.55;
     }
+
+    /* ───── Downloads ───── */
+    .downloads-header {
+      text-align: center;
+      max-width: 640px;
+      margin: 0 auto 3rem;
+    }
+    .downloads-header .section-sub { margin: 0 auto; }
 
     .download-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
       max-width: 900px;
       margin: 0 auto;
     }
 
     .download-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 0.75rem;
-      padding: 1.5rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      padding: 1.75rem;
       text-align: center;
-      transition: border-color 0.2s;
+      transition: border-color 0.15s, transform 0.15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-
-    .download-card:hover {
-      border-color: var(--accent);
-    }
-
-    .download-card svg {
-      width: 48px;
-      height: 48px;
+    .download-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .download-card .platform-glyph {
+      width: 44px;
+      height: 44px;
+      color: var(--text);
       margin-bottom: 1rem;
-      color: var(--text-secondary);
     }
-
-    .download-card h3 {
-      font-size: 1.125rem;
-      margin-bottom: 0.25rem;
-    }
-
+    .download-card h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.25rem; }
     .download-card .download-type {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      margin-bottom: 1rem;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 1.25rem;
     }
+    .download-card .btn { width: 100%; justify-content: center; }
 
-    .download-card .btn {
-      width: 100%;
-      justify-content: center;
-    }
-
-    .download-card .btn.disabled {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-
-    .download-version {
+    .download-meta {
       text-align: center;
-      margin-top: 1.5rem;
+      margin-top: 2rem;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+    .download-meta a { color: var(--accent); text-decoration: none; }
+    .download-meta a:hover { text-decoration: underline; }
+
+    /* ───── Beta banner ───── */
+    .beta-banner {
+      max-width: 720px;
+      margin: 3rem auto 0;
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      background: var(--accent-soft);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
       font-size: 0.875rem;
-      color: var(--text-secondary);
+      color: var(--text-muted);
     }
+    .beta-banner svg { flex-shrink: 0; color: var(--accent); width: 18px; height: 18px; margin-top: 0.1rem; }
+    .beta-banner strong { color: var(--text); display: block; margin-bottom: 0.15rem; }
 
-    .download-version a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    .download-version a:hover {
-      text-decoration: underline;
-    }
-
-    /* Tech Stack */
-    .tech-stack {
+    /* ───── Tech stack ───── */
+    .tech {
       padding: 4rem 0;
       border-top: 1px solid var(--border);
     }
-
-    .tech-stack h2 {
+    .tech-inner {
       text-align: center;
-      font-size: 2rem;
-      margin-bottom: 2rem;
     }
-
+    .tech h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      margin-bottom: 1.75rem;
+      color: var(--text);
+    }
     .tech-badges {
       display: flex;
       justify-content: center;
       flex-wrap: wrap;
-      gap: 0.75rem;
+      gap: 0.5rem;
     }
-
     .tech-badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1rem;
-      background: var(--bg-secondary);
+      gap: 0.4rem;
+      padding: 0.5rem 0.875rem;
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 0.5rem;
-      font-size: 0.875rem;
-      color: var(--text-secondary);
+      border-radius: 9999px;
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
     }
 
-    /* Footer */
+    /* ───── Footer ───── */
     footer {
-      padding: 3rem 0;
+      padding: 3rem 0 4rem;
       border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .footer-left img { width: 22px; height: 22px; border-radius: 5px; }
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+    }
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .footer-disclaimer {
+      max-width: var(--container);
+      margin: 1.5rem auto 0;
+      padding: 0 1.5rem;
+      font-size: 0.75rem;
+      color: var(--text-dim);
       text-align: center;
     }
-
-    footer p {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      margin-bottom: 0.5rem;
-    }
-
-    footer a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    footer a:hover {
-      text-decoration: underline;
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .hero h1 {
-        font-size: 2rem;
-      }
-
-      .hero p {
-        font-size: 1rem;
-      }
-
-      .header-content {
-        flex-direction: column;
-        gap: 1rem;
-      }
-
-      .nav-links {
-        gap: 1rem;
-      }
-    }
+    .footer-disclaimer a { color: var(--text-muted); }
   </style>
 </head>
 <body>
+  <div class="bg-fx"></div>
+
   <header>
-    <div class="container">
-      <div class="header-content">
-        <a href="#" class="logo">
-          <img src="icon.png" alt="Turbopuffer GUI">
-          <span>Turbopuffer GUI</span>
-        </a>
-        <nav class="nav-links">
-          <a href="#features">Features</a>
-          <a href="#screenshots">Screenshots</a>
-          <a href="#downloads">Downloads</a>
-          <a href="https://github.com/MrPeker/turbopuffer-gui" target="_blank">GitHub</a>
-        </nav>
-      </div>
+    <div class="container header-inner">
+      <a href="#" class="logo">
+        <img src="icon.png" alt="Turbopuffer GUI" />
+        <span>Turbopuffer GUI</span>
+      </a>
+      <nav class="nav">
+        <a href="#features">Features</a>
+        <a href="#capabilities">Capabilities</a>
+        <a href="#downloads">Downloads</a>
+        <span class="gh-widget" id="gh-widget">
+          <a href="https://github.com/MrPeker/turbopuffer-gui" target="_blank" rel="noopener" aria-label="Star Turbopuffer GUI on GitHub">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            <span>Star</span>
+          </a>
+          <span class="gh-divider"></span>
+          <a href="https://github.com/MrPeker/turbopuffer-gui/stargazers" target="_blank" rel="noopener" class="gh-count is-loading" id="gh-count" aria-label="Stargazer count">
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <span id="gh-count-num">—</span>
+          </a>
+        </span>
+      </nav>
     </div>
   </header>
 
   <main>
+    <!-- ─────────── Hero ─────────── -->
     <section class="hero">
       <div class="container">
-        <span class="hero-badge">Open Source &bull; Cross-Platform</span>
-        <h1>Turbopuffer GUI</h1>
-        <p>A third-party, open-source desktop client for Turbopuffer - the blazing-fast vector and full-text search engine.</p>
+        <span class="pill">
+          <span class="pill-dot"></span>
+          Open source ·
+          <a href="https://github.com/MrPeker/turbopuffer-gui" target="_blank" rel="noopener">Star on GitHub →</a>
+        </span>
+        <h1>
+          The desktop client for <span class="accent">Turbopuffer</span>
+        </h1>
+        <p class="hero-sub">
+          Browse namespaces, explore documents, build filters, and design schemas — all in a fast native app for macOS, Windows, and Linux.
+        </p>
         <div class="hero-buttons">
           <a href="#downloads" class="btn btn-primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download for free
           </a>
-          <a href="https://github.com/MrPeker/turbopuffer-gui" class="btn btn-secondary" target="_blank">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            View on GitHub
+          <a href="https://github.com/MrPeker/turbopuffer-gui" target="_blank" rel="noopener" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            View source
           </a>
         </div>
-        <div class="warning-banner">
-          <p><strong>Beta Software:</strong> This application is in beta and for testing purposes only. Do not use with production data.</p>
+        <div class="hero-meta">
+          <span>MIT licensed</span>
+          <span class="hero-meta-dot"></span>
+          <span>Encrypted API keys</span>
+          <span class="hero-meta-dot"></span>
+          <span>Native performance</span>
         </div>
-      </div>
-    </section>
 
-    <section class="screenshots" id="screenshots">
-      <div class="container">
-        <h2>Screenshots</h2>
-        <div class="screenshot-grid">
-          <div class="screenshot-item">
-            <img src="screenshots/connections.png" alt="Connection Management">
-            <div class="screenshot-caption">
-              <h3>Connection Management</h3>
-              <p>Securely store and manage multiple Turbopuffer connections with encrypted API key storage.</p>
-            </div>
-          </div>
-          <div class="screenshot-item">
-            <img src="screenshots/namespaces.png" alt="Namespace Browser">
-            <div class="screenshot-caption">
-              <h3>Namespace Browser</h3>
-              <p>Browse and manage all namespaces in your Turbopuffer instance.</p>
-            </div>
-          </div>
-          <div class="screenshot-item">
-            <img src="screenshots/documents.png" alt="Document Explorer">
-            <div class="screenshot-caption">
-              <h3>Document Explorer</h3>
-              <p>Explore documents with advanced filtering and search capabilities.</p>
-            </div>
+        <div class="hero-shot">
+          <div class="hero-shot-frame">
+            <img src="screenshots/documents.png" alt="Turbopuffer GUI showing documents view with filters" />
           </div>
         </div>
       </div>
     </section>
 
-    <section class="features" id="features">
+    <!-- ─────────── Platforms strip ─────────── -->
+    <section class="platforms">
       <div class="container">
-        <h2>Features</h2>
-        <div class="feature-grid">
-          <div class="feature-card">
-            <h3>Connection Management</h3>
-            <p>Securely store and manage multiple Turbopuffer connections with encrypted API key storage using OS-native encryption.</p>
-          </div>
-          <div class="feature-card">
-            <h3>Namespace Browser</h3>
-            <p>View and manage all namespaces in your Turbopuffer instance with an intuitive interface.</p>
-          </div>
-          <div class="feature-card">
-            <h3>Document Explorer</h3>
-            <p>Browse, search, and filter documents with pagination and cursor-based navigation.</p>
-          </div>
-          <div class="feature-card">
-            <h3>Schema Designer</h3>
-            <p>Visual schema design tool for configuring vector dimensions, full-text search, and attribute indexes.</p>
-          </div>
-          <div class="feature-card">
-            <h3>Advanced Filtering</h3>
-            <p>Build complex filters using a visual filter builder or raw query mode for power users.</p>
-          </div>
-          <div class="feature-card">
-            <h3>Aggregations</h3>
-            <p>Run aggregation queries with group-by support to analyze your data.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="downloads" id="downloads">
-      <div class="container">
-        <h2>Download</h2>
-        <p class="downloads-subtitle">Available for macOS, Windows, and Linux</p>
-        <div class="download-grid">
-          <!-- macOS -->
-          <div class="download-card">
+        <p class="platforms-label">Available everywhere you work</p>
+        <div class="platforms-row">
+          <span class="platform-item">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-            <h3>macOS</h3>
-            <p class="download-type">.dmg installer</p>
-            <a id="download-mac" href="#" class="btn btn-primary disabled">Loading...</a>
-          </div>
-          <!-- Windows -->
-          <div class="download-card">
+            macOS
+          </span>
+          <span class="platform-item">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/></svg>
-            <h3>Windows</h3>
-            <p class="download-type">.exe installer</p>
-            <a id="download-win" href="#" class="btn btn-primary disabled">Loading...</a>
-          </div>
-          <!-- Linux -->
-          <div class="download-card">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.311.001-.465.003-.653.014-1.293.106-1.903.311-.296.1-.575.229-.828.406-.239.168-.451.374-.627.625-.19.27-.336.57-.448.89-.107.305-.18.623-.225.95-.046.33-.059.658-.049.986.008.273.03.544.07.813.04.268.095.532.162.794.068.26.153.516.247.769.093.256.202.507.314.757.11.25.235.495.357.74.12.245.256.485.385.724.13.24.275.477.409.713.136.237.283.47.42.703.137.232.286.462.424.692.14.229.29.457.428.683.137.226.284.45.418.674.136.225.283.448.416.67.135.222.28.443.413.664.134.22.278.44.411.66.133.219.276.437.407.655.13.218.27.435.4.651.13.217.268.432.396.648.128.215.265.43.392.643.126.215.26.428.387.641.126.213.26.426.386.638.124.212.257.423.382.634.126.21.259.42.386.629.127.208.261.416.39.622.128.207.262.412.392.618.13.204.264.408.395.611.13.202.265.404.397.605.131.2.267.4.4.598.134.198.27.396.405.593.134.196.272.392.408.586.135.194.274.387.411.58.137.193.277.385.415.576.137.19.278.38.417.57.139.188.28.377.42.563.14.187.283.373.424.559.141.185.285.369.428.552.143.183.288.365.432.547.144.181.29.362.436.542.145.18.293.358.44.537.146.178.295.355.443.531.148.177.298.352.447.527.149.175.3.348.45.522.151.172.303.344.455.516.152.17.306.34.459.509.152.168.307.336.461.503.154.166.31.332.465.496.155.164.312.327.469.49.157.162.315.323.473.483.158.16.317.319.476.478.16.157.32.314.48.471.16.156.323.311.484.465.162.153.325.306.488.458.163.152.328.302.492.452.164.15.33.298.495.446.166.148.333.295.5.441.167.145.335.29.503.434.168.144.337.286.506.428.17.142.34.282.51.422.17.14.342.279.512.416.172.138.344.274.517.41.172.136.346.27.52.404.173.133.348.266.522.397.175.132.35.262.526.391.176.13.352.258.529.385.177.128.355.254.533.38.178.126.357.25.535.374.179.124.358.246.538.368.18.122.36.243.54.363.182.12.364.238.546.356.182.118.366.235.549.35.183.116.368.231.552.345.185.114.37.226.556.338.186.112.373.222.56.332.187.109.375.218.563.325.188.107.377.213.567.318.19.105.38.209.57.312.19.103.382.204.574.305.192.1.384.2.577.298.192.098.386.195.58.291.193.096.388.19.583.284.195.093.39.185.586.277.196.091.393.181.59.27.197.088.394.176.592.263.198.086.397.171.596.255.198.084.398.167.598.249.2.082.4.162.601.242.201.08.402.158.604.235.202.078.404.154.607.23.203.076.407.15.611.224.204.073.408.145.613.216.205.071.41.141.616.21.206.07.413.138.62.205.207.068.414.134.622.199.208.066.416.13.625.194.209.064.419.127.629.189.21.062.421.123.632.183.211.06.422.119.634.177.212.059.424.115.637.171.213.057.427.111.64.165.214.055.428.108.643.16.215.053.43.104.646.154.216.051.433.1.65.149.217.049.435.096.653.143.218.047.436.093.655.138.219.045.439.089.658.132.22.044.44.085.661.126.221.042.443.082.665.121.222.04.444.078.667.115.223.038.446.074.67.109.224.036.448.07.673.103.224.034.45.066.675.098.226.032.452.062.679.092.227.03.454.058.681.086.227.028.455.054.684.08.228.026.457.05.686.074.229.024.458.046.688.068.23.022.46.042.69.062.23.02.462.038.693.056.232.018.463.034.695.05.232.016.465.03.698.044.234.014.467.026.701.038.234.012.469.022.704.031.235.01.47.018.706.025.236.008.472.014.709.019.237.006.474.01.711.014.237.004.476.006.714.008.238.002.476.002.715.002h.001c.238 0 .477-.001.715-.003.238-.002.477-.004.714-.008.238-.004.475-.008.711-.014.238-.005.474-.011.71-.019.236-.008.471-.016.706-.026.235-.01.47-.02.704-.031.234-.012.467-.024.701-.038.233-.014.466-.028.698-.044.232-.016.464-.032.695-.05.232-.018.463-.036.693-.056.231-.02.461-.04.69-.062.23-.022.459-.044.688-.068.229-.024.458-.048.686-.074.228-.026.456-.052.684-.08.227-.028.454-.056.681-.086.227-.03.454-.06.679-.092.226-.032.451-.064.675-.098.225-.034.449-.068.673-.103.224-.036.447-.072.67-.11.223-.038.446-.076.667-.116.223-.04.444-.08.665-.122.221-.042.441-.083.661-.126.22-.044.439-.088.658-.133.219-.046.437-.091.655-.139.218-.048.435-.095.653-.144.217-.05.433-.1.65-.15.215-.052.43-.104.644-.158.214-.055.427-.11.64-.166.213-.057.425-.114.637-.172.212-.06.424-.118.634-.178.211-.061.422-.122.632-.184.21-.063.419-.126.628-.19.209-.065.417-.13.625-.195.208-.066.415-.133.622-.2.207-.068.413-.137.619-.206.206-.07.411-.14.616-.212.205-.072.409-.144.613-.217.203-.074.407-.148.609-.223.203-.076.404-.152.606-.229.201-.078.402-.156.602-.235.2-.08.399-.161.598-.242.198-.082.396-.165.593-.248.197-.084.393-.169.589-.254.195-.087.39-.173.584-.261.194-.089.387-.178.58-.268.192-.091.384-.183.575-.275.191-.093.381-.187.571-.282.19-.096.378-.192.567-.289.188-.098.375-.196.562-.296.187-.1.372-.201.557-.303.185-.103.369-.206.553-.31.184-.105.366-.211.548-.317.182-.108.363-.216.543-.325.181-.11.361-.22.54-.331.179-.112.357-.224.534-.338.178-.114.355-.229.531-.345.177-.116.352-.233.527-.351.175-.119.349-.238.522-.358.174-.121.346-.243.518-.365.172-.123.343-.247.514-.372.171-.126.341-.252.509-.379.169-.128.337-.256.504-.385.168-.13.334-.26.499-.392.166-.132.331-.264.495-.398.164-.134.327-.269.49-.405.163-.136.324-.273.484-.41.161-.139.321-.278.48-.418.159-.141.317-.282.474-.424.158-.143.314-.286.469-.431.156-.145.31-.291.464-.437.155-.148.308-.296.46-.445.153-.15.305-.301.455-.452.152-.152.302-.305.451-.458.15-.154.298-.309.446-.464.148-.157.295-.314.44-.471.147-.159.292-.318.436-.478.145-.161.288-.322.43-.485.144-.163.285-.326.426-.491.142-.166.282-.331.421-.498.14-.168.279-.336.416-.505.139-.17.275-.34.411-.511.137-.172.272-.344.406-.518.135-.174.269-.349.401-.524.134-.176.265-.353.396-.531.132-.178.262-.357.39-.537.131-.18.259-.361.386-.543.129-.182.255-.365.381-.549.127-.184.252-.369.376-.555.126-.186.249-.373.371-.56.124-.188.245-.377.366-.567.122-.19.242-.381.36-.573.121-.192.239-.385.356-.578.119-.194.236-.389.351-.585.117-.196.232-.393.346-.59.115-.198.229-.397.341-.597.114-.2.225-.4.336-.602.112-.202.222-.404.33-.607.11-.204.218-.408.325-.613.109-.206.215-.412.32-.62.107-.207.212-.415.315-.624.105-.209.208-.419.31-.63.103-.211.204-.423.304-.636.101-.213.201-.427.299-.641.099-.215.196-.43.293-.646.097-.217.192-.434.286-.652.095-.219.188-.438.28-.658.093-.22.184-.441.273-.663.091-.222.18-.445.268-.669.089-.224.176-.449.262-.674.087-.226.172-.452.256-.679.085-.228.168-.456.25-.685.083-.229.164-.459.243-.69.081-.231.16-.463.238-.695.079-.233.156-.466.232-.7.077-.235.152-.469.226-.705.075-.236.148-.473.22-.71.073-.238.144-.476.213-.715.071-.239.141-.479.209-.719.069-.241.137-.482.203-.724.067-.243.132-.486.196-.729.066-.244.129-.489.191-.734.064-.246.125-.492.185-.739.062-.247.122-.495.18-.744.06-.249.118-.498.174-.748.058-.25.115-.501.169-.752.056-.252.111-.504.164-.757.054-.253.106-.507.157-.761.052-.255.102-.51.151-.765.05-.256.098-.513.144-.77.048-.258.094-.516.139-.774.046-.259.09-.518.133-.778.044-.26.086-.521.127-.782.042-.262.082-.523.121-.786.04-.263.078-.526.114-.79.038-.264.074-.528.109-.793.036-.266.07-.531.103-.797.034-.267.066-.534.096-.801.032-.268.063-.536.092-.805.03-.269.058-.539.085-.809.028-.27.054-.541.079-.812.026-.272.05-.544.073-.816.024-.273.046-.546.067-.82.022-.274.042-.548.061-.823.02-.276.038-.551.055-.827.018-.277.034-.554.049-.831.016-.278.03-.556.044-.835.014-.279.026-.558.037-.838.012-.28.022-.56.031-.841.01-.281.018-.562.024-.843.008-.282.014-.564.019-.847.006-.283.01-.566.013-.85.004-.284.006-.567.008-.851.002-.284.002-.568.002-.853v-.001c0-.284-.001-.569-.003-.853-.002-.284-.004-.568-.008-.851-.004-.284-.008-.567-.014-.85-.006-.283-.012-.565-.019-.847-.008-.281-.016-.562-.025-.843-.01-.28-.02-.561-.031-.841-.012-.28-.024-.559-.038-.838-.014-.279-.028-.557-.044-.835-.016-.277-.032-.554-.05-.831-.018-.276-.036-.551-.056-.827-.02-.274-.04-.549-.062-.823-.022-.273-.044-.546-.068-.82-.024-.272-.048-.544-.074-.816-.026-.271-.052-.542-.08-.812-.028-.27-.056-.54-.086-.809-.03-.269-.06-.538-.093-.805-.033-.267-.067-.534-.103-.8-.036-.265-.074-.53-.113-.794-.04-.263-.081-.526-.124-.788-.044-.261-.089-.522-.136-.782-.047-.26-.096-.52-.146-.778-.052-.258-.105-.516-.159-.773-.056-.256-.113-.512-.172-.766-.06-.254-.121-.508-.184-.761-.064-.252-.129-.504-.196-.755-.068-.25-.138-.5-.209-.749-.072-.248-.146-.496-.222-.743-.076-.246-.154-.491-.233-.736-.08-.244-.162-.487-.246-.729-.084-.242-.17-.483-.257-.724-.088-.24-.178-.479-.27-.717-.092-.238-.186-.474-.282-.71-.096-.236-.195-.47-.295-.704-.1-.233-.203-.466-.307-.697-.104-.231-.211-.461-.319-.69-.109-.229-.22-.456-.332-.683-.113-.226-.229-.452-.346-.676-.117-.224-.237-.447-.359-.669-.122-.222-.246-.442-.371-.662-.126-.219-.255-.437-.385-.654-.13-.216-.263-.432-.397-.647-.135-.214-.272-.427-.41-.639-.139-.212-.28-.422-.423-.632-.143-.209-.288-.417-.435-.624-.147-.207-.296-.412-.447-.617-.151-.204-.304-.407-.458-.609-.155-.201-.312-.401-.47-.6-.159-.199-.32-.396-.482-.592-.163-.196-.328-.391-.494-.585-.167-.193-.336-.385-.506-.576-.171-.19-.344-.379-.518-.567-.174-.188-.351-.374-.529-.559-.178-.185-.358-.368-.539-.551-.182-.182-.365-.363-.55-.543-.186-.18-.373-.358-.562-.534-.19-.176-.381-.352-.574-.526-.194-.174-.389-.346-.586-.517-.198-.17-.397-.34-.598-.508-.202-.168-.405-.334-.61-.499-.205-.165-.413-.329-.622-.491-.21-.163-.421-.323-.633-.483-.214-.16-.43-.318-.646-.475-.218-.157-.437-.312-.658-.466-.223-.154-.446-.306-.67-.457-.227-.151-.455-.3-.684-.448-.231-.148-.463-.294-.697-.439-.235-.145-.471-.288-.708-.429-.239-.142-.479-.282-.72-.42-.243-.139-.487-.276-.732-.411-.247-.136-.495-.27-.743-.402-.251-.133-.503-.263-.756-.392-.255-.13-.511-.257-.768-.383-.26-.127-.52-.252-.781-.375-.264-.123-.529-.245-.794-.366-.268-.12-.538-.239-.808-.356-.273-.117-.546-.232-.821-.345-.277-.114-.555-.226-.834-.336-.282-.111-.564-.22-.848-.327-.286-.108-.573-.214-.861-.318-.291-.104-.582-.207-.875-.308-.295-.101-.591-.2-.889-.298-.3-.098-.6-.194-.902-.288-.305-.095-.61-.188-.916-.279-.309-.092-.619-.181-.931-.269-.314-.088-.629-.175-.945-.26-.319-.085-.638-.168-.959-.249-.324-.082-.648-.161-.974-.239-.329-.079-.658-.155-.988-.23-.333-.075-.668-.148-1.003-.219-.338-.072-.677-.141-1.018-.209-.343-.068-.686-.134-1.031-.198-.348-.064-.696-.126-1.046-.186-.353-.061-.706-.119-1.061-.175-.357-.057-.716-.111-1.076-.164-.362-.053-.725-.104-1.089-.152-.367-.05-.735-.097-1.104-.142-.372-.046-.744-.089-1.118-.131-.377-.042-.754-.082-1.133-.119-.382-.038-.764-.074-1.148-.108-.387-.034-.774-.066-1.163-.096-.391-.03-.784-.058-1.177-.084-.396-.026-.793-.05-1.191-.071-.401-.022-.803-.042-1.206-.059-.406-.018-.812-.033-1.22-.046-.41-.014-.822-.025-1.234-.034-.415-.01-.831-.017-1.248-.022-.42-.006-.84-.009-1.262-.01H12z"/></svg>
-            <h3>Linux</h3>
-            <p class="download-type">.deb / .rpm</p>
-            <a id="download-linux" href="#" class="btn btn-primary disabled">Loading...</a>
-          </div>
+            Windows
+          </span>
+          <span class="platform-item">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.099-.191-.134-.066-.064-.137-.111-.208-.158-.106-.07-.214-.139-.32-.221-.105-.082-.207-.176-.296-.282-.124-.149-.231-.318-.301-.498-.064-.18-.092-.378-.045-.587.045-.18.13-.351.252-.495.116-.142.265-.252.421-.327.157-.075.327-.114.498-.114.171 0 .342.039.498.114.156.075.305.185.421.327.122.144.207.315.252.495.047.209.019.407-.045.587-.07.18-.177.349-.301.498-.089.106-.191.2-.296.282-.106.082-.214.151-.32.221-.071.047-.142.094-.208.158-.068.035-.132.08-.191.134-.31.26-.407.645-.492 1.046-.088.391-.168.726-.338.926l-.003.003v.097c-.514.565-.737.976-.714 1.376.02.384.301.654.649.853.695.419 1.747.738 2.378 1.503.665.77 1.486 1.246 2.257 1.306.771.061 1.493-.293 1.884-1.071l.003-.003c.051-.135.089-.199.114-.333 1.003.067 1.878-.258 2.577-.2 1.03.065 1.673.331 2.26.334.238.482.682.83 1.208.946.75.2 1.69-.004 2.616-.47.864-.465 1.964-.4 2.774-.6.405-.131.766-.267.94-.601.174-.339.143-.804-.106-1.484-.076-.242-.018-.571.04-.97.028-.136.055-.337.055-.536.004-.208-.042-.413-.132-.602-.206-.411-.551-.544-.864-.68-.312-.133-.598-.201-.797-.4-.213-.239-.403-.571-.663-.839a.424.424 0 00-.11-.135c.123-.805-.009-1.657-.287-2.489-.589-1.771-1.831-3.47-2.716-4.521-.75-1.067-.974-1.928-1.05-3.02-.065-1.491 1.056-5.965-3.17-6.298a3.572 3.572 0 00-.48-.021z"/></svg>
+            Linux
+          </span>
         </div>
-        <p class="download-version">
-          <span id="version-info">Loading latest release...</span>
-          <br>
-          <a href="https://github.com/MrPeker/turbopuffer-gui/releases" target="_blank">View all releases</a>
-        </p>
       </div>
     </section>
 
-    <section class="tech-stack">
+    <!-- ─────────── Feature: Connections ─────────── -->
+    <section id="features">
       <div class="container">
-        <h2>Built With</h2>
+        <div class="feature-row">
+          <div class="feature-text">
+            <p class="section-eyebrow">Connections</p>
+            <h2 class="section-title">All your Turbopuffer environments, one click away.</h2>
+            <p class="section-sub">
+              Save credentials for dev, staging, and production. API keys are encrypted by the OS keychain — never written to disk in plaintext.
+            </p>
+            <ul class="feature-list">
+              <li>OS-native encryption via Electron's <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--bg-card); padding: 1px 5px; border-radius: 4px;">safeStorage</code></li>
+              <li>Multiple connections with region-aware endpoints</li>
+              <li>Connection testing before you save</li>
+            </ul>
+          </div>
+          <div class="feature-art">
+            <img src="screenshots/connections.png" alt="Connection manager screen" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── Feature: Namespaces ─────────── -->
+    <section style="padding-top: 1rem;">
+      <div class="container">
+        <div class="feature-row reverse">
+          <div class="feature-text">
+            <p class="section-eyebrow">Namespaces</p>
+            <h2 class="section-title">See every namespace at a glance.</h2>
+            <p class="section-sub">
+              List, search, and inspect every namespace in your Turbopuffer instance. Jump straight from the sidebar into documents, schema, or aggregations.
+            </p>
+            <ul class="feature-list">
+              <li>Recents and pinned namespaces in the sidebar</li>
+              <li>Vector and full-text namespace support</li>
+              <li>Schema-at-a-glance with dimension and metric info</li>
+            </ul>
+          </div>
+          <div class="feature-art">
+            <img src="screenshots/namespaces.png" alt="Namespace browser" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── Feature: Documents ─────────── -->
+    <section style="padding-top: 1rem;">
+      <div class="container">
+        <div class="feature-row">
+          <div class="feature-text">
+            <p class="section-eyebrow">Documents &amp; filters</p>
+            <h2 class="section-title">Query your data without writing JSON.</h2>
+            <p class="section-sub">
+              Build filters attribute-by-attribute with a visual editor, or drop into raw mode for full Turbopuffer query syntax. Cursor-based pagination, attribute discovery, and saved filters keep exploration fast.
+            </p>
+            <ul class="feature-list">
+              <li>Visual filter builder with autocomplete on discovered attributes</li>
+              <li>Raw query mode powered by Monaco for power users</li>
+              <li>Save and re-run filters per namespace</li>
+            </ul>
+          </div>
+          <div class="feature-art">
+            <img src="screenshots/documents.png" alt="Document explorer with filters" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── Capabilities grid ─────────── -->
+    <section class="capabilities" id="capabilities">
+      <div class="container">
+        <div class="cap-header">
+          <p class="section-eyebrow">Everything you need</p>
+          <h2 class="section-title">A complete workbench for Turbopuffer.</h2>
+          <p class="section-sub">From day-one exploration to schema design and aggregations.</p>
+        </div>
+        <div class="cap-grid">
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <h3>Encrypted credentials</h3>
+            <p>API keys are stored in the OS keychain — Keychain on macOS, DPAPI on Windows, Secret Service on Linux.</p>
+          </div>
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            </span>
+            <h3>Visual filter builder</h3>
+            <p>Construct filters attribute-by-attribute. Attribute discovery samples your data so you never guess field names.</p>
+          </div>
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </span>
+            <h3>Raw query mode</h3>
+            <p>Drop into a Monaco editor for the full Turbopuffer filter language when you need it.</p>
+          </div>
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </span>
+            <h3>Schema designer</h3>
+            <p>Design vector dimensions, full-text indexes, and attribute schemas with a visual editor before you write code.</p>
+          </div>
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </span>
+            <h3>Aggregations</h3>
+            <p>Group-by aggregation queries with rich result tables — perfect for distribution checks and quick data audits.</p>
+          </div>
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </span>
+            <h3>Query history</h3>
+            <p>Every query you run is saved per connection and namespace, with one-click re-run and pinning.</p>
+          </div>
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c2.4 0 4.6.94 6.22 2.48"/><path d="m21 3-9 9-3-3"/></svg>
+            </span>
+            <h3>Network sandboxing</h3>
+            <p>Outbound requests are restricted to <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.85em;">*.turbopuffer.com</code> by default. Nothing else leaves your machine.</p>
+          </div>
+          <div class="cap-card">
+            <span class="cap-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </span>
+            <h3>Open source</h3>
+            <p>MIT licensed. Audit the code, file an issue, or send a PR — the full source is on GitHub.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── Downloads ─────────── -->
+    <section id="downloads">
+      <div class="container">
+        <div class="downloads-header">
+          <p class="section-eyebrow">Get started</p>
+          <h2 class="section-title">Download Turbopuffer GUI</h2>
+          <p class="section-sub">Free and open-source. Pick your platform — auto-updates ship via GitHub Releases.</p>
+        </div>
+        <div class="download-grid">
+          <div class="download-card">
+            <svg class="platform-glyph" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            <h3>macOS</h3>
+            <p class="download-type">.dmg · Apple Silicon &amp; Intel</p>
+            <a id="download-mac" href="#" class="btn btn-primary disabled">Loading…</a>
+          </div>
+          <div class="download-card">
+            <svg class="platform-glyph" viewBox="0 0 24 24" fill="currentColor"><path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/></svg>
+            <h3>Windows</h3>
+            <p class="download-type">.exe installer · x64</p>
+            <a id="download-win" href="#" class="btn btn-primary disabled">Loading…</a>
+          </div>
+          <div class="download-card">
+            <svg class="platform-glyph" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.099-.191-.134-.066-.064-.137-.111-.208-.158-.106-.07-.214-.139-.32-.221-.105-.082-.207-.176-.296-.282-.124-.149-.231-.318-.301-.498-.064-.18-.092-.378-.045-.587.045-.18.13-.351.252-.495.116-.142.265-.252.421-.327.157-.075.327-.114.498-.114.171 0 .342.039.498.114.156.075.305.185.421.327.122.144.207.315.252.495.047.209.019.407-.045.587-.07.18-.177.349-.301.498-.089.106-.191.2-.296.282-.106.082-.214.151-.32.221-.071.047-.142.094-.208.158-.068.035-.132.08-.191.134-.31.26-.407.645-.492 1.046-.088.391-.168.726-.338.926l-.003.003v.097c-.514.565-.737.976-.714 1.376.02.384.301.654.649.853.695.419 1.747.738 2.378 1.503.665.77 1.486 1.246 2.257 1.306.771.061 1.493-.293 1.884-1.071l.003-.003c.051-.135.089-.199.114-.333 1.003.067 1.878-.258 2.577-.2 1.03.065 1.673.331 2.26.334.238.482.682.83 1.208.946.75.2 1.69-.004 2.616-.47.864-.465 1.964-.4 2.774-.6.405-.131.766-.267.94-.601.174-.339.143-.804-.106-1.484-.076-.242-.018-.571.04-.97.028-.136.055-.337.055-.536.004-.208-.042-.413-.132-.602-.206-.411-.551-.544-.864-.68-.312-.133-.598-.201-.797-.4-.213-.239-.403-.571-.663-.839a.424.424 0 00-.11-.135c.123-.805-.009-1.657-.287-2.489-.589-1.771-1.831-3.47-2.716-4.521-.75-1.067-.974-1.928-1.05-3.02-.065-1.491 1.056-5.965-3.17-6.298a3.572 3.572 0 00-.48-.021z"/></svg>
+            <h3>Linux</h3>
+            <p class="download-type">.deb / .rpm · x64</p>
+            <a id="download-linux" href="#" class="btn btn-primary disabled">Loading…</a>
+          </div>
+        </div>
+        <p class="download-meta">
+          <span id="version-info">Loading latest release…</span>
+          &nbsp;·&nbsp;
+          <a href="https://github.com/MrPeker/turbopuffer-gui/releases" target="_blank" rel="noopener">All releases</a>
+        </p>
+
+        <div class="beta-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <strong>Beta software</strong>
+            For testing and exploration. Don't use with production data without a backup — this is a community project, not affiliated with Turbopuffer.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── Tech stack ─────────── -->
+    <section class="tech">
+      <div class="container tech-inner">
+        <h2>Built on tools you already trust</h2>
         <div class="tech-badges">
           <span class="tech-badge">Electron 36</span>
           <span class="tech-badge">React 19</span>
@@ -565,6 +922,7 @@
           <span class="tech-badge">Tailwind CSS</span>
           <span class="tech-badge">Radix UI</span>
           <span class="tech-badge">Zustand</span>
+          <span class="tech-badge">Monaco Editor</span>
         </div>
       </div>
     </section>
@@ -572,13 +930,31 @@
 
   <footer>
     <div class="container">
-      <p>This is an unofficial community project and is not affiliated with <a href="https://turbopuffer.com" target="_blank">Turbopuffer</a>.</p>
-      <p>Licensed under the <a href="https://github.com/MrPeker/turbopuffer-gui/blob/main/LICENSE" target="_blank">MIT License</a>.</p>
+      <div class="footer-inner">
+        <div class="footer-left">
+          <img src="icon.png" alt="" />
+          <span>Turbopuffer GUI · MIT licensed · An unofficial community project</span>
+        </div>
+        <nav class="footer-links">
+          <a href="https://github.com/MrPeker/turbopuffer-gui" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/MrPeker/turbopuffer-gui/issues" target="_blank" rel="noopener">Issues</a>
+          <a href="https://github.com/MrPeker/turbopuffer-gui/releases" target="_blank" rel="noopener">Releases</a>
+          <a href="https://turbopuffer.com" target="_blank" rel="noopener">Turbopuffer ↗</a>
+        </nav>
+      </div>
     </div>
+    <p class="footer-disclaimer">
+      Not affiliated with, endorsed by, or sponsored by Turbopuffer, Inc. Turbopuffer is a trademark of Turbopuffer, Inc.
+    </p>
   </footer>
 
   <script>
     async function loadReleases() {
+      const macBtn = document.getElementById('download-mac');
+      const winBtn = document.getElementById('download-win');
+      const linuxBtn = document.getElementById('download-linux');
+      const versionInfo = document.getElementById('version-info');
+
       try {
         const response = await fetch('https://api.github.com/repos/MrPeker/turbopuffer-gui/releases/latest');
         if (!response.ok) throw new Error('No releases found');
@@ -587,16 +963,12 @@
         const version = release.tag_name;
         const assets = release.assets;
 
-        document.getElementById('version-info').textContent = 'Latest: ' + version;
+        versionInfo.textContent = 'Latest: ' + version;
 
         const macAsset = assets.find(a => a.name.endsWith('.dmg') || (a.name.endsWith('.zip') && a.name.includes('darwin')));
         const winAsset = assets.find(a => a.name.endsWith('.exe') || a.name.includes('Setup'));
         const debAsset = assets.find(a => a.name.endsWith('.deb'));
         const rpmAsset = assets.find(a => a.name.endsWith('.rpm'));
-
-        const macBtn = document.getElementById('download-mac');
-        const winBtn = document.getElementById('download-win');
-        const linuxBtn = document.getElementById('download-linux');
 
         if (macAsset) {
           macBtn.href = macAsset.browser_download_url;
@@ -615,7 +987,7 @@
         }
 
         if (debAsset || rpmAsset) {
-          linuxBtn.href = debAsset ? debAsset.browser_download_url : rpmAsset.browser_download_url;
+          linuxBtn.href = (debAsset || rpmAsset).browser_download_url;
           linuxBtn.textContent = debAsset ? 'Download .deb' : 'Download .rpm';
           linuxBtn.classList.remove('disabled');
 
@@ -625,28 +997,44 @@
             rpmLink.className = 'btn btn-secondary';
             rpmLink.textContent = 'Download .rpm';
             rpmLink.style.marginTop = '0.5rem';
+            rpmLink.style.width = '100%';
+            rpmLink.style.justifyContent = 'center';
             linuxBtn.parentNode.appendChild(rpmLink);
           }
         } else {
           linuxBtn.textContent = 'Not available';
         }
       } catch (error) {
-        const versionInfo = document.getElementById('version-info');
-        versionInfo.textContent = 'No releases yet. ';
+        versionInfo.textContent = 'No releases yet · ';
         const buildLink = document.createElement('a');
         buildLink.href = 'https://github.com/MrPeker/turbopuffer-gui#development';
         buildLink.target = '_blank';
+        buildLink.rel = 'noopener';
         buildLink.textContent = 'Build from source';
         versionInfo.appendChild(buildLink);
 
-        ['download-mac', 'download-win', 'download-linux'].forEach(id => {
-          const btn = document.getElementById(id);
-          btn.textContent = 'Coming soon';
-        });
+        [macBtn, winBtn, linuxBtn].forEach(btn => { btn.textContent = 'Coming soon'; });
+      }
+    }
+
+    async function loadStarCount() {
+      const countEl = document.getElementById('gh-count');
+      const numEl = document.getElementById('gh-count-num');
+      try {
+        const res = await fetch('https://api.github.com/repos/MrPeker/turbopuffer-gui');
+        if (!res.ok) throw new Error('repo fetch failed');
+        const data = await res.json();
+        const stars = data.stargazers_count ?? 0;
+        numEl.textContent = stars >= 1000 ? (stars / 1000).toFixed(1) + 'k' : String(stars);
+        countEl.classList.remove('is-loading');
+      } catch {
+        numEl.textContent = '★';
+        countEl.classList.remove('is-loading');
       }
     }
 
     loadReleases();
+    loadStarCount();
   </script>
 </body>
 </html>
