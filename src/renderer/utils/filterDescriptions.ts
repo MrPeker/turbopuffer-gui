@@ -33,9 +33,15 @@ const operatorToApiOperator: Record<FilterOperator, string> = {
   not_contains_any: "NotContainsAny",
   // Regex
   regex: "Regex",
+  // Fuzzy
+  fuzzy: "Fuzzy",
   // Full-text search
   contains_all_tokens: "ContainsAllTokens",
   contains_token_sequence: "ContainsTokenSequence",
+  contains_any_token: "ContainsAnyToken",
+  // Null / exists
+  is_null: "Eq null",
+  is_not_null: "NotEq null",
 };
 
 function formatValue(value: any): string {

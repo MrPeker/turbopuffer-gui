@@ -237,12 +237,12 @@ export const AddAttributeDialog: React.FC<AddAttributeDialogProps> = ({
                   checked={!!attribute.schema?.full_text_search}
                   onCheckedChange={(checked) => {
                     if (checked) {
-                      updateSchema({ 
+                      updateSchema({
                         full_text_search: true,
                         filterable: false // Full-text search attributes are not filterable by default
                       });
                     } else {
-                      updateSchema({ 
+                      updateSchema({
                         full_text_search: false
                         // Don't automatically change filterable when disabling full-text search
                         // Let user explicitly control filterable setting
@@ -257,13 +257,89 @@ export const AddAttributeDialog: React.FC<AddAttributeDialogProps> = ({
                     Full-text search (BM25)
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    {['string', '[]string'].includes(attribute.schema?.type as string) 
+                    {['string', '[]string'].includes(attribute.schema?.type as string)
                       ? 'Enable semantic text search with BM25 ranking'
                       : 'Only available for string or string array types'
                     }
                   </p>
                 </div>
               </div>
+
+              {/* String-only specialized index flags. Each enables the
+                  matching filter operator and replaces the default filterable
+                  index. */}
+              {['string', '[]string'].includes(attribute.schema?.type as string) && (
+                <>
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="attr-regex"
+                      checked={!!attribute.schema?.regex}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          updateSchema({ regex: true, filterable: false });
+                        } else {
+                          updateSchema({ regex: false });
+                        }
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-1">
+                      <Label htmlFor="attr-regex" className="text-sm font-medium">
+                        Regex index
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Enables the <code className="text-[10px]">Regex</code> filter operator.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="attr-glob"
+                      checked={!!attribute.schema?.glob}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          updateSchema({ glob: true, filterable: false });
+                        } else {
+                          updateSchema({ glob: false });
+                        }
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-1">
+                      <Label htmlFor="attr-glob" className="text-sm font-medium">
+                        Glob index
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Enables the <code className="text-[10px]">Glob</code> / <code className="text-[10px]">IGlob</code> filter operators.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="attr-fuzzy"
+                      checked={!!attribute.schema?.fuzzy}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          updateSchema({ fuzzy: true, filterable: false });
+                        } else {
+                          updateSchema({ fuzzy: false });
+                        }
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-1">
+                      <Label htmlFor="attr-fuzzy" className="text-sm font-medium">
+                        Fuzzy index
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Enables typo-tolerant <code className="text-[10px]">Fuzzy</code> matching.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

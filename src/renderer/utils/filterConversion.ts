@@ -109,6 +109,34 @@ export function convertFiltersToQuery(
       case "regex":
         filters.push([filter.attribute, "Regex", filter.value] as Filter);
         break;
+      case "fuzzy":
+        filters.push([
+          filter.attribute,
+          "Fuzzy",
+          filter.value,
+          {
+            max_edit_distance: [
+              { min_query_chars: 3, distance: 0 },
+              { min_query_chars: 6, distance: 1 },
+            ],
+          },
+        ] as Filter);
+        break;
+      case "contains_all_tokens":
+        filters.push([filter.attribute, "ContainsAllTokens", filter.value] as Filter);
+        break;
+      case "contains_token_sequence":
+        filters.push([filter.attribute, "ContainsTokenSequence", filter.value] as Filter);
+        break;
+      case "contains_any_token":
+        filters.push([filter.attribute, "ContainsAnyToken", filter.value] as Filter);
+        break;
+      case "is_null":
+        filters.push([filter.attribute, "Eq", null] as Filter);
+        break;
+      case "is_not_null":
+        filters.push([filter.attribute, "NotEq", null] as Filter);
+        break;
     }
   });
 

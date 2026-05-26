@@ -159,6 +159,15 @@ export const SchemaAttributeCard: React.FC<SchemaAttributeCardProps> = ({
               </TooltipContent>
             </Tooltip>
           )}
+          {attribute.schema.regex && (
+            <Badge variant="default" title="Regex index enabled — supports the Regex filter operator">Regex</Badge>
+          )}
+          {attribute.schema.glob && (
+            <Badge variant="default" title="Glob index enabled — supports Glob/IGlob filter operators">Glob</Badge>
+          )}
+          {attribute.schema.fuzzy && (
+            <Badge variant="default" title="Fuzzy index enabled — supports typo-tolerant Fuzzy matching">Fuzzy</Badge>
+          )}
           {indexBuilding && (
             <Badge variant="outline">
               <RefreshCw className="h-3 w-3 mr-1 animate-spin" />

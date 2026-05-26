@@ -16,6 +16,9 @@ import { cn } from "@/lib/utils";
 interface VectorSearchInputProps {
   onVectorChange: (vector: number[] | null, field: string) => void;
   vectorFields: string[]; // Available vector fields from schema
+  mode?: 'ANN' | 'kNN';
+  onModeChange?: (mode: 'ANN' | 'kNN') => void;
+  hasFilters?: boolean; // Used to warn when kNN is selected without filters
   disabled?: boolean;
   className?: string;
 }
@@ -23,6 +26,9 @@ interface VectorSearchInputProps {
 export const VectorSearchInput: React.FC<VectorSearchInputProps> = ({
   onVectorChange,
   vectorFields,
+  mode = 'ANN',
+  onModeChange,
+  hasFilters = true,
   disabled = false,
   className,
 }) => {
@@ -151,7 +157,43 @@ export const VectorSearchInput: React.FC<VectorSearchInputProps> = ({
             {parsedVector.length} dimensions
           </Badge>
         )}
+
+        {onModeChange && (
+          <>
+            <span className="text-xs text-muted-foreground ml-2">Search:</span>
+            <Select
+              value={mode}
+              onValueChange={(v) => onModeChange(v as 'ANN' | 'kNN')}
+              disabled={disabled}
+            >
+              <SelectTrigger className="h-7 w-[100px] text-xs font-mono">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ANN" className="text-xs">
+                  <span className="font-mono">ANN</span>
+                  <span className="ml-2 text-muted-foreground">— approximate (fast)</span>
+                </SelectItem>
+                <SelectItem value="kNN" className="text-xs">
+                  <span className="font-mono">kNN</span>
+                  <span className="ml-2 text-muted-foreground">— exact (slower, needs filters)</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
+
+      {/* kNN without filters is allowed by the API but tends to scan a lot;
+          docs recommend filters first. Inline warning, not a block. */}
+      {mode === 'kNN' && !hasFilters && (
+        <Alert variant="default" className="py-2 border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/30">
+          <AlertCircle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+          <AlertDescription className="text-xs">
+            kNN does an exact scan. Add a filter to narrow the candidate set, or expect a slow query.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Vector Input */}
       <div className="relative">

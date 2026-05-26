@@ -162,6 +162,9 @@ const FilterRow: React.FC<FilterRowProps> = ({
     );
   }, [selectedFieldInfo?.sampleValues, filterValue]);
 
+  // Operators that take no value (e.g. is_null / is_not_null).
+  const NO_VALUE_OPERATORS = ["is_null", "is_not_null"];
+
   // Dynamic placeholder based on operator
   const getPlaceholder = (operator: string) => {
     switch (operator) {
@@ -172,6 +175,8 @@ const FilterRow: React.FC<FilterRowProps> = ({
         return "e.g., *.tsx, /src/**, file-?.js";
       case "regex":
         return "e.g., ^error.*500$, [a-z]+@[a-z]+\\.com";
+      case "fuzzy":
+        return "Approximate text (typo-tolerant)";
       case "in":
       case "not_in":
       case "contains_any":
@@ -185,6 +190,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
       case "not_array_contains":
         return "Value to search for";
       case "contains_all_tokens":
+      case "contains_any_token":
         return "Space-separated words";
       case "contains_token_sequence":
         return "Exact phrase to match";
@@ -243,12 +249,15 @@ const FilterRow: React.FC<FilterRowProps> = ({
     const stringOps: OperatorOption[] = [
       { value: "equals", apiOperator: "Eq", label: "Exact match", group: "equality" },
       { value: "not_equals", apiOperator: "NotEq", label: "Not equal", group: "equality" },
+      { value: "is_null", apiOperator: "Eq null", label: "Is null / missing", group: "equality" },
+      { value: "is_not_null", apiOperator: "NotEq null", label: "Is not null / present", group: "equality" },
       { value: "contains", apiOperator: "Glob", label: "Contains substring (*val*)", group: "pattern" },
       { value: "matches", apiOperator: "Glob", label: "Unix glob pattern", group: "pattern" },
       { value: "not_matches", apiOperator: "NotGlob", label: "Does not match glob", group: "pattern" },
       { value: "imatches", apiOperator: "IGlob", label: "Case-insensitive glob", group: "pattern" },
       { value: "not_imatches", apiOperator: "NotIGlob", label: "Not case-insensitive glob", group: "pattern" },
       { value: "regex", apiOperator: "Regex", label: "Regular expression", group: "pattern" },
+      { value: "fuzzy", apiOperator: "Fuzzy", label: "Fuzzy match (typo-tolerant)", group: "pattern" },
       { value: "in", apiOperator: "In", label: "Value in list", group: "list" },
       { value: "not_in", apiOperator: "NotIn", label: "Value not in list", group: "list" },
       { value: "greater", apiOperator: "Gt", label: "Lexicographic greater", group: "comparison" },
@@ -261,6 +270,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
     if (isFts) {
       stringOps.push(
         { value: "contains_all_tokens", apiOperator: "ContainsAllTokens", label: "All words present (any order)", group: "fts" },
+        { value: "contains_any_token", apiOperator: "ContainsAnyToken", label: "Any word present", group: "fts" },
         { value: "contains_token_sequence", apiOperator: "ContainsTokenSequence", label: "Exact phrase match", group: "fts" }
       );
     }
@@ -275,16 +285,20 @@ const FilterRow: React.FC<FilterRowProps> = ({
     // Operators that require multiple values (multi-select input)
     const multiValueOperators = ["in", "not_in", "contains_any", "not_contains_any"];
     const useMultiSelect = multiValueOperators.includes(selectedOperator);
+    const takesNoValue = NO_VALUE_OPERATORS.includes(selectedOperator);
 
     if (
       selectedField &&
       selectedOperator &&
-      (useMultiSelect ? multiSelectValue.length > 0 : filterValue || actualValue !== null)
+      (takesNoValue || (useMultiSelect ? multiSelectValue.length > 0 : filterValue || actualValue !== null))
     ) {
       // Use the actual typed value if available (from dropdown selection),
       // otherwise use the string value from manual input
       let rawValue: any;
-      if (useMultiSelect) {
+      if (takesNoValue) {
+        // Null operators carry no payload; use null as a sentinel.
+        rawValue = null;
+      } else if (useMultiSelect) {
         rawValue = multiSelectValue;
       } else if (actualValue !== null) {
         // Use the actual typed value from dropdown
@@ -409,7 +423,11 @@ const FilterRow: React.FC<FilterRowProps> = ({
       </DropdownMenu>
 
       {/* Value Input */}
-      {["in", "not_in", "contains_any", "not_contains_any"].includes(selectedOperator) ? (
+      {NO_VALUE_OPERATORS.includes(selectedOperator) ? (
+        <div className="h-9 px-3 py-2 text-xs text-muted-foreground italic flex items-center border rounded-md bg-muted/30">
+          (no value — checks for missing / present attribute)
+        </div>
+      ) : ["in", "not_in", "contains_any", "not_contains_any"].includes(selectedOperator) ? (
         <MultiSelectInput
           value={multiSelectValue}
           onChange={(newValues) => {
@@ -546,9 +564,11 @@ const FilterRow: React.FC<FilterRowProps> = ({
             disabled={
               !selectedField ||
               !selectedOperator ||
-              (["in", "not_in", "contains_any", "not_contains_any"].includes(selectedOperator)
-                ? multiSelectValue.length === 0
-                : !filterValue && actualValue === null)
+              (NO_VALUE_OPERATORS.includes(selectedOperator)
+                ? false
+                : ["in", "not_in", "contains_any", "not_contains_any"].includes(selectedOperator)
+                  ? multiSelectValue.length === 0
+                  : !filterValue && actualValue === null)
             }
             className="h-9"
           >

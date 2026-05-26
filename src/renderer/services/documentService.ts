@@ -35,8 +35,10 @@ export class DocumentService {
     const result = await ns.query({
       rank_by: params.rank_by,
       top_k: params.top_k,
+      ...(params.limit && { limit: params.limit }),
       filters: params.filters,
       include_attributes: params.include_attributes,
+      ...(params.exclude_attributes && { exclude_attributes: params.exclude_attributes }),
       aggregate_by: params.aggregate_by,
       group_by: params.group_by,
       vector_encoding: params.vector_encoding,

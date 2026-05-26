@@ -36,8 +36,12 @@ export type FilterOperator =
   | "contains_any" | "not_contains_any"
   // Regex
   | "regex"
-  // Full-text search
-  | "contains_all_tokens" | "contains_token_sequence";
+  // Fuzzy (requires `fuzzy` schema flag on the attribute)
+  | "fuzzy"
+  // Full-text search (requires `full_text_search` on the attribute)
+  | "contains_all_tokens" | "contains_token_sequence" | "contains_any_token"
+  // Null / exists — `Eq null` and `NotEq null` per docs
+  | "is_null" | "is_not_null";
 
 export interface SimpleFilter {
   id: string;
@@ -105,6 +109,8 @@ interface DocumentsState {
   searchField: string | null;
   vectorQuery: number[] | null;
   vectorField: string | null;
+  // ANN = approximate (default, fast); kNN = exact (requires filters per docs).
+  vectorMode: 'ANN' | 'kNN';
   bm25Fields: { field: string; weight: number }[];
   bm25Operator: 'sum' | 'max' | 'product';
   rankingMode: 'simple' | 'expression';
@@ -159,6 +165,7 @@ interface DocumentsState {
   setQueryMode: (mode: 'browse' | 'bm25' | 'vector') => void;
   setSearchField: (field: string | null) => void;
   setVectorQuery: (vector: number[] | null, field: string) => void;
+  setVectorMode: (mode: 'ANN' | 'kNN') => void;
   setBM25Config: (fields: { field: string; weight: number }[], operator: 'sum' | 'max' | 'product') => void;
   setRankingMode: (mode: 'simple' | 'expression') => void;
   setRankingExpression: (expression: any | null) => void;
@@ -254,6 +261,7 @@ export const useDocumentsStore = create<DocumentsState>()(
         searchField: null,
         vectorQuery: null,
         vectorField: null,
+        vectorMode: 'ANN',
         bm25Fields: [],
         bm25Operator: 'sum',
         rankingMode: 'simple',
@@ -600,6 +608,14 @@ export const useDocumentsStore = create<DocumentsState>()(
             state.vectorQuery = vector;
             state.vectorField = field;
             // Reset pagination when vector query changes
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
+          }),
+
+        setVectorMode: (mode) =>
+          set((state) => {
+            state.vectorMode = mode;
             state.currentPage = 1;
             state.previousCursors = [];
             state.nextCursor = null;
@@ -1165,6 +1181,35 @@ loadDocuments: async (
                   case "contains_token_sequence":
                     filters.push([filter.attribute, "ContainsTokenSequence", filter.value]);
                     break;
+                  case "contains_any_token":
+                    filters.push([filter.attribute, "ContainsAnyToken", filter.value]);
+                    break;
+                  // Fuzzy: starter shape uses a sensible default edit-distance
+                  // ladder. Advanced multi-tier ladders (per query.md L1101-1116)
+                  // belong in raw query mode until the FilterBuilder grows a
+                  // per-operator options panel.
+                  case "fuzzy":
+                    filters.push([
+                      filter.attribute,
+                      "Fuzzy",
+                      filter.value,
+                      {
+                        max_edit_distance: [
+                          { min_query_chars: 3, distance: 0 },
+                          { min_query_chars: 6, distance: 1 },
+                        ],
+                      },
+                    ]);
+                    break;
+                  // Null / exists. Server treats `Eq null` and `NotEq null` as
+                  // missing-attribute checks (datetime Lt also matches null —
+                  // see query.md L1037-1041).
+                  case "is_null":
+                    filters.push([filter.attribute, "Eq", null]);
+                    break;
+                  case "is_not_null":
+                    filters.push([filter.attribute, "NotEq", null]);
+                    break;
                 }
               });
 
@@ -1268,18 +1313,30 @@ loadDocuments: async (
                   }
                 }
               } else if (state.queryMode === 'vector' && state.vectorQuery && state.vectorQuery.length > 0) {
-                // Vector search mode (ANN)
+                // Vector search. kNN does exact nearest-neighbor (no ANN
+                // index lookup) and requires filters per query.md; the UI
+                // surfaces a warning when filters are empty.
                 const vectorField = state.vectorField || 'vector';
-                rankBy = [vectorField, "ANN", state.vectorQuery];
+                rankBy = [vectorField, state.vectorMode, state.vectorQuery];
               } else {
                 // Standard sorting mode
                 rankBy = [state.sortAttribute || "id", state.sortDirection];
               }
 
-              // Build aggregation query params
+              // Build aggregation query params. Supports Count and Sum per
+              // query.md docs (other functions are roadmap, not API).
               const hasAggregations = state.aggregations.length > 0;
               const aggregateBy = hasAggregations
-                ? { [state.aggregations[0].name]: ["Count"] }
+                ? Object.fromEntries(
+                    state.aggregations
+                      .filter((a) => a.type !== 'sum' || a.attribute)
+                      .map((a) => [
+                        a.name,
+                        a.type === 'sum'
+                          ? ['Sum', a.attribute]
+                          : ['Count'],
+                      ])
+                  )
                 : undefined;
 
               // IMPORTANT: When aggregate_by is set, rank_by and include_attributes CANNOT be specified

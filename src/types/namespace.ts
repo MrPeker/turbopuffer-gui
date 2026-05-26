@@ -36,6 +36,12 @@ export interface AttributeSchema {
   type: AttributeType;
   filterable?: boolean;
   full_text_search?: boolean | FullTextSearchConfig;
+  // Per write.md L609-623: opt-in indexes for the matching filter operators.
+  // Enabling any of these auto-flips `filterable` to false (the index
+  // structures replace the default filterable index).
+  regex?: boolean;
+  glob?: boolean;
+  fuzzy?: boolean;
 }
 
 export type AttributeType =

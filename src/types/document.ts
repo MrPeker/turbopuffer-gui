@@ -8,8 +8,21 @@ export interface Document {
 export interface DocumentsQueryParams {
   rank_by?: RankBy;
   top_k?: number;
+  // Cursor-based diversification cap. `total` is the global ceiling,
+  // `per` returns at most N rows per group_by group. Use either top_k OR limit
+  // (top_k is the legacy alias for limit.total).
+  limit?: {
+    total?: number;
+    per?: {
+      attributes: string[];
+      limit: number;
+    };
+  };
   filters?: Filter;
   include_attributes?: string[] | boolean;
+  // Inverse of include_attributes: return everything except these. Useful for
+  // omitting large vector columns from list views.
+  exclude_attributes?: string[];
   aggregate_by?: Record<string, AggregateFunction>;
   group_by?: string[]; // NEW: Optional group-by attributes for grouped aggregations
   vector_encoding?: 'float' | 'base64';
@@ -26,11 +39,15 @@ export type RankBy =
   | ['Max', RankBy[]]
   | ['Product', [number, RankBy]];
 
-export type Filter = 
+export type Filter =
   | ['And', Filter[]]
   | ['Or', Filter[]]
   | ['Not', Filter]
-  | [string, FilterOp, any];
+  | [string, FilterOp, any]
+  // 4-tuple form carries operator-specific options:
+  //   Fuzzy: { max_edit_distance: [{ min_query_chars, distance }] }
+  //   ContainsAllTokens / ContainsAnyToken: { last_as_prefix: boolean }
+  | [string, FilterOp, any, Record<string, any>];
 
 export type FilterOp =
   // Equality
@@ -47,8 +64,10 @@ export type FilterOp =
   // Pattern matching
   | 'Glob' | 'NotGlob' | 'IGlob' | 'NotIGlob'
   | 'Regex'
-  // Full-text search
-  | 'ContainsAllTokens' | 'ContainsTokenSequence';
+  // Fuzzy (requires `fuzzy` schema flag)
+  | 'Fuzzy'
+  // Full-text search (requires `full_text_search` schema flag)
+  | 'ContainsAllTokens' | 'ContainsTokenSequence' | 'ContainsAnyToken';
 
 export type AggregateFunction =
   | ['Count']

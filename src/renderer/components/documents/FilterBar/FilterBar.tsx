@@ -100,6 +100,8 @@ export const FilterBar: React.FC<FilterBarProps> = (
     aggregationResults,
     consistencyLevel,
     setConsistencyLevel,
+    vectorMode,
+    setVectorMode,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -1082,6 +1084,14 @@ export const FilterBar: React.FC<FilterBarProps> = (
                 .map((attr) => attr.name)
                 .concat(["vector"]) // Add default 'vector' field
             }
+            mode={vectorMode}
+            onModeChange={(m) => {
+              setVectorMode(m);
+              if (vectorQuery && vectorQuery.length > 0) {
+                setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+              }
+            }}
+            hasFilters={activeFilters.length > 0}
             disabled={isLoading}
           />
         </div>
@@ -1137,6 +1147,12 @@ export const FilterBar: React.FC<FilterBarProps> = (
               "id",
               ...attributes.map((attr) => attr.name),
             ]}
+            numericAttributes={attributes
+              .filter((attr) => {
+                const t = attr.type;
+                return t === 'int' || t === 'uint' || t === 'float' || t === 'number';
+              })
+              .map((attr) => attr.name)}
             aggregations={aggregations}
             onAggregationsChange={(aggs) => {
               setAggregations(aggs);
