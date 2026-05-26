@@ -107,7 +107,7 @@
     "@radix-ui/react-toggle": "^1.1.9",
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
-    "@turbopuffer/turbopuffer": "^0.10.2",
+    "@turbopuffer/turbopuffer": "1.22.0",
     "@types/d3": "^7.4.3",
     "@types/react-router-dom": "^5.3.3",
     "@types/react-select": "^5.0.1",
