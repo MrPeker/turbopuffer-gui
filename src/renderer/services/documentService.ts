@@ -55,6 +55,52 @@ export class DocumentService {
   }
 
   /**
+   * Runs N queries concurrently against the same namespace and returns their
+   * results separately. Used as the foundation for client-side hybrid search
+   * (vector + BM25 fusion via RRF, see utils/rankFusion.ts).
+   *
+   * Pass DocumentsQueryParams-shaped objects in `queries` — the same shape
+   * you'd hand to queryDocuments. The server runs them in parallel; bills
+   * once. Response shape: { results: [{ rows }, { rows }, ...] } in the
+   * same order as the input queries.
+   */
+  async multiQuery(
+    namespaceId: string,
+    queries: DocumentsQueryParams[]
+  ): Promise<{
+    results: Array<{ rows: Document[] }>;
+    billing?: DocumentsQueryResponse["billing"];
+    performance?: DocumentsQueryResponse["performance"];
+  }> {
+    if (!this.client) {
+      throw new Error("Turbopuffer client not initialized");
+    }
+    if (queries.length === 0) {
+      return { results: [] };
+    }
+    const ns = this.client.namespace(namespaceId);
+    const response = await ns.multiQuery({
+      queries: queries.map((q) => ({
+        rank_by: q.rank_by,
+        top_k: q.top_k,
+        ...(q.limit && { limit: q.limit }),
+        filters: q.filters,
+        include_attributes: q.include_attributes,
+        ...(q.exclude_attributes && { exclude_attributes: q.exclude_attributes }),
+        aggregate_by: q.aggregate_by,
+        group_by: q.group_by,
+        vector_encoding: q.vector_encoding,
+        consistency: q.consistency,
+      })) as Parameters<typeof ns.multiQuery>[0]["queries"],
+    });
+    return {
+      results: response.results.map((r) => ({ rows: (r.rows ?? []) as Document[] })),
+      billing: response.billing,
+      performance: response.performance,
+    };
+  }
+
+  /**
    * Returns the query plan for the given query without executing it. Useful
    * for understanding which indexes a query will use and rough cost. Mirrors
    * the shape of queryDocuments — pass the same params you'd pass to query()

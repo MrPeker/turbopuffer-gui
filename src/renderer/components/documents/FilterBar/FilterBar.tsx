@@ -496,6 +496,34 @@ export const FilterBar: React.FC<FilterBarProps> = (
           >
             vector
           </Button>
+          <Button
+            variant={queryMode === "hybrid" ? "default" : "ghost"}
+            size="sm"
+            className={queryMode === "hybrid"
+              ? "h-8 px-3 text-xs font-medium"
+              : "h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"}
+            onClick={() => {
+              setQueryMode("hybrid");
+              // Auto-seed BM25 fields like the bm25 button does, since hybrid
+              // needs them too.
+              if (localBM25Fields.length === 0) {
+                const textFields = attributes
+                  .filter(attr => attr.type === 'string' || attr.type === '[]string')
+                  .filter(attr => !['id', 'uuid', 'key'].includes(attr.name.toLowerCase()))
+                  .slice(0, 3)
+                  .map(attr => attr.name);
+                if (textFields.length > 0) {
+                  setLocalBM25Fields(textFields);
+                  setBM25Config(textFields.map(f => ({ field: f, weight: 1.0 })), localBM25Operator);
+                }
+              }
+              setTimeout(() => loadDocuments(true, false, pageSize, 1), 0);
+            }}
+            disabled={isLoading}
+            title="Hybrid search — runs vector + BM25 in parallel, fuses results via RRF (k=60)"
+          >
+            hybrid
+          </Button>
         </div>
 
         <Separator orientation="vertical" className="h-10 bg-tp-border" />
@@ -552,14 +580,22 @@ export const FilterBar: React.FC<FilterBarProps> = (
           </div>
         )}
 
-        {queryMode === "bm25" && (
+        {(queryMode === "bm25" || queryMode === "hybrid") && (
           <div className="flex flex-col gap-1.5 flex-1">
+            {queryMode === "hybrid" && (
+              <div className="flex items-center gap-2 text-[10px] text-tp-text-muted">
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-mono">
+                  RRF fusion · k=60
+                </Badge>
+                <span>vector + BM25 sub-queries run in parallel; results fused client-side</span>
+              </div>
+            )}
             <div className="relative w-full">
               <Search className="absolute w-3 h-3 -translate-y-1/2 left-2 top-1/2 text-tp-text-muted" />
               <Input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Full-text search..."
+                placeholder={queryMode === "hybrid" ? "Text query for BM25 sub-query..." : "Full-text search..."}
                 value={localSearchText}
                 onChange={(e) => setLocalSearchText(e.target.value)}
                 className="h-8 pr-8 text-xs pl-7"
@@ -711,7 +747,17 @@ export const FilterBar: React.FC<FilterBarProps> = (
           </div>
         )}
 
-        {/* Unified Order Controls - Tier 2 */}
+        {/* Unified Order Controls - Tier 2.
+            In hybrid mode the order is determined by RRF fusion across the
+            two sub-queries, so the user-pickable sort doesn't apply. Render
+            a read-only "fused" indicator instead. */}
+        {queryMode === "hybrid" ? (
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="h-[2rem] px-3 text-xs font-mono leading-none flex items-center">
+              RRF fused
+            </Badge>
+          </div>
+        ) : (
         <div className="flex items-center gap-1">
           <Select
             value={rankingMode === "expression"
@@ -822,6 +868,7 @@ export const FilterBar: React.FC<FilterBarProps> = (
             </Button>
           )}
         </div>
+        )}
       </div>
 
       {/* Row 2: Utility Controls (Filters, History, Aggregations, Columns) */}
@@ -1033,8 +1080,9 @@ export const FilterBar: React.FC<FilterBarProps> = (
         </DropdownMenu>
       </div>
 
-      {/* BM25 Configuration Panel - Advanced Mode */}
-      {queryMode === "bm25" && showBM25Advanced && (
+      {/* BM25 Configuration Panel - Advanced Mode (also visible in hybrid
+          mode since hybrid runs a BM25 sub-query) */}
+      {(queryMode === "bm25" || queryMode === "hybrid") && showBM25Advanced && (
         <div className="px-3 pb-2">
           <BM25ConfigPanel
             availableFields={attributes
@@ -1065,8 +1113,9 @@ export const FilterBar: React.FC<FilterBarProps> = (
         </div>
       )}
 
-      {/* Vector Search Input */}
-      {queryMode === "vector" && (
+      {/* Vector Search Input — visible for pure vector mode AND hybrid mode
+          (hybrid combines vector + BM25). */}
+      {(queryMode === "vector" || queryMode === "hybrid") && (
         <div className="px-3 pb-2">
           <VectorSearchInput
             onVectorChange={(vector, field) => {

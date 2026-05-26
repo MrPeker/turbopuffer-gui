@@ -13,6 +13,7 @@ import type { TurbopufferRegion } from "../../types/connection";
 import { documentService } from "../services/documentService";
 import { turbopufferService } from "../services/turbopufferService";
 import { attributeDiscoveryService } from "../services/attributeDiscoveryService";
+import { reciprocalRankFusion } from "../utils/rankFusion";
 import { namespaceService } from "../services/namespaceService";
 import { generateFilterDescription } from "../utils/filterDescriptions";
 import { isArrayType, parseValueForFieldType } from "../utils/filterTypeConversion";
@@ -105,7 +106,10 @@ interface DocumentsState {
   isQueryMode: boolean;
   sortAttribute: string | null;
   sortDirection: 'asc' | 'desc';
-  queryMode: 'browse' | 'bm25' | 'vector';
+  // Hybrid runs both a vector query and a BM25 query in parallel via
+  // multi_query and fuses the results client-side via RRF.
+  // See utils/rankFusion.ts and RFC 0001 §6.
+  queryMode: 'browse' | 'bm25' | 'vector' | 'hybrid';
   searchField: string | null;
   vectorQuery: number[] | null;
   vectorField: string | null;
@@ -162,7 +166,7 @@ interface DocumentsState {
   setVisibleColumns: (columns: Set<string>) => void;
   toggleColumn: (column: string) => void;
   setSortAttribute: (attribute: string | null, direction: 'asc' | 'desc') => void;
-  setQueryMode: (mode: 'browse' | 'bm25' | 'vector') => void;
+  setQueryMode: (mode: 'browse' | 'bm25' | 'vector' | 'hybrid') => void;
   setSearchField: (field: string | null) => void;
   setVectorQuery: (vector: number[] | null, field: string) => void;
   setVectorMode: (mode: 'ANN' | 'kNN') => void;
@@ -1000,10 +1004,16 @@ loadDocuments: async (
             let queryResult: any = null;
             let totalPages: number | null = null;
 
-            // Force query mode if there are any filters or search text
+            // Force query mode if there are any filters or search text, OR
+            // if the user is in a search mode that requires a query path
+            // (vector / hybrid). Vector and hybrid carry their inputs in
+            // state.vectorQuery rather than state.searchText, so the legacy
+            // gate would otherwise miss them.
             const shouldUseQueryMode =
               state.activeFilters.length > 0 ||
-              state.searchText.trim().length > 0;
+              state.searchText.trim().length > 0 ||
+              (state.queryMode === 'vector' && !!state.vectorQuery && state.vectorQuery.length > 0) ||
+              (state.queryMode === 'hybrid' && !!state.vectorQuery && state.vectorQuery.length > 0);
 
             if (shouldUseQueryMode) {
               // Build query filters
@@ -1220,6 +1230,107 @@ loadDocuments: async (
                   : filters.length === 1
                   ? filters[0]
                   : ["And", filters];
+
+              // ── Hybrid search ────────────────────────────────────────────
+              // Runs vector + BM25 sub-queries in parallel via multi_query
+              // and fuses with RRF (utils/rankFusion). Bypasses the
+              // single-query rank_by branching below and the cursor-based
+              // pagination — the fused list is bounded by the sub-query
+              // top_k, so we display the top `limit` results as a single
+              // page.
+              if (state.queryMode === 'hybrid') {
+                const hasVector = !!state.vectorQuery && state.vectorQuery.length > 0;
+                const hasBM25Text = state.searchText.trim().length > 0;
+                if (!hasVector || !hasBM25Text) {
+                  set((s) => {
+                    s.error = hasVector
+                      ? 'Hybrid search needs a text query for BM25 (the searchbox above).'
+                      : 'Hybrid search needs a vector query (open the Vector panel below).';
+                    s.isLoading = false;
+                  });
+                  return;
+                }
+
+                // BM25 sub-query rank_by — mirrors the single-mode logic.
+                let bm25Rank: any;
+                const text = state.searchText.trim();
+                if (state.bm25Fields.length > 1) {
+                  const fieldRanks: any[] = state.bm25Fields.map((f) => {
+                    const rank: [string, string, string] = [f.field, 'BM25', text];
+                    return f.weight !== 1.0 ? ['Product', [f.weight, rank]] : rank;
+                  });
+                  const op = state.bm25Operator.charAt(0).toUpperCase() + state.bm25Operator.slice(1);
+                  bm25Rank = [op, fieldRanks];
+                } else if (state.bm25Fields.length === 1) {
+                  bm25Rank = [state.bm25Fields[0].field, 'BM25', text];
+                } else {
+                  // Fall back to the first FTS-eligible string field so the
+                  // user isn't blocked just because BM25 fields aren't
+                  // configured yet.
+                  const fallback = state.attributes
+                    .filter((a) => a.type === 'string' || a.type === '[]string')
+                    .filter((a) => !['id', 'uuid', 'key', 'created_at', 'updated_at'].includes(a.name.toLowerCase()))
+                    .map((a) => a.name)[0];
+                  if (!fallback) {
+                    set((s) => {
+                      s.error = 'No BM25 fields configured and no text fields found. Configure BM25 fields in the panel below.';
+                      s.isLoading = false;
+                    });
+                    return;
+                  }
+                  bm25Rank = [fallback, 'BM25', text];
+                }
+
+                const vectorField = state.vectorField || 'vector';
+                const vectorRank: any = [vectorField, state.vectorMode, state.vectorQuery];
+
+                const sharedSubParams = {
+                  filters: combinedFilter,
+                  top_k: limit,
+                  include_attributes: true,
+                  consistency: { level: state.consistencyLevel },
+                };
+
+                const multiResult = await documentService.multiQuery(
+                  state.currentNamespaceId,
+                  [
+                    { ...sharedSubParams, rank_by: vectorRank },
+                    { ...sharedSubParams, rank_by: bm25Rank },
+                  ]
+                );
+
+                const fused = reciprocalRankFusion(multiResult.results.map((r) => r.rows)).slice(0, limit);
+
+                set((s) => {
+                  s.documents = fused;
+                  s.totalCount = fused.length;
+                  s.unfilteredTotalCount = fused.length;
+                  s.lastQueryResult = {
+                    billing: multiResult.billing,
+                    performance: multiResult.performance,
+                  };
+                  s.currentPage = 1;
+                  s.totalPages = 1;
+                  s.nextCursor = null;
+                  s.previousCursors = [];
+                  s.aggregationResults = null;
+                  s.aggregationGroups = null;
+                  s.isLoading = false;
+                });
+
+                get().discoverAttributesFromDocuments(fused);
+
+                // Cache fused result so subsequent re-renders don't re-fetch.
+                set((s) => {
+                  s.documentsCache.set(cacheKey, {
+                    documents: fused,
+                    totalCount: fused.length,
+                    timestamp: Date.now(),
+                  });
+                });
+
+                return;
+              }
 
               // First get the total count for filtered results
               const countResult = await documentService.queryDocuments(
