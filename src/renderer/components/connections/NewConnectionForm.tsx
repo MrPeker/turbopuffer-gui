@@ -135,10 +135,12 @@ export function NewConnectionForm() {
                   setFormData({ ...formData, isReadOnly: e.target.checked })
                 }
               />
-              {" "}Read-Only Mode
+              {" "}Read-only mode (UI guard)
             </label>
             <p>
-              Prevent write operations (upsert, delete, schema changes)
+              Blocks upserts, deletes, and schema changes from this GUI.
+              Turbopuffer API keys are not scoped server-side, so this is a
+              local safety check only — the key itself can still write.
             </p>
           </div>
 

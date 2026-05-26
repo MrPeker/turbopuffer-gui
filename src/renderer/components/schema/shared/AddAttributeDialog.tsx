@@ -154,26 +154,29 @@ export const AddAttributeDialog: React.FC<AddAttributeDialogProps> = ({
                     id="vector-dims"
                     type="number"
                     min="1"
-                    max="4096"
+                    max="10752"
                     value={
-                      typeof attribute.schema.type === 'object' 
+                      typeof attribute.schema.type === 'object'
                         ? getVectorDimensions(attribute.schema.type)
                         : 1536
                     }
                     onChange={(e) => {
                       const dims = parseInt(e.target.value);
-                      if (dims > 0) {
+                      if (dims > 0 && dims <= 10752) {
                         const vectorType = attribute.schema?.type as VectorType;
                         const precision = getVectorPrecision(vectorType);
-                        updateSchema({ 
-                          type: { 
-                            ...vectorType, 
-                            type: `[${dims}]${precision}` 
-                          } 
+                        updateSchema({
+                          type: {
+                            ...vectorType,
+                            type: `[${dims}]${precision}`
+                          }
                         });
                       }
                     }}
                   />
+                  <p className="text-[10px] text-muted-foreground">
+                    Max 10,752 per Turbopuffer limits
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vector-precision">Precision</Label>

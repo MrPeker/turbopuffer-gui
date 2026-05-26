@@ -98,6 +98,7 @@ export const SchemaPage: React.FC = () => {
 
   const isCreateMode = namespaceId === 'new';
   const [newNamespaceName, setNewNamespaceName] = useState('');
+  const [distanceMetric, setDistanceMetric] = useState<'cosine_distance' | 'euclidean_squared'>('cosine_distance');
   const [initialDocsJson, setInitialDocsJson] = useState('');
   const [initialDocsFiles, setInitialDocsFiles] = useState<Array<{ name: string; docs: any[] }>>([]);
   const [initialDocsTab, setInitialDocsTab] = useState<'json' | 'file'>('json');
@@ -512,7 +513,7 @@ export const SchemaPage: React.FC = () => {
         schema[attr.name] = attr.schema;
       });
 
-      await createNamespace(newNamespaceName, documents, schema);
+      await createNamespace(newNamespaceName, documents, schema, distanceMetric);
       toast({ title: 'Namespace created', description: `Created "${newNamespaceName}" with ${documents.length} document${documents.length > 1 ? 's' : ''}` });
       navigate(`/connections/${connectionId}/namespaces`);
     } catch (err) {
@@ -607,7 +608,7 @@ export const SchemaPage: React.FC = () => {
         <div className="flex-1 overflow-auto px-3 py-3 space-y-3">
           {isCreateMode && (
             <Card className="border-tp-border-subtle bg-tp-surface">
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="ns-name" className="text-xs font-bold uppercase tracking-wider">Namespace Name</Label>
                   <Input
@@ -619,6 +620,31 @@ export const SchemaPage: React.FC = () => {
                   />
                   <p className="text-[11px] text-tp-text-muted">
                     ASCII alphanumeric, hyphens, underscores, periods (max 128 chars)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ns-distance" className="text-xs font-bold uppercase tracking-wider">Distance Metric</Label>
+                  <Select
+                    value={distanceMetric}
+                    onValueChange={(v) => setDistanceMetric(v as 'cosine_distance' | 'euclidean_squared')}
+                  >
+                    <SelectTrigger id="ns-distance" className="font-mono text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cosine_distance" className="text-xs">
+                        <span className="font-mono">cosine_distance</span>
+                        <span className="ml-2 text-tp-text-muted">— normalized similarity (default)</span>
+                      </SelectItem>
+                      <SelectItem value="euclidean_squared" className="text-xs">
+                        <span className="font-mono">euclidean_squared</span>
+                        <span className="ml-2 text-tp-text-muted">— L2 distance, squared</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-tp-text-muted">
+                    Applies to vector ANN queries. Locked once the namespace is created.
                   </p>
                 </div>
               </CardContent>
@@ -648,12 +674,26 @@ export const SchemaPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-sm uppercase tracking-wider">schema attributes</CardTitle>
-                  <CardDescription className="text-[11px] text-tp-text-muted">define attributes and indexing behavior</CardDescription>
+                  <CardDescription className="text-[11px] text-tp-text-muted">
+                    define attributes and indexing behavior
+                    {attributes.length > 0 && (
+                      <span className={attributes.length > 900 ? 'text-tp-warning ml-2' : 'ml-2'}>
+                        • {attributes.length} / 1024
+                        {attributes.length > 900 && ' (approaching limit)'}
+                      </span>
+                    )}
+                  </CardDescription>
                 </div>
                 <Button
                   onClick={() => setShowAddAttribute(true)}
-                  disabled={!isCreateMode && isActiveConnectionReadOnly}
-                  title={!isCreateMode && isActiveConnectionReadOnly ? "Read-only connection: write operations disabled" : undefined}
+                  disabled={(!isCreateMode && isActiveConnectionReadOnly) || attributes.length >= 1024}
+                  title={
+                    attributes.length >= 1024
+                      ? 'Turbopuffer hard limit: max 1024 attributes per namespace'
+                      : !isCreateMode && isActiveConnectionReadOnly
+                        ? 'Read-only connection: write operations disabled'
+                        : undefined
+                  }
                   size="sm"
                 >
                   <Plus className="h-3 w-3 mr-1" />

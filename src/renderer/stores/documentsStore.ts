@@ -111,6 +111,9 @@ interface DocumentsState {
   rankingExpression: any | null; // RankingExprNode from RankingExpressionBuilder
   aggregations: any[]; // AggregationConfig[] from AggregationsPanel
   aggregationResults: any | null; // Parsed aggregation results from query
+  // Read consistency. Strong is the Turbopuffer default; eventual trades
+  // freshness for throughput (may serve stale rows). Persisted per session.
+  consistencyLevel: 'strong' | 'eventual';
 
   // NEW: Grouped Aggregations State
   groupByAttributes: string[]; // NEW: Selected attributes for grouping
@@ -161,6 +164,7 @@ interface DocumentsState {
   setRankingExpression: (expression: any | null) => void;
   setAggregations: (aggregations: any[]) => void;
   setGroupByAttributes: (attributes: string[]) => void; // NEW: Set group-by attributes
+  setConsistencyLevel: (level: 'strong' | 'eventual') => void;
 
   // Filter History Actions
   saveToFilterHistory: (name: string) => void;
@@ -259,6 +263,7 @@ export const useDocumentsStore = create<DocumentsState>()(
         groupByAttributes: [], // NEW: No grouping by default
         aggregationGroups: null, // NEW: No grouped results initially
         isGroupedQuery: false, // NEW: Not a grouped query by default
+        consistencyLevel: 'strong',
         attributesCache: new Map(),
         documentsCache: new Map(),
         filterHistory: new Map(),
@@ -650,6 +655,16 @@ export const useDocumentsStore = create<DocumentsState>()(
             if (attributes.length === 0) {
               state.aggregationGroups = null;
             }
+          }),
+
+        setConsistencyLevel: (level) =>
+          set((state) => {
+            state.consistencyLevel = level;
+            // Invalidate pagination — eventual/strong can return different
+            // result sets, so any in-flight cursor is no longer trustworthy.
+            state.currentPage = 1;
+            state.previousCursors = [];
+            state.nextCursor = null;
           }),
 
         // Filter History Actions
@@ -1167,6 +1182,7 @@ loadDocuments: async (
                 {
                   filters: combinedFilter,
                   aggregate_by: { count: ["Count", "id"] },
+                  consistency: { level: state.consistencyLevel },
                 }
               );
               totalCount = countResult.aggregations?.count || 0;
@@ -1276,6 +1292,7 @@ loadDocuments: async (
                       top_k: limit,
                       aggregate_by: aggregateBy,
                       ...(state.groupByAttributes.length > 0 && { group_by: state.groupByAttributes }),
+                      consistency: { level: state.consistencyLevel },
                     }
                   : {
                       // Normal mode: rank_by, include_attributes, filters, and top_k
@@ -1283,6 +1300,7 @@ loadDocuments: async (
                       top_k: limit,
                       include_attributes: includeAttributes,
                       rank_by: rankBy,
+                      consistency: { level: state.consistencyLevel },
                     }
               );
 
@@ -1335,6 +1353,7 @@ loadDocuments: async (
                   state.currentNamespaceId,
                   {
                     aggregate_by: { count: ["Count", "id"] },
+                    consistency: { level: state.consistencyLevel },
                   }
                 );
                 totalCount = countResult.aggregations?.count || 0;
@@ -1381,6 +1400,7 @@ loadDocuments: async (
                   rank_by: ["id", "asc"],
                   top_k: limit,
                   include_attributes: includeAttributes,
+                  consistency: { level: state.consistencyLevel },
                 }
               );
 
@@ -1973,6 +1993,10 @@ loadDocuments: async (
                 top_k: batchSize,
                 include_attributes: true,
                 rank_by: ["id", "asc"], // rank_by id ascending for pagination
+                // Full export forces strong consistency regardless of UI
+                // setting — a backup that misses recent writes is worse than
+                // a slow one.
+                consistency: { level: 'strong' },
               }
             );
 

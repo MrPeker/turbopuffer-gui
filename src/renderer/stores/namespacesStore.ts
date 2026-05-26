@@ -83,7 +83,7 @@ interface NamespacesState {
   refresh: () => Promise<void>;
 
   // Actions - CRUD
-  createNamespace: (namespaceId: string, documents: Array<{ id: string | number; [key: string]: any }>, schema?: NamespaceSchema) => Promise<void>;
+  createNamespace: (namespaceId: string, documents: Array<{ id: string | number; [key: string]: any }>, schema?: NamespaceSchema, distanceMetric?: 'cosine_distance' | 'euclidean_squared') => Promise<void>;
   deleteNamespace: (namespaceId: string) => Promise<void>;
   getNamespaceById: (connectionId: string, namespaceId: string) => Promise<Namespace | null>;
 
@@ -341,8 +341,8 @@ export const useNamespacesStore = create<NamespacesState>()(
         },
 
         // CRUD Actions
-        createNamespace: async (namespaceId, documents, schema = {}) => {
-          await namespaceService.createNamespaceWithDocuments(namespaceId, documents, schema);
+        createNamespace: async (namespaceId, documents, schema = {}, distanceMetric) => {
+          await namespaceService.createNamespaceWithDocuments(namespaceId, documents, schema, distanceMetric);
           try {
             await get().loadNamespaces(true);
           } catch (refreshError) {

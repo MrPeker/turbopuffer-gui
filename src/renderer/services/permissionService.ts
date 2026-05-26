@@ -1,3 +1,9 @@
+/**
+ * Local UI guard against accidental writes. This is NOT a server-side
+ * permission — Turbopuffer API keys are not scoped, so the same key can write
+ * fine from any other client. The flag exists so users can mark a connection
+ * "look-but-don't-touch" within this GUI specifically.
+ */
 export class PermissionService {
   private isReadOnly = false;
 
@@ -7,7 +13,10 @@ export class PermissionService {
 
   checkWritePermission(): void {
     if (this.isReadOnly) {
-      throw new Error('Write operation blocked: Connection is in read-only mode');
+      throw new Error(
+        'Write blocked by this GUI: connection is marked read-only (UI guard). ' +
+        'Edit the connection to allow writes from this app.'
+      );
     }
   }
 

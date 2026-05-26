@@ -54,7 +54,8 @@ export class NamespaceService {
   async createNamespaceWithDocuments(
     namespaceId: string,
     documents: Array<{ id: string | number; vector?: number[]; [key: string]: any }>,
-    schema: NamespaceSchema = {}
+    schema: NamespaceSchema = {},
+    distanceMetric: 'cosine_distance' | 'euclidean_squared' = 'cosine_distance'
   ): Promise<void> {
     permissionService.checkWritePermission();
 
@@ -89,7 +90,7 @@ export class NamespaceService {
               ...attrs,
             };
           }),
-          distance_metric: 'cosine_distance',
+          distance_metric: distanceMetric,
         };
       } else {
         // Uniform batch: columnar form for throughput.
@@ -283,6 +284,29 @@ export class NamespaceService {
     allNamespaces.sort((a, b) => a.id.localeCompare(b.id));
 
     return { namespaces: allNamespaces, errors };
+  }
+
+  /**
+   * Hints the cache to warm for this namespace. The server responds ACCEPTED
+   * and pre-fetches data in the background — subsequent queries are typically
+   * faster. Safe to call repeatedly; no write permission required.
+   */
+  async warmCache(namespaceId: string, regionId?: string): Promise<void> {
+    const client = regionId
+      ? turbopufferService.getClientForRegion(regionId)
+      : (this.client || turbopufferService.getClient());
+
+    if (!client) {
+      throw new Error('Turbopuffer client not initialized');
+    }
+
+    const ns = client.namespace(namespaceId);
+    try {
+      await ns.hintCacheWarm();
+    } catch (error) {
+      console.error('Failed to warm cache:', error);
+      throw error;
+    }
   }
 
   async getNamespaceMetadata(namespaceId: string, regionId?: string): Promise<NamespaceMetadata> {

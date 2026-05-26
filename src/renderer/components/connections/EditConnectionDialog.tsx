@@ -129,15 +129,21 @@ export function EditConnectionDialog({ connection, isOpen, onClose }: EditConnec
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="readOnly"
-              checked={isReadOnly}
-              onCheckedChange={(checked) => setIsReadOnly(checked === true)}
-            />
-            <Label htmlFor="readOnly" className="text-xs text-tp-text">
-              Read-Only Mode
-            </Label>
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="readOnly"
+                checked={isReadOnly}
+                onCheckedChange={(checked) => setIsReadOnly(checked === true)}
+              />
+              <Label htmlFor="readOnly" className="text-xs text-tp-text">
+                Read-only mode (UI guard)
+              </Label>
+            </div>
+            <p className="text-[10px] text-tp-text-muted pl-6">
+              Local block on writes from this GUI. The API key itself is not
+              scoped server-side and can still write from other clients.
+            </p>
           </div>
 
           {error && (

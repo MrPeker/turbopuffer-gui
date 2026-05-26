@@ -98,6 +98,8 @@ export const FilterBar: React.FC<FilterBarProps> = (
     aggregations,
     setAggregations,
     aggregationResults,
+    consistencyLevel,
+    setConsistencyLevel,
   } = useDocumentsStore();
 
   const [localSearchText, setLocalSearchText] = useState(searchText);
@@ -1253,6 +1255,39 @@ export const FilterBar: React.FC<FilterBarProps> = (
 
               {/* Right: Page controls */}
               <div className="flex items-center gap-2">
+                <Select
+                  value={consistencyLevel}
+                  onValueChange={(v) => {
+                    setConsistencyLevel(v as 'strong' | 'eventual');
+                    loadDocuments(true, false, pageSize, 1);
+                  }}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      "w-auto h-6 py-0 px-2 text-xs bg-transparent border-0 hover:bg-muted gap-1",
+                      consistencyLevel === 'eventual' && "text-amber-600 dark:text-amber-400"
+                    )}
+                    title={
+                      consistencyLevel === 'eventual'
+                        ? 'Reads may return stale data but are faster. Default is Strong.'
+                        : 'Reads see the latest committed writes (default).'
+                    }
+                  >
+                    <span className="text-muted-foreground">read:</span>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="strong" className="text-xs">
+                      strong
+                      <span className="ml-2 text-muted-foreground">— latest writes (default)</span>
+                    </SelectItem>
+                    <SelectItem value="eventual" className="text-xs">
+                      eventual
+                      <span className="ml-2 text-muted-foreground">— may be stale, faster</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>•</span>
                 <span>Page {currentPage} of {totalPages || 1}</span>
                 <span>•</span>
                 <Select

@@ -208,8 +208,12 @@ export function ConnectionCard({ connection }: ConnectionCardProps) {
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-foreground truncate">{connection.name}</h3>
                   {connection.isReadOnly && (
-                    <Badge variant="secondary" className="text-xs">
-                      READ ONLY
+                    <Badge
+                      variant="secondary"
+                      className="text-xs"
+                      title="Local UI guard — writes are blocked in this app only, the key itself is not scoped"
+                    >
+                      UI READ-ONLY
                     </Badge>
                   )}
                 </div>

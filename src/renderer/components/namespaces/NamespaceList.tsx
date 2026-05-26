@@ -21,9 +21,12 @@ import {
   ArrowRight,
   RefreshCw,
   Copy,
-  FolderOpen
+  FolderOpen,
+  Flame
 } from 'lucide-react';
 import { formatBytes, formatNumber, formatDate } from '../../utils/formatBytes';
+import { namespaceService } from '../../services/namespaceService';
+import { useToast } from '@/hooks/use-toast';
 
 interface NamespaceRowProps {
   namespace: NamespaceWithRegion;
@@ -33,6 +36,7 @@ interface NamespaceRowProps {
   onRowLeave: () => void;
   onDelete: (namespaceId: string) => void;
   onCopy: (text: string) => void;
+  onWarmCache: (namespace: NamespaceWithRegion) => void;
 }
 
 /**
@@ -47,6 +51,7 @@ const NamespaceRow = memo(function NamespaceRow({
   onRowLeave,
   onDelete,
   onCopy,
+  onWarmCache,
 }: NamespaceRowProps) {
   // Subscribe to ONLY this namespace's metadata using a granular selector
   const cacheKey = namespace.regionId ? `${namespace.id}:${namespace.regionId}` : namespace.id;
@@ -136,6 +141,16 @@ const NamespaceRow = memo(function NamespaceRow({
               <Copy className="h-3 w-3 mr-1.5" />
               copy id
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onWarmCache(namespace);
+              }}
+              className="text-sm"
+            >
+              <Flame className="h-3 w-3 mr-1.5" />
+              warm cache
+            </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-tp-border-subtle" />
             <DropdownMenuItem
               onClick={(e) => {
@@ -164,6 +179,7 @@ interface NamespaceListProps {
 export function NamespaceList({ namespaces, isRefreshing, intendedDestination, showRegionColumn = true }: NamespaceListProps) {
   const navigate = useNavigate();
   const { connectionId } = useParams<{ connectionId: string }>();
+  const { toast } = useToast();
 
   // Only subscribe to the specific store actions we need (not the metadata cache)
   const deletingNamespace = useNamespacesStore((state) => state.deletingNamespace);
@@ -227,6 +243,22 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
     setDeleteDialogNamespace(namespaceId);
   }, [setDeleteDialogNamespace]);
 
+  const handleWarmCache = useCallback(async (namespace: NamespaceWithRegion) => {
+    try {
+      await namespaceService.warmCache(namespace.id, namespace.regionId);
+      toast({
+        title: 'Cache warm requested',
+        description: `${namespace.id} — queries should be faster shortly`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to warm cache',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
   return (
     <>
       <div className="border border-tp-border-subtle bg-tp-bg">
@@ -262,6 +294,7 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
                   onRowLeave={handleRowLeave}
                   onDelete={handleOpenDeleteDialog}
                   onCopy={copyToClipboard}
+                  onWarmCache={handleWarmCache}
                 />
               ))
             )}
