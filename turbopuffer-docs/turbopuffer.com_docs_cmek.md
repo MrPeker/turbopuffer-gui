@@ -3,7 +3,7 @@ url: "https://turbopuffer.com/docs/cmek"
 title: "Setting up CMEK encryption with an EKM"
 ---
 
-[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
+[Pin high-QPS namespaces to cacheNEW: Pin namespaces for predictable cost and latency on high QPS workloads](https://turbopuffer.com/docs/pinning)
 
 # Setting up CMEK encryption with an EKM
 
@@ -67,7 +67,7 @@ title: "Setting up CMEK encryption with an EKM"
 By default, all data at rest is encrypted using AES-256 using the cloud
 provider's managed keys.
 
-turbopuffer supports [customer managed encryption keys](https://turbopuffer.com/docs/write#parameters)
+turbopuffer supports [customer managed encryption keys](https://turbopuffer.com/docs/write#param-encryption)
 (CMEK) for [enterprise](https://turbopuffer.com/pricing) customers. CMEK encryption allows customer and
 customer's customer the similar control of their data as if it was in their own
 bucket. CMEK can often be used in place of self-hosting with simpler
@@ -78,7 +78,7 @@ identifying an encryption key in the customer's key management system (customer
 KMS) also known as External Key Manager (EKM). All namespace objects will then
 be encrypted with this customer provided key, which can be revoked at any time.
 
-### Enabling CMEK
+## Enabling CMEK
 
 1. Ensure you are on the [enterprise](https://turbopuffer.com/pricing) plan.
 
@@ -115,7 +115,7 @@ account ARN (AWS).
 5. Use the key name to [write](https://turbopuffer.com/docs/write#param-encryption) to your turbopuffer
 namespace.
 
-### When do I provide the encryption key?
+## When do I provide the encryption key?
 
 The encryption key name only needs to be provided on
 [writes](https://turbopuffer.com/docs/write#param-encryption). All future writes will use the
@@ -124,24 +124,36 @@ Queries do not need to provide the encryption key name; the underlying object st
 will transparently decrypt objects so long as turbopuffer maintains
 permission to use your keys.
 
-### Does CMEK impact latency or availability?
+## Does CMEK impact latency or availability?
 
 No, CMEK does not impact either availability or performance of turbopuffer.
 
-### What does it cost?
+## What does it cost?
 
 On the turbopuffer side, there is no additional cost to using CMEK on top of your plan.
 
 Your cloud provider will charge you based on the number of encryption operations and the number of keys.
 
-### Who is doing the encryption?
+## Who is doing the encryption?
 
 Encryption of the data at rest is handled entirely by the cloud object store.
 
 - AWS S3 - data is stored with [Server-Side Encryption using AWS KMS-managed keys](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingKMSEncryption.html)
 - Google Cloud Storage - data is stored with GCS's [CMEK](https://cloud.google.com/storage/docs/encryption/customer-managed-keys).
 
-### Does turbopuffer support key rotation?
+## How quickly does key revocation take effect?
+
+Key revocation is subject to a small propagation delay governed by the
+underlying cloud provider:
+
+- On AWS, key revocation typically propagates in a few seconds, but in
+some cases can take several minutes ( [docs](https://docs.aws.amazon.com/kms/latest/developerguide/grants.html#terms-eventual-consistency)).
+
+- On GCP, key revocation typically propagates within one minute, but in
+exceptional cases can take several hours ( [docs](https://docs.cloud.google.com/kms/docs/consistency)).
+
+
+## Does turbopuffer support key rotation?
 
 When you rotate your cloud KMS key, turbopuffer will automatically use the
 latest active key version for new writes. However, turbopuffer does not
@@ -158,22 +170,72 @@ If you need to migrate all data to a new key version, you have two options:
 1. Use the [export](https://turbopuffer.com/docs/export) API to re-upsert your data into a new namespace with the desired encryption configuration
 2. Use [`copy_from_namespace`](https://turbopuffer.com/docs/write#param-copy_from_namespace) with a different `encryption` parameter to copy the namespace with a new CMEK key
 
-The second option is faster and more cost-effective, with up to a 75% write discount. It also works for upgrading an unencrypted (SSE) namespace to CMEK encryption.
+The second option is faster and more cost-effective, with up to a 75% write discount. It also works for upgrading an namespace from default to CMEK encryption, or for downgrading from CMEK to default encryption by setting [`encryption`](https://turbopuffer.com/docs/write#param-encryption) to `{"mode": "default"}`.
+
+## How is a branched namespace encrypted?
+
+A branch inherits the encryption configuration of its source namespace. To
+re-encrypt with a different CMEK key, use
+[`copy_from_namespace`](https://turbopuffer.com/docs/write#param-copy_from_namespace) instead.
 
 **Should you find this limiting, [contact us](https://turbopuffer.com/contact)**
 
+copy page
+
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
-[Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
+[Company](https://turbopuffer.com/about) [Pricing](https://turbopuffer.com/pricing) [Store](https://turbopuffer.supply/) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
 
 Support
 
-[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-24vaw9611-7E4RLNVeLXjcVatYpEJTXQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
+[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-3v27t102a-3RynqZ5A9vuOuAo68X_wFQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
 
 Follow
 
-[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml) [Events](https://turbopuffer.com/events)
 
-© 2025 turbopuffer Inc.
+[turbopuffer on Twitter](https://x.com/turbopuffer)[turbopuffer on LinkedIn](https://www.linkedin.com/company/turbopuffer/)[turbopuffer on BlueSky](https://bsky.app/profile/turbopuffer.bsky.social)[turbopuffer on YouTube](https://www.youtube.com/@turbopufferdb)
 
-[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+© 2026 turbopuffer Inc.
+
+[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa.pdf) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+
+Docs search
+
+esc
+
+## Guides
+
+[Quickstart\\
+\\
+Get started with turbopuffer in minutes](https://turbopuffer.com/docs/quickstart)
+
+[Vector Search\\
+\\
+Perform approximate nearest neighbor searches](https://turbopuffer.com/docs/vector)
+
+[Full-Text Search\\
+\\
+Learn how to use BM25 full-text search](https://turbopuffer.com/docs/fts)
+
+[Hybrid Search\\
+\\
+Combine vector and full-text search strategies](https://turbopuffer.com/docs/hybrid)
+
+## API Docs
+
+[Write\\
+\\
+Create, update, or delete documents](https://turbopuffer.com/docs/write)
+
+[Query\\
+\\
+Query documents with filters and ranking](https://turbopuffer.com/docs/query)
+
+[Auth & Encoding\\
+\\
+Authentication, headers, and request encoding](https://turbopuffer.com/docs/auth)
+
+[Namespace metadata\\
+\\
+Get metadata about a namespace](https://turbopuffer.com/docs/metadata)

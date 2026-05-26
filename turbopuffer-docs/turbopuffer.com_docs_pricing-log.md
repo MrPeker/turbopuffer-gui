@@ -1,76 +1,55 @@
 ---
-url: "https://turbopuffer.com/docs/namespaces"
-title: "List namespaces"
+url: "https://turbopuffer.com/docs/pricing-log"
+title: "Pricing Changelog"
 ---
 
 [Pin high-QPS namespaces to cacheNEW: Pin namespaces for predictable cost and latency on high QPS workloads](https://turbopuffer.com/docs/pinning)
 
-# GET /v1/namespaces
+# Pricing Changelog
 
-Paginate through your namespaces.
+**Last updated:** April 3, 2026
 
-Paginate through the list of namespaces, optionally with a given prefix. You can retrieve more information about a specific namespace with the [metadata endpoint](https://turbopuffer.com/docs/metadata).
+This page tracks pricing changes over time. If you need help estimating impact
+for your workload, [contact us](https://turbopuffer.com/contact/sales). For more details on how your turbopuffer bill is calculated, see our [pricing page](https://turbopuffer.com/pricing).
 
-This endpoint is available to API keys with read-only, read/write, or admin permissions.
+## 2026
 
-## Request
+### April 2026
 
-**cursor** stringoptional
+Introduced [namespace pinning](https://turbopuffer.com/docs/pinning), which bills pinned namespaces in
+GB-hours instead of per-query `TB Queried` pricing. Pinning cost scales with
+namespace size, replica count, and time pinned, with minimums of 64 GB and 10
+minutes.
 
-retrieve the next page of results (pass `next_cursor` from the response payload)
+### March 2026
 
-* * *
+Pricing for namespaces with [multiple vector columns](https://turbopuffer.com/docs/write#multiple-vector-columns):
 
-**prefix** stringoptional
+- Filterable attributes are billed once per vector column for both writes and storage, reflecting the cost of maintaining indexes across multiple ANN indexes
+- Non-filterable attributes are billed once regardless of the number of vector columns
 
-retrieve only namespaces that match the prefix, e.g. `foo` would return `foo` and `foo-bar`.
+### February 2026
 
-* * *
+Query pricing for the largest namespaces reduced by up to 94%:
 
-**page\_size** stringdefault: 100
+- Base queried data rate decreased from $5/PB to $1/PB
+- 80% marginal discount when queried data size is between 32 GB and 128 GB
+- 96% marginal discount when queried data size is greater than 128 GB
+- Minimum billable data per query increased from 256 MB to 1.28 GB
 
-limit the number of results per page (max of 1000)
+## 2025
 
-## Response
+### July 2025
 
-**namespaces** array
+Query pricing for large namespaces reduced by up to 80%:
 
-An array of namespace objects. Each namespace object contains:
+- 80% marginal discount on bytes queried over 32 GB, per query
 
-- `id` (string): the namespace identifier
+## 2024
 
-**Example:**
+### September 2024
 
-```json
-[\
-  {"id": "my-namespace"},\
-  {"id": "test-namespace"},\
-  {"id": "production-data"}\
-]
-```
-
-**next\_cursor** string
-
-A cursor for pagination. Pass this value as the `cursor` parameter in the next request to retrieve the next page of results. Only present when there are more namespaces to retrieve.
-
-## Examples
-
-python
-
-curlpythontypescriptgojavac#ruby
-
-```python
-import turbopuffer
-
-tpuf = turbopuffer.Turbopuffer(
-    region='gcp-us-central1', # pick the right region: https://turbopuffer.com/docs/regions
-)
-
-# List all namespaces
-namespaces = tpuf.namespaces()
-for namespace in namespaces:
-    print('Namespace', namespace.id)
-```
+Introduced `copy_from_namespace`, allowing data to be copied between namespaces at a 50% discount on write costs.
 
 copy page
 

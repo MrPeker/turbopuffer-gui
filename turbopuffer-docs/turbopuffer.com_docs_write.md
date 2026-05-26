@@ -1,11 +1,11 @@
 ---
 url: "https://turbopuffer.com/docs/write"
-title: "Write Documents"
+title: "Write documents"
 ---
 
-[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
+[Pin high-QPS namespaces to cacheNEW: Pin namespaces for predictable cost and latency on high QPS workloads](https://turbopuffer.com/docs/pinning)
 
-## POST /v2/namespaces/:namespace
+# POST /v2/namespaces/:namespace
 
 Creates, updates, or deletes documents.
 
@@ -36,7 +36,7 @@ the first document is inserted. Namespace names must match `[A-Za-z0-9-_.]{1,128
 
 We recommend creating a namespace per isolated document space instead of filtering when possible.
 Large batches of writes are highly encouraged to maximize throughput and minimize cost. Write requests
-can have a payload size of up to 256 MB. See [Performance](https://turbopuffer.com/docs/performance).
+can have a payload size of up to 512 MB. See [Performance](https://turbopuffer.com/docs/performance).
 
 Within a namespace, documents are uniquely referred to by their ID. Document IDs are unsigned 64-bit
 integers, 128-bit UUIDs, or strings up to 64 bytes.
@@ -50,16 +50,19 @@ turbopuffer supports the following types of writes:
 - [Patch by filter](https://turbopuffer.com/docs/write#param-patch_by_filter): patches documents that match a filter.
 - [Delete by filter](https://turbopuffer.com/docs/write#param-delete_by_filter): deletes documents that match a filter.
 - [Copy from namespace](https://turbopuffer.com/docs/write#param-copy_from_namespace): copies all documents from another namespace.
+- [Branch from namespace](https://turbopuffer.com/docs/write#param-branch_from_namespace): instantly creates a copy-on-write clone of a namespace.
 
-### Request
+## Request
 
 **upsert\_rows** array
 
 Upserts documents in a row-based format. Each row is an object with an `id` document ID,
 and any number of other [attribute](https://turbopuffer.com/docs/write#attributes) fields.
 
-A namespace may or may not have a vector index. If it does, all documents must include a `vector`
-field. Otherwise, the `vector` key should be omitted.
+Existing documents with matching IDs are overwritten entirely. Use [patch\_rows](https://turbopuffer.com/docs/write#param-patch_rows) to
+update only specific attributes.
+
+A namespace may or may not have vector indexes. If it does, all documents must include all vector attributes.
 
 **Example:**`[{"id": 1, "vector": [1, 2, 3], "name": "foo"}, {"id": 2, "vector": [4, 5, 6], "name": "bar"}]`
 
@@ -71,8 +74,11 @@ Upserts documents in a column-based format. This field is an object, where each
 key is the name of a column, and each value is an array of values for that
 column.
 
-The `id` key is required, and must contain an array of document IDs. The `vector` key is required if
-the namespace has a vector index. Other keys will be stored as [attributes](https://turbopuffer.com/docs/write#attributes).
+Existing documents with matching IDs are overwritten entirely. Use [patch\_columns](https://turbopuffer.com/docs/write#param-patch_columns) to
+update only specific attributes.
+
+The `id` key is required, and must contain an array of document IDs. All vector attribute columns are required if
+the namespace has vector indexes. Other keys will be stored as [attributes](https://turbopuffer.com/docs/write#attributes).
 
 Each column must be the same length. When a document doesn't have a value for a
 given column, pass `null`.
@@ -87,7 +93,7 @@ Patches documents in a row-based format. Identical to
 [`upsert_rows`](https://turbopuffer.com/docs/write#param-upsert_rows), but instead of overwriting entire
 documents, only the specified keys are written.
 
-The `vector` key currently cannot be patched. You currently need to retrieve and upsert the entire document.
+Vector attributes currently cannot be patched. You currently need to retrieve and upsert the entire document.
 
 Any patches to IDs that don't already exist in the namespace will be ignored;
 patches will not create any missing documents.
@@ -106,7 +112,7 @@ Patches documents in a column-based format. Identical to
 [`upsert_columns`](https://turbopuffer.com/docs/write#param-upsert_columns), but instead of overwriting entire
 documents, only the specified keys are written.
 
-The `vector` key currently cannot be patched. You currently need to retrieve and upsert the entire document.
+Vector attributes currently cannot be patched. You currently need to retrieve and upsert the entire document.
 
 Any patches to IDs that don't already exist in the namespace will be ignored;
 patches will not create any missing documents.
@@ -149,6 +155,13 @@ and can be used in place of value literals.
 This condition ensures that each upsert is only processed if the new document
 value has a newer "updated\_at" timestamp than its current version.
 
+**Example:**`["id", "Eq", null]`
+
+This condition ensures that each upsert only inserts new documents, skipping
+any writes where a document with that ID already exists. Since existing documents
+always have a non-null `id`, this condition fails for them, while new documents
+are inserted unconditionally.
+
 * * *
 
 **patch\_condition** object
@@ -185,7 +198,7 @@ It accepts an object with two fields:
 
 If `patch_by_filter` is used in the same request as other write operations, it is applied after `delete_by_filter` but before any other write operations.
 
-The `vector` key currently cannot be patched. You currently need to retrieve and upsert the entire document.
+Vector attributes currently cannot be patched. You currently need to retrieve and upsert the entire document.
 
 **Example:**
 
@@ -245,7 +258,18 @@ When set to `false`, a `delete_by_filter` which matches more than the maximum al
 
 * * *
 
-**distance\_metric** cosine\_distance \| euclidean\_squaredrequired unless copy\_from\_namespace is set or no vector is set
+**return\_affected\_ids** booleandefault: false
+
+If `true`, the response will include `upserted_ids`, `patched_ids`, and
+`deleted_ids` arrays containing the IDs of documents that were successfully
+written.
+
+For conditional writes and filter-based operations, only IDs for writes that
+succeeded will be included.
+
+* * *
+
+**distance\_metric** cosine\_distance \| euclidean\_squaredrequired unless copy\_from\_namespace or branch\_from\_namespace is set or the namespace has no vector columns
 
 The function used to calculate vector similarity. Possible values are `cosine_distance` or `euclidean_squared`.
 
@@ -253,6 +277,8 @@ The function used to calculate vector similarity. Possible values are `cosine_di
 Lower is better.
 
 `euclidean_squared` is defined as `sum((x - y)^2)`. Lower is better.
+
+**NOTE:** This distance metric will apply to all vector columns configured for this namespace.
 
 * * *
 
@@ -263,23 +289,30 @@ you are copying into must be empty. The initial request currently cannot make
 schema changes or contain documents.
 
 Copying is billed at up to a 75% write discount (a 50% copy discount that stacks
-with the up to 50% discount for batched writes). This is a faster, cheaper alternative to
-re-upserting documents for backups and namespaces that share documents. See the
-[cross-region backups guide](https://turbopuffer.com/docs/backups) for an example.
+with the up to 50% discount for batched writes). This is a faster, cheaper
+alternative to re-upserting documents for backups and namespaces that share
+documents. See the [cross-region backups guide](https://turbopuffer.com/docs/backups) for an example.
+For same-region use cases, consider [`branch_from_namespace`](https://turbopuffer.com/docs/branching)
+which completes instantly regardless of namespace size.
 
-To copy a namespace from a different organization or region, instead of providing the
+For copies from another region, the logical size copied is also billed as
+returned bytes. Same-region copies do not bill returned bytes.
+
+To copy a namespace from a different organization, region, or cloud provider, instead of providing the
 namespace as a string, provide an object with the following fields:
 
 - `source_namespace` (string): the namespace to copy from
 - `source_api_key` (string, optional): an API key for the organization containing the source namespace. Omit to copy from the same organization as the target namespace.
-- `source_region` (string, optional): the [region](https://turbopuffer.com/docs/regions) of the source namespace (e.g. `"aws-us-east-1"`). Omit to copy from the same region as the target namespace.
+- `source_region` (string, optional): the [region](https://turbopuffer.com/docs/regions) of the source namespace (e.g. `"aws-us-east-1"`). Omit to copy from the same region as the target namespace. Source and destination can be in different cloud providers (e.g. `aws-us-east-1` → `gcp-us-central1`).
 
 By default, the destination namespace will inherit the source namespace's encryption
-configuration. You can optionally specify a different [CMEK key](https://turbopuffer.com/docs/write#param-encryption)
-for the destination namespace by including the `encryption` parameter in the same
-request. This allows you to copy from an unencrypted namespace to a CMEK-encrypted
-namespace, or to use a different CMEK key than the source. For cross-region copies
-from a CMEK-encrypted namespace, you must explicitly specify a destination encryption key available in the destination region.
+configuration. You can optionally specify a different [encryption](https://turbopuffer.com/docs/write#param-encryption)
+for the destination namespace. This allows you to copy from a namespace with default encryption
+to a namespace with customer-managed encryption, or vice-versa, or to use a different CMEK key
+than the source.
+
+For cross-region copies from a namespace with customer-managed encryption, you must explicitly specify a
+destination encryption key available in the destination region.
 
 **Example (basic copy):**`"source-namespace"`
 
@@ -292,6 +325,22 @@ from a CMEK-encrypted namespace, you must explicitly specify a destination encry
   "source_region": "aws-us-east-1"
 }
 ```
+
+* * *
+
+**branch\_from\_namespace** string
+
+Creates an instant copy-on-write clone of the source namespace. The destination
+namespace must be empty.
+
+After branching, both namespaces are fully independent — reads, writes, queries,
+and deletes on one namespace do not affect the other.
+
+Branching is billed at a flat rate of $0.032 (pricing may change before GA). See
+the [branching guide](https://turbopuffer.com/docs/branching) for details, examples, and guidance on
+when to use branching vs `copy_from_namespace`.
+
+**Example:**`"source-namespace"`
 
 * * *
 
@@ -319,9 +368,9 @@ Currently, turbopuffer does not re-encrypt data when you rotate key versions, me
 To re-encrypt your data using a more recent key, use the [export](https://turbopuffer.com/docs/export) API to re-upsert into a new namespace,
 or use [`copy_from_namespace`](https://turbopuffer.com/docs/write#param-copy_from_namespace) with a different `encryption` key to copy to a newly encrypted namespace.
 
-**Example (GCP):**`{ "cmek": { "key_name": "projects/myproject/locations/us-central1/keyRings/EXAMPLE/cryptoKeys/KEYNAME"  } }`
+**Example (GCP):**`{ "mode": "customer-managed", "key_name": "projects/myproject/locations/us-central1/keyRings/EXAMPLE/cryptoKeys/KEYNAME" }`
 
-**Example (AWS):**`{ "cmek": { "key_name": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"  } }`
+**Example (AWS):**`{ "mode": "customer-managed", "key_name": "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012" }`
 
 * * *
 
@@ -329,11 +378,16 @@ or use [`copy_from_namespace`](https://turbopuffer.com/docs/write#param-copy_fro
 
 Disables HTTP 429 backpressure on writes when unindexed data exceeds 2 GiB. Useful for initial data loading or bulk updates. When disabled, strongly consistent queries return errors above this threshold, so use [eventual consistency](https://turbopuffer.com/docs/query#param-consistency) instead. Eventually consistent queries search only the first 128 MiB of unindexed data.
 
+Only takes effect for upserts and delete-by-id. Ignored for patch-by-id, patch-by-filter, delete-by-filter, and [conditional writes](https://turbopuffer.com/docs/write#conditional-writes), since those operations require a strongly consistent read of existing rows.
+
 Indexing progress can be tracked through the `unindexed_bytes` field in the [metadata endpoint](https://turbopuffer.com/docs/metadata#responsefield-index).
 
-**Example:**`true`
+Note that while data is being indexed, the following will not be updated:
 
-### Response
+- [`approx_row_count`](https://turbopuffer.com/docs/metadata#responsefield-approx_row_count) and [`approx_logical_bytes`](https://turbopuffer.com/docs/metadata#responsefield-approx_logical_bytes) in the metadata endpoint
+- Namespace row counts and sizes in the dashboard
+
+## Response
 
 **rows\_affected** number
 
@@ -367,18 +421,39 @@ update additional matching documents.
 The [limits](https://turbopuffer.com/docs/limits) are currently:
 
 - 5M documents for `delete_by_filter`
-- 500k documents for `patch_by_filter`
+- 50k documents for `patch_by_filter`
+
+**upserted\_ids** array
+
+The IDs of documents that were upserted. Only present when `return_affected_ids`
+is `true` and at least one document was upserted.
+
+**patched\_ids** array
+
+The IDs of documents that were patched. Only present when `return_affected_ids`
+is `true` and at least one document was patched.
+
+**deleted\_ids** array
+
+The IDs of documents that were deleted. Only present when `return_affected_ids`
+is `true` and at least one document was deleted.
 
 **billing** object
 
 The billable resources consumed by the write. The object contains the following fields:
 
 - `billable_logical_bytes_written` (uint): the number of logical bytes written to the namespace
-- `query`(object, optional): query billing information when the write involves a query (for a conditional write, patch\_by\_filter or delete\_by\_filter):
+- `query` (object, optional): query billing information when the write involves a query-like operation (for a conditional write, `patch_by_filter`, `delete_by_filter`, or a cross-region `copy_from_namespace`):
   - `billable_logical_bytes_queried` (uint): the number of logical bytes processed by queries
   - `billable_logical_bytes_returned` (uint): the number of logical bytes returned by queries
 
-### Attributes
+**performance** object
+
+The performance metrics for the write. The object currently contains the following fields, but these fields may change name, type, or meaning in the future:
+
+- `server_total_ms` (uint): request time measured on the server, in milliseconds
+
+## Attributes
 
 Documents are composed of attributes. All documents must have a unique `id` attribute. Attribute names
 can be up to 128 characters in length and must not start with a `$` character.
@@ -395,26 +470,75 @@ specified in the [schema](https://turbopuffer.com/docs/write#schema).
 Some limits apply to attribute sizes and number of attribute names per
 namespace. See [Limits](https://turbopuffer.com/docs/limits).
 
-#### Vectors
+### Vectors
 
-Vectors are attributes with name `vector`, encoded as either a JSON array of
-numbers, or as a base64-encoded string.
+Vectors are attributes with a vector type (`[N]f32` or `[N]f16` where N is the number of dimensions), encoded as either a JSON array of numbers, or as a base64-encoded string.
+Attributes named `vector` will automatically be inferred as having vector types, additional vector columns must be explicitly declared in the [schema](https://turbopuffer.com/docs/write#schema).
 
 If using the base64 encoding, the vector must be serialized in little-endian
 float32 binary format, then base64-encoded. The base64 string encoding can be
 more efficient on both the client and server.
 
-Each vector in the namespace must have the same number of dimensions.
+Elements of a vector attribute must have the same number of dimensions.
 
-A namespace can be created without vectors. In this case, the `vector` key
-must be omitted from all write requests.
+A namespace can currently be created with up to 2 vector columns. The number of vector columns cannot be changed after namespace creation.
 
-To use `f16` vectors within the database, the `vector` field must be [explicitly\\
-specified in the schema](https://turbopuffer.com/docs/write#param-vector) when first creating the
+To use `f16` vectors within the database, the relevant vector attribute must be [explicitly\\
+specified in the schema](https://turbopuffer.com/docs/write#param-type) with an `f16` type (e.g. `[512]f16`) when first creating the
 namespace. This does not affect the base64 vector encoding in the API, which
 always uses a little-endian float32 binary format.
 
-### Schema
+Vector attributes require an ANN index, configured via the [`ann` schema parameter](https://turbopuffer.com/docs/write#param-ann).
+
+#### Multiple vector columns
+
+A namespace can have multiple vector columns, each with independent dimensions and types. Vector columns must be declared in the schema and are fixed at namespace creation time.
+
+**Pricing:** Each vector column has its own ANN index. Filterable attributes are indexed per ANN index, so their write and storage costs scale with the number of vector columns. Non-filterable attributes are stored once regardless of the number of vector columns. See [attribute billing](https://turbopuffer.com/pricing#faq-attribute-billing) for details.
+
+python
+
+curlpythontypescriptgojavaruby
+
+```python
+import turbopuffer
+
+tpuf = turbopuffer.Turbopuffer(
+    region='gcp-us-central1', # pick the right region: https://turbopuffer.com/docs/regions
+)
+
+ns = tpuf.namespace(f'write-multivec-py-example')
+
+ns.write(
+    upsert_rows=[\
+        {\
+            'id': 1,\
+            'title_embedding': [0.1, 0.2, 0.3],\
+            'image_embedding': [0.4, 0.5],\
+            'title': 'hello world',\
+        },\
+        {\
+            'id': 2,\
+            'title_embedding': [0.4, 0.5, 0.6],\
+            'image_embedding': [0.7, 0.8],\
+            'title': 'goodbye world',\
+        },\
+    ],
+    distance_metric='cosine_distance',
+    schema={
+        'title_embedding': {
+            'type': '[3]f32',
+            'ann': True,
+        },
+        'image_embedding': {
+            'type': '[2]f16',
+            'ann': True,
+        },
+    },
+)
+```
+
+## Schema
 
 turbopuffer maintains a schema for each namespace with type and indexing behaviour for each attribute. By default, types are automatically inferred from the passed data and every attribute is indexed. To inspect the schema, use the [metadata endpoint](https://turbopuffer.com/docs/metadata).
 
@@ -442,12 +566,15 @@ The data type of the attribute. Supported types:
 - `[]uuid`: Array of UUIDs
 - `[]datetime`: Array of dates and times
 - `[]bool`: Array of booleans
+- `[N]f32`: `N` dimensional f32 vector
+- `[N]f16`: `N` dimensional f16 vector
+- `{}f16`: Sparse vector with string keys and [16-bit floats](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) as weights. Example: `{"dim0": 0.1, "dim1": 0.2}`.
 
 All attributes are nullable, except for `id`.
 
 `string`, `int` and `bool` types and their array variants can be inferred from
 the write payload. Other types, such as `uint` or `uuid` must be set explicitly in the schema. See [UUID\\
-values](https://turbopuffer.com/docs/write#uuid-values) for an example.
+values](https://turbopuffer.com/docs/write#configuring-the-schema) for an example.
 
 `datetime` values should be provided as an ISO 8601 formatted string with a
 mandatory date and optional time and time zone. Internally, these values are
@@ -456,12 +583,22 @@ representing milliseconds since the epoch.
 
 **Example:**`["2015-01-20", "2015-01-20T12:34:56", "2015-01-20T12:34:56-04:00"]`
 
+`{}f16` attributes are not filterable and require indexing for fast `SparseKNN` operations.
+
+* * *
+
+**ann** booleanrequired true for vector types
+
+Must be set to `true` for vector type attributes (`[N]f32`, `[N]f16`). Builds an approximate nearest neighbor index for the vector column, enabling fast vector queries via [`rank_by`](https://turbopuffer.com/docs/query#param-rank_by).
+
+**Example:**`"my_vector": {"type": "[512]f16", "ann": true}`
+
 * * *
 
 **filterable** booleandefault: true (false if full-text search or regex is enabled)
 
 Whether or not the attribute can be used in
-[filters](https://turbopuffer.com/docs/query#filter-parameters)/WHERE clauses. Filtered attributes are
+[filters](https://turbopuffer.com/docs/query#filtering-parameters)/WHERE clauses. Filtered attributes are
 indexed into an inverted index. At query-time, the [filter evaluation is\\
 recall-aware](https://turbopuffer.com/blog/native-filtering) when used for vector queries.
 
@@ -472,6 +609,18 @@ Unfiltered attributes don't have an index built for them, and are thus billed at
 **regex** booleandefault: false
 
 Whether to enable [Regex](https://turbopuffer.com/docs/query#param-Regex) filters on this attribute. If set, `filterable` defaults to `false`; you can override this by setting `filterable: true`.
+
+* * *
+
+**glob** booleandefault: false
+
+Whether to enable [Glob](https://turbopuffer.com/docs/query#param-Glob) filters on this attribute. If set, `filterable` defaults to `false`; you can override this by setting `filterable: true`.
+
+* * *
+
+**fuzzy** booleandefault: false
+
+Whether to enable [Fuzzy](https://turbopuffer.com/docs/query#param-Fuzzy) filters on this attribute. If set, `filterable` defaults to `false`; you can override this by setting `filterable: true`.
 
 * * *
 
@@ -488,39 +637,54 @@ Can either be a boolean for default settings, or an object with the following op
 - `case_sensitive` (boolean): Whether searching is case-sensitive. Defaults to `false` (i.e. case-insensitive).
 - `language` (string): The language of the text. Defaults to `english`. See: [Supported languages](https://turbopuffer.com/docs/fts/#supported-languages)
 - `stemming` (boolean): Language-specific stemming for the text. Defaults to `false` (i.e. do not stem).
-- `remove_stopwords` (boolean): Removes [common words](https://snowballstem.org/algorithms/english/stop.txt) from the text based on `language`. Defaults to `true` (i.e. remove common words).
+- `remove_stopwords` (boolean): Removes [common words](https://snowballstem.org/algorithms/english/stop.txt) from the text based on `language`. Defaults to `false` (i.e. keep common words).
 - `ascii_folding` (boolean): Whether to convert each non-ASCII character in a token to its ASCII equivalent, if one exists (e.g., à -> a). Applied after stemming and stopword removal. Defaults to `false` (i.e., no folding).
+- `max_token_length` (int): Maximum length of a token in bytes. Tokens larger than this value during tokenization will be filtered out. Has to be between `1` and `254` (inclusive). Defaults to `39`.
 - `k1` (float): Term frequency saturation parameter for BM25 scoring. Must be greater than zero. Defaults to `1.2`. See: [Advanced tuning](https://turbopuffer.com/docs/fts#advanced-tuning)
 - `b` (float): Document length normalization parameter for BM25 scoring. Must be in the range `[0.0, 1.0]`. Defaults to `0.75`. See: [Advanced tuning](https://turbopuffer.com/docs/fts#advanced-tuning)
+- `k3` (float): Query term frequency saturation parameter for BM25 scoring. Must be greater than zero. Defaults to `8.0`. See: [Advanced tuning](https://turbopuffer.com/docs/fts#advanced-tuning)
 
 If you require other types of full-text search options, please [contact us](https://turbopuffer.com/contact).
 
 * * *
 
-**vector** objectdefault: {'type': \[dims\]f32, 'ann': true}
+**sparse\_knn** objectdefault: unset
 
-Whether the upserted vectors are of type `f16` or `f32`.
+When configured, this attribute can be used as part of a `SparseKNN` query.
+This is only supported on the `{}f16` type.
 
-To use `f16` vectors, this field needs to be explicitly specified in the `schema` when first creating (i.e. [writing to](https://turbopuffer.com/docs/write)) a namespace.
+This requires a `distance_metric` string field, which only supports
+`dot_product` as a value at the moment.
 
-Example: `"vector": {"type": "[512]f16", "ann": true}`
+### Updating attributes
 
-#### Updating attributes
+We support online, in-place changes of the following schema attributes:
 
-We support online, in-place changes of the `filterable` and `full_text_search`
-setting for an attribute. The write does not need to include any documents, i.e. `{"schema": ...}` is supported, provided the namespace already exists.
+- `filterable`
+- `full_text_search`
+- `regex`
+- `glob`
+- `fuzzy`
+
+The write does not need to include any documents, i.e. `{"schema": ...}` is supported, provided the namespace already exists.
 
 Other index settings changes, attribute type changes, and attribute deletions
 currently cannot be done in-place. Consider [exporting](https://turbopuffer.com/docs/export) documents
 and upserting into a new namespace if you require a schema change.
 
-After enabling the `filterable` or `full_text_search` setting for an existing attribute, the index needs time to build before queries that depend on the index can be executed. turbopuffer will respond with HTTP status 202 to queries that depend on an index that is not yet built.
+After enabling the `filterable`, `full_text_search`, `regex`, `glob`, or `fuzzy` setting for an existing attribute, the index needs time to build before queries that depend on the index can be executed. turbopuffer will respond with HTTP status 202 to queries that depend on an index that is not yet built.
 
 Changing full-text search parameters also requires that the index be rebuilt. turbopuffer will do this automatically in the background, during which time queries will continue returning results using the previous full-text search settings.
 
-### Examples
+### Billing
 
-#### Row-based writes
+An unindexed attribute is billed at 50% of its logical size. Indexed attributes are based on their logical
+size multiplied by the number of indexes they have enabled. For example, an attribute with with `filterable: true`
+and `full_text_search: true` is billed at 200% of its logical size.
+
+## Examples
+
+### Row-based writes
 
 Row-based writes may be more convenient than column-based writes. You can pass
 any combination of `upsert_rows`, `patch_rows`, `patch_by_filter`, `deletes`, and
@@ -540,7 +704,7 @@ tpuf = turbopuffer.Turbopuffer(
     region='gcp-us-central1', # pick the right region: https://turbopuffer.com/docs/regions
 )
 
-ns = tpuf.namespace('write-upsert-row-py-example')
+ns = tpuf.namespace(f'write-upsert-row-py-example')
 # If an error occurs, this call raises a turbopuffer.APIError if a retry was not successful.
 ns.write(
     upsert_rows=[\
@@ -569,12 +733,12 @@ ns.write(
 )
 ```
 
-#### Configuring the schema
+### Configuring the schema
 
 The [schema](https://turbopuffer.com/docs/write#schema) can be passed on writes to manually configure attribute types and indexing behavior. A few examples where manually configuring the schema is needed:
 
 - **UUID** values serialized as strings can be stored in turbopuffer in an optimized format.
-- Enabling **full-text search** or **regex** indexing for string attributes.
+- Enabling **full-text search**, **regex**, **glob**, or **fuzzy** indexing for string attributes.
 - **Disabling indexing/filtering** (`filterable:false`) on an attribute, for a 50% discount and improved indexing performance.
 
 An example of (1), (2), and (3):
@@ -590,7 +754,7 @@ tpuf = turbopuffer.Turbopuffer(
     region='gcp-us-central1', # pick the right region: https://turbopuffer.com/docs/regions
 )
 
-ns = tpuf.namespace('write-schema-example-py')
+ns = tpuf.namespace(f'write-schema-example-py')
 
 ns.write(
     upsert_rows=[\
@@ -616,7 +780,7 @@ ns.write(
 )
 ```
 
-#### Column-based writes
+### Column-based writes
 
 Bulk document operations should use a column-oriented layout for best
 performance. You can pass any combination of `upsert_columns`, `patch_columns`,
@@ -636,7 +800,7 @@ tpuf = turbopuffer.Turbopuffer(
     region='gcp-us-central1', # pick the right region: https://turbopuffer.com/docs/regions
 )
 
-ns = tpuf.namespace('write-upsert-columns-example-py')
+ns = tpuf.namespace(f'write-upsert-columns-example-py')
 # If an error occurs, this call raises a turbopuffer.APIError if a retry was not successful.
 ns.write(
     upsert_columns={
@@ -656,11 +820,15 @@ ns.write(
 )
 ```
 
-#### Conditional writes
+### Conditional writes
 
 To make writes conditional, use the `upsert_condition`, `patch_condition`, and
 `delete_condition` parameters. These let you specify a condition that must be
 satisfied for the write operation to each document to proceed.
+
+Conditional deletes are distinct from [`delete_by_filter`](https://turbopuffer.com/docs/write#delete-by-filter),
+which should be used when the set of IDs to conditionally delete is not known
+ahead of time.
 
 Conditions are evaluated before each write, using the current value of the
 document with the matching ID.
@@ -684,8 +852,14 @@ being written using `$ref_new` references. These look like `{"$ref_new": "attr_1
 and can be used in place of value literals. This allows the condition to vary by
 document in a multi-document write request.
 
-Conditional deletes are distinct from `delete_by_filter`, which should be used
-when the set of IDs to conditionally delete is not known ahead of time.
+Two common patterns:
+
+- **Version checks**: Set `upsert_condition` to `["version", "Lt", {"$ref_new": "version"}]`
+to only apply writes when the new document has a higher version than the existing one.
+- **Insert if not exists**: Set `upsert_condition` to `["id", "Eq", null]` to only
+insert documents that don't already exist. Since existing documents always have
+a non-null `id`, this condition fails for existing documents (skipping the write),
+while new documents are inserted unconditionally.
 
 python
 
@@ -698,7 +872,7 @@ tpuf = turbopuffer.Turbopuffer(
     region='gcp-us-central1', # pick the right region: https://turbopuffer.com/docs/regions
 )
 
-ns = tpuf.namespace('write-conditional-example-py')
+ns = tpuf.namespace(f'write-conditional-example-py')
 
 ns.write(
     upsert_rows=[\
@@ -746,11 +920,11 @@ result = ns.write(
 )
 print(result.rows_affected) # 2
 
-results = ns.query(top_k=10, include_attributes=True)
+results = ns.query(limit=10, include_attributes=True)
 print(results.rows)
 ```
 
-#### Delete by filter
+### Delete by filter
 
 To delete documents that match a filter, use `delete_by_filter`. This operation will return
 the actual number of documents removed.
@@ -776,7 +950,7 @@ tpuf = turbopuffer.Turbopuffer(
     region="gcp-us-central1",  # pick the right region: https://turbopuffer.com/docs/regions
 )
 
-ns = tpuf.namespace("write-delete-by-filter-example-py")
+ns = tpuf.namespace(f'write-delete-by-filter-example-py')
 
 ns.write(
     upsert_rows=[\
@@ -803,13 +977,13 @@ result = ns.write(
 )
 print(result.rows_affected)  # 1
 
-results = ns.query(rank_by=("id", "asc"), top_k=10)
+results = ns.query(rank_by=("id", "asc"), limit=10)
 print(len(results.rows))  # 1
 ```
 
-#### Patch by filter
+### Patch by filter
 
-To patch a dynamically determined set of documents, use `patch_by_filter`. This operation will return the actual number of documents updated. When [`rows_remaining`](https://turbopuffer.com/docs/write#param-rows_remaing) is set to true in the response, there may be more documents matching your filter that can be patched, issue a follow up request to patch those documents.
+To patch a dynamically determined set of documents, use `patch_by_filter`. This operation will return the actual number of documents updated. When [`rows_remaining`](https://turbopuffer.com/docs/write#responsefield-rows_remaining) is set to true in the response, there may be more documents matching your filter that can be patched, issue a follow up request to patch those documents.
 
 Because this operation uses a query to determine which rows need to be patched, it will be billed as a query & a patch operation (1 write, 2 queries total).
 
@@ -826,7 +1000,7 @@ tpuf = turbopuffer.Turbopuffer(
     region="gcp-us-central1",  # pick the right region: https://turbopuffer.com/docs/regions
 )
 
-ns = tpuf.namespace("write-patch-by-filter-example-py")
+ns = tpuf.namespace(f'write-patch-by-filter-example-py')
 
 ns.write(
     upsert_rows=[\
@@ -864,23 +1038,67 @@ result = ns.write(
 )
 print(result.rows_affected)  # 2
 
-results = ns.query(rank_by=("id", "asc"), include_attributes=["status"], top_k=10)
+results = ns.query(rank_by=("id", "asc"), include_attributes=["status"], limit=10)
 for row in results.rows:
     print(f"ID {row['id']}: {row['status']}")  # IDs 101 and 103 are now archived
 ```
 
+copy page
+
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
-[Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
+[Company](https://turbopuffer.com/about) [Pricing](https://turbopuffer.com/pricing) [Store](https://turbopuffer.supply/) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
 
 Support
 
-[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-24vaw9611-7E4RLNVeLXjcVatYpEJTXQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
+[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-3v27t102a-3RynqZ5A9vuOuAo68X_wFQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
 
 Follow
 
-[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml) [Events](https://turbopuffer.com/events)
 
-© 2025 turbopuffer Inc.
+[turbopuffer on Twitter](https://x.com/turbopuffer)[turbopuffer on LinkedIn](https://www.linkedin.com/company/turbopuffer/)[turbopuffer on BlueSky](https://bsky.app/profile/turbopuffer.bsky.social)[turbopuffer on YouTube](https://www.youtube.com/@turbopufferdb)
 
-[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+© 2026 turbopuffer Inc.
+
+[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa.pdf) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+
+Docs search
+
+esc
+
+## Guides
+
+[Quickstart\\
+\\
+Get started with turbopuffer in minutes](https://turbopuffer.com/docs/quickstart)
+
+[Vector Search\\
+\\
+Perform approximate nearest neighbor searches](https://turbopuffer.com/docs/vector)
+
+[Full-Text Search\\
+\\
+Learn how to use BM25 full-text search](https://turbopuffer.com/docs/fts)
+
+[Hybrid Search\\
+\\
+Combine vector and full-text search strategies](https://turbopuffer.com/docs/hybrid)
+
+## API Docs
+
+[Write\\
+\\
+Create, update, or delete documents](https://turbopuffer.com/docs/write)
+
+[Query\\
+\\
+Query documents with filters and ranking](https://turbopuffer.com/docs/query)
+
+[Auth & Encoding\\
+\\
+Authentication, headers, and request encoding](https://turbopuffer.com/docs/auth)
+
+[Namespace metadata\\
+\\
+Get metadata about a namespace](https://turbopuffer.com/docs/metadata)

@@ -3,7 +3,7 @@ url: "https://turbopuffer.com/docs/architecture"
 title: "Architecture"
 ---
 
-[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
+[Pin high-QPS namespaces to cacheNEW: Pin namespaces for predictable cost and latency on high QPS workloads](https://turbopuffer.com/docs/pinning)
 
 # Architecture
 
@@ -13,8 +13,8 @@ database on object storage (see [regions](https://turbopuffer.com/docs/regions) 
 After the first query, the namespace's documents are cached on NVMe SSD.
 Subsequent queries are routed to the same query node for cache locality, but any
 query node can serve queries from any namespace. The first query to a namespace
-reads object storage directly and is slow (p50=343ms for 1M documents),
-but subsequent, cached queries to that node are faster (p50=8ms
+reads object storage directly and is slow (p50=874ms for 1M documents),
+but subsequent, cached queries to that node are faster (p50=14ms
 for 1M documents). Many use-cases can send a [pre-flight query to hint\\
 that the client will send latency-sensitive requests in the near future](https://turbopuffer.com/docs/warm-cache).
 
@@ -66,39 +66,57 @@ the same namespace are batched into the same entry. If a new batch is started
 within one second of the previous one, it will take up to 1 second to commit.
 
 ```
-                               User Write
-                                 ┌─────┐
-                                 │█████│
-             WAL                 │█████│
- s3://tpuf/{namespace_id}/wal    └──┬──┘
-                                    │
-                                    │
-╔═══════════════════════════════════╬══════════════╗
-║┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌ ─│─ ┐           ║░
-║│█████│ │█████│ │█████│ │█████│    ▼              ║░
-║│█████│ │█████│ │█████│ │█████│ │     │           ║░
-║└─────┘ └─────┘ └─────┘ └─────┘  ─ ─ ─            ║░
-║  001     002     003     004     005             ║░
-╚══════════════════════════════════════════════════╝░
- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                                              mem buffer
+                                              ┌──────┐
+            UPSERT/PATCH/DELETE               │░░░░░░│
+            ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ─▶│░░░░░░│
+                                              │░░░░░░│
+                                              └──┬───┘
+WAL                                              │ group commit (<= 1/s)
+s3://tpuf/{namespace_id}/wal                     ▼
+╔═════════════════════════════════════════════════════════╗
+║┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐             ║░
+║│██████│ │██████│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│             ║░
+║│██████│ │██████│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│             ║░
+║│██████│ │██████│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│             ║░
+║└──────┘ └──────┘ └──────┘ └──────┘ └──────┘             ║░
+║ 01.bin   02.bin ▲ 03.bin   04.bin   05.bin ▲ (06.bin)   ║░
+╚═════════════════│══════════════════════════│════════════╝░
+ ░░░░░░░░░░░░░░░░░│░░░░░░░░░░░░░░░░░░░░░░░░░░│░░░░░░░░░░░░░░
+                  │                          │
+             index cursor                CAS commit
+                                           point
+
+█ indexed + committed   ▓ committed, unindexed   ░ written, not committed
+
+~10ms for consistent read
 ```
 
 ```
-                               User Write
-                                 ┌─────┐
-                                 │█████│
-             WAL                 │█████│
- s3://tpuf/{namespace_id}/wal    └──┬──┘
-                                    │
-                                    │
-╔═══════════════════════════════════╬══════════════╗
-║┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌ ─│─ ┐           ║░
-║│█████│ │█████│ │█████│ │█████│    ▼              ║░
-║│█████│ │█████│ │█████│ │█████│ │     │           ║░
-║└─────┘ └─────┘ └─────┘ └─────┘  ─ ─ ─            ║░
-║  001     002     003     004     005             ║░
-╚══════════════════════════════════════════════════╝░
- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                                              mem buffer
+                                              ┌──────┐
+            UPSERT/PATCH/DELETE               │░░░░░░│
+            ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ─▶│░░░░░░│
+                                              │░░░░░░│
+                                              └──┬───┘
+WAL                                              │ group commit (<= 1/s)
+s3://tpuf/{namespace_id}/wal                     ▼
+╔═════════════════════════════════════════════════════════╗
+║┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐             ║░
+║│██████│ │██████│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│             ║░
+║│██████│ │██████│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│             ║░
+║│██████│ │██████│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│ │▓▓▓▓▓▓│             ║░
+║└──────┘ └──────┘ └──────┘ └──────┘ └──────┘             ║░
+║ 01.bin   02.bin ▲ 03.bin   04.bin   05.bin ▲ (06.bin)   ║░
+╚═════════════════│══════════════════════════│════════════╝░
+ ░░░░░░░░░░░░░░░░░│░░░░░░░░░░░░░░░░░░░░░░░░░░│░░░░░░░░░░░░░░
+                  │                          │
+             index cursor                CAS commit
+                                           point
+
+█ indexed + committed   ▓ committed, unindexed   ░ written, not committed
+
+~10ms for consistent read
 ```
 
 After data is committed to the log, it is asynchronously indexed to
@@ -109,58 +127,73 @@ search of recent data in the log.
 turbopuffer provides strong consistency by default, i.e. if you
 perform a write, a subsequent query will immediately see the write.
 However, you can configure your queries to be [eventually consistent](https://turbopuffer.com/docs/query#param-consistency) for lower warm latency.
+With eventual consistency, staleness of up to about one hour can be observed in the worst case.
 
 Both the approximate nearest neighbour (ANN) index we use for
 vectors, as well as the inverted [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) index we use for full-text search have been optimized for object
 storage to provide good cold latency (~500ms on 1M documents).
-Additionally, we build exact indexes for [metadata filtering](https://turbopuffer.com/docs/query#filter-parameters).
+Additionally, we build exact indexes for [metadata filtering](https://turbopuffer.com/docs/query#filtering-parameters).
 
 ```
-                   ╔══turpuffer region═══════╗      ╔═══Object Storage═════════════════╗
-                   ║      ┌────────────────┬─╬─┐    ║ ┏━━Indexing Queue━━━━━━━━━━━━━━┓ ║░
-                   ║      │ ./tpuf indexer │ ║░│    ║ ┃■■■■■■■■■                     ┃ ║░
-                   ║      └────────────────┘ ║░│    ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
-                   ║      ┌────────────────┐ ║░│    ║ ┏━/{org_id}/{namespace}━━━━━━━━┓ ║░
-                   ║      │ ./tpuf indexer │ ║░│    ║ ┃ ┏━/wal━━━━━━━━━━━━━━━━━━━━━┓ ┃ ║░
-                   ║      └────────────────┘ ║░└───▶║ ┃ ┃■■■■■■■■■■■■■■■◈◈◈◈       ┃ ┃ ║░
-                   ║                         ║░     ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
-                   ║                         ║░┌───▶║ ┃ ┏━/index━━━━━━━━━━━━━━━━━━━┓ ┃ ║░
-                   ║      ┌────────────────┐ ║░│    ║ ┃ ┃■■■■■■■■■■■■■■■           ┃ ┃ ║░
-                   ║   ┌─▶│  ./tpuf query  │ ║░│    ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
-                ┌──╩─┐ │  └────────────────┘ ║░│    ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
-╔══════════╗    │    │ │  ┌────────────────┐ ║░│    ╚══════════════════════════════════╝░
-║  Client  ║───▶│ LB │─┼─▶│  ./tpuf query  │─╬─┘     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-╚══════════╝░   │    │ │  └────────────────┘ ║░
- ░░░░░░░░░░░░   └──╦─┘ │  ┌────────────────┐ ║░
-                   ║   └─▶│  ./tpuf query  │ ║░
-                   ║      └────────────────┘ ║░
-                   ║                         ║░
-                   ╚═════════════════════════╝░
-                    ░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                   ╔═══turbopuffer region═════════════╗
+                   ║      ┌─────────────────────────┐ ╠──┐
+                   ║      │     ./tpuf indexer      │ ║░ │
+                   ║      └─────────────────────────┘ ║░ │
+                   ║      ┌─────────────────────────┐ ║░ │
+                   ║      │     ./tpuf indexer      │ ║░ │
+                   ║      └─────────────────────────┘ ║░ │   ╔═══Object Storage══════════════╗
+                   ║                                  ║░ │   ║ ┏━━Indexing Queue━━━━━━━━━━━┓ ║░
+                   ║      ┌─────────────────────────┐ ║░ │   ║ ┃■■■■■■■■■                  ┃ ║░
+                   ║      │      ./tpuf query       │ ║░ │   ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
+                   ║      │┌─Memory Cache──────────┐│ ║░ │   ║ ┏━/{org_id}/{namespace}━━━━━┓ ║░
+                   ║      ││■■■■■■■■■■             ││ ║░ │   ║ ┃ ┏━/wal━━━━━━━━━━━━━━━━━━┓ ┃ ║░
+                   ║   ┌─▶│└───────────────────────┘│ ║░ └──▶║ ┃ ┃■■■■■■■■■■■■■■■◈◈◈◈    ┃ ┃ ║░
+                   ║   │  │┌─NVMe Cache────────────┐│ ║░     ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
+                   ║   │  ││■■■■■■■■■■■■■■■■■■■■■  ││ ║░ ┌──▶║ ┃ ┏━/index━━━━━━━━━━━━━━━━┓ ┃ ║░
+                ┌──╩─┐ │  │└───────────────────────┘│ ║░ │   ║ ┃ ┃■■■■■■■■■■■■■■■        ┃ ┃ ║░
+╔══════════╗    │    │ │  └─────────────────────────┘ ║░ │   ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
+║  Client  ║───▶│ LB │─┤  ┌─────────────────────────┐ ║░ │   ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
+╚══════════╝░   │    │ │  │      ./tpuf query       │ ║░ │   ╚═══════════════════════════════╝░
+ ░░░░░░░░░░░░   └──╦─┘ │  │┌─Memory Cache──────────┐│ ║░ │    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                   ║   │  ││■■■■■■■■■■             ││ ╠──┘
+                   ║   └─▶│└───────────────────────┘│ ║░
+                   ║      │┌─NVMe Cache────────────┐│ ║░
+                   ║      ││■■■■■■■■■■■■■■■■■■■■■  ││ ║░
+                   ║      │└───────────────────────┘│ ║░
+                   ║      └─────────────────────────┘ ║░
+                   ╚══════════════════════════════════╝░
+                    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 ```
-                   ╔══turpuffer region═══════╗      ╔═══Object Storage═════════════════╗
-                   ║      ┌────────────────┬─╬─┐    ║ ┏━━Indexing Queue━━━━━━━━━━━━━━┓ ║░
-                   ║      │ ./tpuf indexer │ ║░│    ║ ┃■■■■■■■■■                     ┃ ║░
-                   ║      └────────────────┘ ║░│    ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
-                   ║      ┌────────────────┐ ║░│    ║ ┏━/{org_id}/{namespace}━━━━━━━━┓ ║░
-                   ║      │ ./tpuf indexer │ ║░│    ║ ┃ ┏━/wal━━━━━━━━━━━━━━━━━━━━━┓ ┃ ║░
-                   ║      └────────────────┘ ║░└───▶║ ┃ ┃■■■■■■■■■■■■■■■◈◈◈◈       ┃ ┃ ║░
-                   ║                         ║░     ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
-                   ║                         ║░┌───▶║ ┃ ┏━/index━━━━━━━━━━━━━━━━━━━┓ ┃ ║░
-                   ║      ┌────────────────┐ ║░│    ║ ┃ ┃■■■■■■■■■■■■■■■           ┃ ┃ ║░
-                   ║   ┌─▶│  ./tpuf query  │ ║░│    ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
-                ┌──╩─┐ │  └────────────────┘ ║░│    ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
-╔══════════╗    │    │ │  ┌────────────────┐ ║░│    ╚══════════════════════════════════╝░
-║  Client  ║───▶│ LB │─┼─▶│  ./tpuf query  │─╬─┘     ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-╚══════════╝░   │    │ │  └────────────────┘ ║░
- ░░░░░░░░░░░░   └──╦─┘ │  ┌────────────────┐ ║░
-                   ║   └─▶│  ./tpuf query  │ ║░
-                   ║      └────────────────┘ ║░
-                   ║                         ║░
-                   ╚═════════════════════════╝░
-                    ░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                   ╔═══turbopuffer region═════════════╗
+                   ║      ┌─────────────────────────┐ ╠──┐
+                   ║      │     ./tpuf indexer      │ ║░ │
+                   ║      └─────────────────────────┘ ║░ │
+                   ║      ┌─────────────────────────┐ ║░ │
+                   ║      │     ./tpuf indexer      │ ║░ │
+                   ║      └─────────────────────────┘ ║░ │   ╔═══Object Storage══════════════╗
+                   ║                                  ║░ │   ║ ┏━━Indexing Queue━━━━━━━━━━━┓ ║░
+                   ║      ┌─────────────────────────┐ ║░ │   ║ ┃■■■■■■■■■                  ┃ ║░
+                   ║      │      ./tpuf query       │ ║░ │   ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
+                   ║      │┌─Memory Cache──────────┐│ ║░ │   ║ ┏━/{org_id}/{namespace}━━━━━┓ ║░
+                   ║      ││■■■■■■■■■■             ││ ║░ │   ║ ┃ ┏━/wal━━━━━━━━━━━━━━━━━━┓ ┃ ║░
+                   ║   ┌─▶│└───────────────────────┘│ ║░ └──▶║ ┃ ┃■■■■■■■■■■■■■■■◈◈◈◈    ┃ ┃ ║░
+                   ║   │  │┌─NVMe Cache────────────┐│ ║░     ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
+                   ║   │  ││■■■■■■■■■■■■■■■■■■■■■  ││ ║░ ┌──▶║ ┃ ┏━/index━━━━━━━━━━━━━━━━┓ ┃ ║░
+                ┌──╩─┐ │  │└───────────────────────┘│ ║░ │   ║ ┃ ┃■■■■■■■■■■■■■■■        ┃ ┃ ║░
+╔══════════╗    │    │ │  └─────────────────────────┘ ║░ │   ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║░
+║  Client  ║───▶│ LB │─┤  ┌─────────────────────────┐ ║░ │   ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║░
+╚══════════╝░   │    │ │  │      ./tpuf query       │ ║░ │   ╚═══════════════════════════════╝░
+ ░░░░░░░░░░░░   └──╦─┘ │  │┌─Memory Cache──────────┐│ ║░ │    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                   ║   │  ││■■■■■■■■■■             ││ ╠──┘
+                   ║   └─▶│└───────────────────────┘│ ║░
+                   ║      │┌─NVMe Cache────────────┐│ ║░
+                   ║      ││■■■■■■■■■■■■■■■■■■■■■  ││ ║░
+                   ║      │└───────────────────────┘│ ║░
+                   ║      └─────────────────────────┘ ║░
+                   ╚══════════════════════════════════╝░
+                    ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 Vector indexes are based on [SPFresh](https://dl.acm.org/doi/10.1145/3600006.3613166). SPFresh is a centroid-based approximate nearest neighbour index.
@@ -194,7 +227,7 @@ required roundtrips for a cold query often take as little as ~400ms.
 
 When the namespace is cached in NVME/memory rather than fetched
 directly from object storage, the query time drops dramatically to
-p50=8. The roundtrip to object storage for consistency,
+p50=14. The roundtrip to object storage for consistency,
 which we can relax on request for eventually consistent sub 10ms queries.
 
 Metadata1
@@ -228,18 +261,62 @@ _additional roundtrips and fetching more data in an existing_
 _roundtrip._
 
 
+copy page
+
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
-[Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
+[Company](https://turbopuffer.com/about) [Pricing](https://turbopuffer.com/pricing) [Store](https://turbopuffer.supply/) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
 
 Support
 
-[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-24vaw9611-7E4RLNVeLXjcVatYpEJTXQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
+[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-3v27t102a-3RynqZ5A9vuOuAo68X_wFQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
 
 Follow
 
-[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml) [Events](https://turbopuffer.com/events)
 
-© 2025 turbopuffer Inc.
+[turbopuffer on Twitter](https://x.com/turbopuffer)[turbopuffer on LinkedIn](https://www.linkedin.com/company/turbopuffer/)[turbopuffer on BlueSky](https://bsky.app/profile/turbopuffer.bsky.social)[turbopuffer on YouTube](https://www.youtube.com/@turbopufferdb)
 
-[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+© 2026 turbopuffer Inc.
+
+[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa.pdf) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+
+Docs search
+
+esc
+
+## Guides
+
+[Quickstart\\
+\\
+Get started with turbopuffer in minutes](https://turbopuffer.com/docs/quickstart)
+
+[Vector Search\\
+\\
+Perform approximate nearest neighbor searches](https://turbopuffer.com/docs/vector)
+
+[Full-Text Search\\
+\\
+Learn how to use BM25 full-text search](https://turbopuffer.com/docs/fts)
+
+[Hybrid Search\\
+\\
+Combine vector and full-text search strategies](https://turbopuffer.com/docs/hybrid)
+
+## API Docs
+
+[Write\\
+\\
+Create, update, or delete documents](https://turbopuffer.com/docs/write)
+
+[Query\\
+\\
+Query documents with filters and ranking](https://turbopuffer.com/docs/query)
+
+[Auth & Encoding\\
+\\
+Authentication, headers, and request encoding](https://turbopuffer.com/docs/auth)
+
+[Namespace metadata\\
+\\
+Get metadata about a namespace](https://turbopuffer.com/docs/metadata)

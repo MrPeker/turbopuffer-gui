@@ -3,7 +3,7 @@ url: "https://turbopuffer.com/docs/fts"
 title: "Full-Text Search Guide"
 ---
 
-[We've doubled down with Lachy Groom, added ThriveWe've doubled down with Lachy Groom and added Thrive to the team](https://tpuf.link/comms)
+[Pin high-QPS namespaces to cacheNEW: Pin namespaces for predictable cost and latency on high QPS workloads](https://turbopuffer.com/docs/pinning)
 
 # Full-Text Search Guide
 
@@ -18,13 +18,13 @@ For hybrid search combining both vector and BM25 results, see [Hybrid Search](ht
 
 For all available full-text search options, see the [Schema documentation](https://turbopuffer.com/docs/write#schema).
 
-### Basic example
+## Basic example
 
 The simplest form of full-text search is on a single field of type `string`.
 
 python
 
-curlpythontypescriptgojavaruby
+curlpythontypescriptgojavac#ruby
 
 ```python
 # $ pip install turbopuffer
@@ -67,7 +67,7 @@ ns.write(
 # Basic FTS search.
 results = ns.query(
     rank_by=('content', 'BM25', 'turbopuffer'),
-    top_k=10,
+    limit=10,
     include_attributes=['content']
 )
 # [3, 1, 2] is the default BM25 ranking based on document length and
@@ -79,7 +79,7 @@ print(results)
 results = ns.query(
     rank_by=('content', 'BM25', 'turbopuffer'),
     filters=('content', 'ContainsAllTokens', 'search engine'),
-    top_k=10,
+    limit=10,
     include_attributes=['content']
 )
 # [1, 2] (same as above, but without document 3)
@@ -89,14 +89,14 @@ print(results)
 # https://turbopuffer.com/docs/hybrid-search
 ```
 
-### Advanced example
+## Advanced example
 
-You can use full-text search operators like [Sum](https://turbopuffer.com/docs/query#aggregation-operators) and [Product](https://turbopuffer.com/docs/query#field-weightsboosts) to perform
+You can use full-text search operators like [Sum](https://turbopuffer.com/docs/query#fts-operators) and [Product](https://turbopuffer.com/docs/query#field-weightsboosts) to perform
 a full-text search across multiple attributes simultaneously.
 
 python
 
-curlpythontypescriptgojavaruby
+curlpythontypescriptgojavac#ruby
 
 ```python
 import turbopuffer
@@ -180,7 +180,7 @@ result = ns.query(
         ('publish_date', 'Gte', 1709251200),
         ('language', 'Eq', 'en'),
     )),
-    top_k=10,
+    limit=10,
     include_attributes=['title', 'content', 'tags']
 )
 print(result.rows)
@@ -189,7 +189,7 @@ print(result.rows)
 # https://turbopuffer.com/docs/hybrid-search
 ```
 
-### Custom tokenization
+## Custom tokenization
 
 When turbopuffer's built-in tokenizers aren't sufficient, use the
 `pre_tokenized_array` [tokenizer](https://turbopuffer.com/docs/fts/#tokenizers)
@@ -197,7 +197,7 @@ to perform client side tokenization using arbitrary logic.
 
 python
 
-pythontypescriptgojavaruby
+pythontypescriptgojavac#ruby
 
 ```python
 import turbopuffer
@@ -220,7 +220,7 @@ def tokenize(text: str) -> List[str]:
     return cleaned.lower().split()
 
 # Write some sample data.
-ns = tpuf.namespace(f'fts-custom-tokenization-py')
+ns = tpuf.namespace(f'fts-custom-tokenization-example-py')
 ns.write(
     upsert_rows=[\
         {"id": 1, "content": tokenize("We hold these truths to be self-evident.")},\
@@ -238,7 +238,7 @@ ns.write(
 results = ns.query(
     # Notice that the BM25 operator now expects a list of tokens, not a string.
     rank_by=('content', 'BM25', ['self', 'evident']),
-    top_k=10,
+    limit=10,
 )
 # Only document 2 is matched, because document 1 has the token "self-evident"
 # but neither the token "self" nor "evident".
@@ -247,7 +247,7 @@ print(results)
 # Query for "self-evident".
 results = ns.query(
     rank_by=('content', 'BM25', ['self-evident']),
-    top_k=10,
+    limit=10,
 )
 # Now only document 1 is matched.
 print(results)
@@ -257,25 +257,29 @@ print(results)
 def query_string(query: str):
     return ns.query(
         rank_by=('content', 'BM25', tokenize(query)),
-        top_k=10,
+        limit=10,
     )
 ```
 
-### Supported languages
+## Supported languages
 
 turbopuffer currently supports language-aware stemming and stopword removal for
 full-text search. The following languages are supported:
 
 ```
-english (default)   arabic     hungarian    portuguese   swedish
-danish              finnish    italian      romanian     tamil
-dutch               french     norwegian    russian      turkish
-german              greek
+arabic              danish     dutch        english (default)   finnish
+french              german     greek        hungarian           italian
+norwegian           portuguese romanian     russian             spanish
+swedish             tamil      turkish
 ```
+
+For latin-script languages with diacritics (e.g. french, spanish), consider
+enabling [`ascii_folding`](https://turbopuffer.com/docs/write#param-full_text_search) in your BM25
+params.
 
 Other languages can be supported by [contacting us](https://turbopuffer.com/contact).
 
-### Tokenizers
+## Tokenizers
 
 - `word_v3` (default for new namespaces)
 - `word_v2`
@@ -313,9 +317,29 @@ cannot specify `language`, `stemming: true`, `remove_stopwords: true`, or
 
 New tokenizers can be requested by [contacting us](https://turbopuffer.com/contact).
 
-### Advanced tuning
+## Fuzzy matching
 
-The [BM25 scoring algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) involves two parameters that can be tuned for
+turbopuffer supports fuzzy string matching within a specified [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) via the [Fuzzy filter](https://turbopuffer.com/docs/query#param-Fuzzy). This can be used as a filter directly, or within a rank-by expression as a [Rank by filter](https://turbopuffer.com/docs/query#rank-by-filter), possibly in conjunction with other expressions:
+
+```json
+{
+  "rank_by": ["Sum", [\
+    ["Product", 3, ["company_name", "Glob", "*turbopufer*"]],\
+    ["company_name", "Fuzzy", "turbopufer", { "max_edit_distance": [\
+      { "min_query_chars": 6, "distance": 1 }\
+    ]}]\
+  ]],
+  "limit": 10
+}
+```
+
+This query will prioritize values that contain exactly "turbopufer" as a substring, while simultaneously ensuring that values that contain a substring that is within a given edit distance are returned.
+
+turbopuffer does not support per-token fuzziness, e.g. within a BM25 query. Prefer using a spell-checker / query-rewriting layer to correct typos before retrieving hits, or consider using [hybrid search](https://turbopuffer.com/docs/hybrid) with vectors.
+
+## Advanced tuning
+
+The [BM25 scoring algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) involves three parameters that can be tuned for
 your workload:
 
 - `k1` controls how quickly the impact of term frequency saturates. When `k1` is
@@ -335,8 +359,17 @@ document length in the corpus.
 The default value, `0.75`, controls for length bias without eliminating it
 entirely (long documents are often legitimately more relevant).
 
+- `k3` controls the saturation point for query term frequency. When a query
+contains repeated terms, `k3` determines how much additional weight each
+repetition contributes. When `k3` is close to zero, query term repetition
+is effectively ignored. When `k3` is large, repeated query terms contribute
+nearly linearly to the score.
 
-The default values are suitable for most applications. Tuning is typically
+The default value, `8.0`, allows repeated query terms to have a meaningful
+impact on scoring while still applying diminishing returns.
+
+
+The default values are suitable for most applications. Tuning `k1` and `b` is typically
 required only if your corpus consists of extremely short texts like tweets
 (decrease `k1` and `b`) or extremely long texts like legal documents (increase
 `k1` and `b`).
@@ -344,18 +377,62 @@ required only if your corpus consists of extremely short texts like tweets
 To tune these parameters, we recommend an empirical approach: build a set of
 evals, and choose the parameter values that maximize performance on those evals.
 
+copy page
+
 ![turbopuffer logo](https://turbopuffer.com/_next/static/media/lockup_transparent.6092c7ef.svg)
 
-[Company](https://turbopuffer.com/about) [Jobs](https://turbopuffer.com/jobs) [Pricing](https://turbopuffer.com/pricing) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
+[Company](https://turbopuffer.com/about) [Pricing](https://turbopuffer.com/pricing) [Store](https://turbopuffer.supply/) [Press & media](https://turbopuffer.com/press) [System status](https://status.turbopuffer.com/)
 
 Support
 
-[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-24vaw9611-7E4RLNVeLXjcVatYpEJTXQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
+[Slack](https://join.slack.com/t/turbopuffer-community/shared_invite/zt-3v27t102a-3RynqZ5A9vuOuAo68X_wFQ) [Docs](https://turbopuffer.com/docs) [Email](https://turbopuffer.com/contact/support) [Sales](https://turbopuffer.com/contact/sales)
 
 Follow
 
-[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml)
+[Blog](https://turbopuffer.com/blog) [RSS](https://turbopuffer.com/blog/rss.xml) [Events](https://turbopuffer.com/events)
 
-© 2025 turbopuffer Inc.
+[turbopuffer on Twitter](https://x.com/turbopuffer)[turbopuffer on LinkedIn](https://www.linkedin.com/company/turbopuffer/)[turbopuffer on BlueSky](https://bsky.app/profile/turbopuffer.bsky.social)[turbopuffer on YouTube](https://www.youtube.com/@turbopufferdb)
 
-[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+© 2026 turbopuffer Inc.
+
+[Terms of service](https://turbopuffer.com/terms-of-service) [Data Processing Agreement](https://turbopuffer.com/dpa.pdf) [Privacy Policy](https://turbopuffer.com/privacy-policy) [Security & Compliance](https://turbopuffer.com/docs/security)
+
+Docs search
+
+esc
+
+## Guides
+
+[Quickstart\\
+\\
+Get started with turbopuffer in minutes](https://turbopuffer.com/docs/quickstart)
+
+[Vector Search\\
+\\
+Perform approximate nearest neighbor searches](https://turbopuffer.com/docs/vector)
+
+[Full-Text Search\\
+\\
+Learn how to use BM25 full-text search](https://turbopuffer.com/docs/fts)
+
+[Hybrid Search\\
+\\
+Combine vector and full-text search strategies](https://turbopuffer.com/docs/hybrid)
+
+## API Docs
+
+[Write\\
+\\
+Create, update, or delete documents](https://turbopuffer.com/docs/write)
+
+[Query\\
+\\
+Query documents with filters and ranking](https://turbopuffer.com/docs/query)
+
+[Auth & Encoding\\
+\\
+Authentication, headers, and request encoding](https://turbopuffer.com/docs/auth)
+
+[Namespace metadata\\
+\\
+Get metadata about a namespace](https://turbopuffer.com/docs/metadata)
