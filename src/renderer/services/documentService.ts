@@ -54,6 +54,38 @@ export class DocumentService {
     };
   }
 
+  /**
+   * Returns the query plan for the given query without executing it. Useful
+   * for understanding which indexes a query will use and rough cost. Mirrors
+   * the shape of queryDocuments — pass the same params you'd pass to query()
+   * and read the returned plan_text.
+   *
+   * Uses the SDK's explainQuery (NamespaceExplainQueryParams). Surface area
+   * is API-only right now; UI follow-up will mirror the query toolbar with a
+   * dedicated "Explain" panel.
+   */
+  async explainQuery(
+    namespaceId: string,
+    params: DocumentsQueryParams
+  ): Promise<{ plan_text?: string }> {
+    if (!this.client) {
+      throw new Error("Turbopuffer client not initialized");
+    }
+    const ns = this.client.namespace(namespaceId);
+    const result = await ns.explainQuery({
+      rank_by: params.rank_by,
+      top_k: params.top_k,
+      ...(params.limit && { limit: params.limit }),
+      filters: params.filters,
+      include_attributes: params.include_attributes,
+      ...(params.exclude_attributes && { exclude_attributes: params.exclude_attributes }),
+      aggregate_by: params.aggregate_by,
+      group_by: params.group_by,
+      consistency: params.consistency,
+    });
+    return { plan_text: result.plan_text };
+  }
+
   async searchDocuments(
     namespaceId: string,
     searchTerm: string,

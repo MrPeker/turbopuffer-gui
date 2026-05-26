@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, memo } from 'react';
+import React, { useRef, useState, useCallback, memo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNamespacesStore } from '../../stores/namespacesStore';
 import type { NamespaceWithRegion } from '../../../types/connection';
@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   MoreHorizontal,
@@ -22,7 +24,8 @@ import {
   RefreshCw,
   Copy,
   FolderOpen,
-  Flame
+  Flame,
+  CopyPlus
 } from 'lucide-react';
 import { formatBytes, formatNumber, formatDate } from '../../utils/formatBytes';
 import { namespaceService } from '../../services/namespaceService';
@@ -37,6 +40,7 @@ interface NamespaceRowProps {
   onDelete: (namespaceId: string) => void;
   onCopy: (text: string) => void;
   onWarmCache: (namespace: NamespaceWithRegion) => void;
+  onCopyNamespace: (namespace: NamespaceWithRegion) => void;
 }
 
 /**
@@ -52,6 +56,7 @@ const NamespaceRow = memo(function NamespaceRow({
   onDelete,
   onCopy,
   onWarmCache,
+  onCopyNamespace,
 }: NamespaceRowProps) {
   // Subscribe to ONLY this namespace's metadata using a granular selector
   const cacheKey = namespace.regionId ? `${namespace.id}:${namespace.regionId}` : namespace.id;
@@ -151,6 +156,16 @@ const NamespaceRow = memo(function NamespaceRow({
               <Flame className="h-3 w-3 mr-1.5" />
               warm cache
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopyNamespace(namespace);
+              }}
+              className="text-sm"
+            >
+              <CopyPlus className="h-3 w-3 mr-1.5" />
+              copy to new namespace
+            </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-tp-border-subtle" />
             <DropdownMenuItem
               onClick={(e) => {
@@ -188,6 +203,13 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
   const deleteNamespace = useNamespacesStore((state) => state.deleteNamespace);
   const addRecentNamespace = useNamespacesStore((state) => state.addRecentNamespace);
   const fetchMetadataForNamespace = useNamespacesStore((state) => state.fetchMetadataForNamespace);
+  const loadNamespaces = useNamespacesStore((state) => state.loadNamespaces);
+
+  // Copy-namespace dialog local state. Kept here (not in the store) since it
+  // is purely transient UI; surviving navigation has no value.
+  const [copySource, setCopySource] = useState<NamespaceWithRegion | null>(null);
+  const [copyDestinationName, setCopyDestinationName] = useState('');
+  const [isCopying, setIsCopying] = useState(false);
 
   // Debounced metadata fetch on hover
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -259,6 +281,71 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
     }
   }, [toast]);
 
+  const openCopyDialog = useCallback((namespace: NamespaceWithRegion) => {
+    setCopySource(namespace);
+    setCopyDestinationName(`${namespace.id}-copy`);
+  }, []);
+
+  const closeCopyDialog = useCallback(() => {
+    if (isCopying) return;
+    setCopySource(null);
+    setCopyDestinationName('');
+  }, [isCopying]);
+
+  const handleConfirmCopy = useCallback(async () => {
+    if (!copySource) return;
+
+    const destination = copyDestinationName.trim();
+    if (!destination) {
+      toast({
+        title: 'Destination required',
+        description: 'Enter a name for the new namespace',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Same regex as namespace creation in SchemaPage — keep them aligned.
+    if (!/^[A-Za-z0-9-_.]{1,128}$/.test(destination)) {
+      toast({
+        title: 'Invalid namespace name',
+        description: 'ASCII alphanumeric, hyphens, underscores, periods (max 128 chars)',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (destination === copySource.id) {
+      toast({
+        title: 'Destination must differ from source',
+        description: 'Pick a different name for the copy',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCopying(true);
+    try {
+      await namespaceService.copyNamespace(destination, copySource.id, copySource.regionId);
+      toast({
+        title: 'Namespace copied',
+        description: `${copySource.id} → ${destination}`,
+      });
+      setCopySource(null);
+      setCopyDestinationName('');
+      // Refresh so the new namespace shows up in the list.
+      await loadNamespaces(true);
+    } catch (error) {
+      toast({
+        title: 'Copy failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCopying(false);
+    }
+  }, [copySource, copyDestinationName, toast, loadNamespaces]);
+
   return (
     <>
       <div className="border border-tp-border-subtle bg-tp-bg">
@@ -295,6 +382,7 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
                   onDelete={handleOpenDeleteDialog}
                   onCopy={copyToClipboard}
                   onWarmCache={handleWarmCache}
+                  onCopyNamespace={openCopyDialog}
                 />
               ))
             )}
@@ -307,6 +395,55 @@ export function NamespaceList({ namespaces, isRefreshing, intendedDestination, s
           showing {namespaces.length} namespace{namespaces.length !== 1 ? 's' : ''}
         </div>
       )}
+
+      <Dialog open={!!copySource} onOpenChange={(open) => !open && closeCopyDialog()}>
+        <DialogContent className="bg-tp-surface border-tp-border-strong">
+          <DialogHeader>
+            <DialogTitle className="text-sm uppercase tracking-wider">copy namespace</DialogTitle>
+            <DialogDescription className="text-xs text-tp-text-muted">
+              copy <span className="font-mono font-semibold text-tp-accent">{copySource?.id}</span> into a new namespace
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="copy-dest" className="text-[11px] font-bold uppercase tracking-wider text-tp-text-muted">
+                destination name
+              </Label>
+              <Input
+                id="copy-dest"
+                value={copyDestinationName}
+                onChange={(e) => setCopyDestinationName(e.target.value)}
+                placeholder="new-namespace"
+                className="font-mono bg-tp-bg border-tp-border-strong"
+                autoFocus
+                disabled={isCopying}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isCopying) handleConfirmCopy();
+                }}
+              />
+              <p className="text-[10px] text-tp-text-muted">
+                ASCII alphanumeric, hyphens, underscores, periods (max 128 chars). Copy is server-side and runs in
+                the same region as the source.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={closeCopyDialog} disabled={isCopying}>
+              cancel
+            </Button>
+            <Button size="sm" onClick={handleConfirmCopy} disabled={isCopying || !copyDestinationName.trim()}>
+              {isCopying ? (
+                <>
+                  <RefreshCw className="h-3 w-3 mr-1.5 animate-spin" />
+                  copying
+                </>
+              ) : (
+                'copy'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteDialogNamespace} onOpenChange={(open) => !open && setDeleteDialogNamespace(null)}>
         <DialogContent className="bg-tp-surface border-tp-border-strong">

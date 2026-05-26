@@ -529,3 +529,110 @@ v0.6.0  ─── Phase 4   (hybrid end-to-end, advanced       L PRs
 ## 13 · Source audit transcripts
 
 Each row of the gap matrix is backed by a parallel doc-vs-code audit (12 agents, 36 doc files, 8.6k lines). Per-area transcripts available on request.
+
+---
+
+## 14 · Deferred items log
+
+Tracking what's been pushed past the current PR series and why. Each block names the cause and the unblock condition.
+
+### 14.1 · Blocked on SDK 0.10.18 capability gaps
+
+```
+┌────────────────────────────┬─────────────────────────────────────────────┐
+│ Item                       │ SDK gap                                     │
+├────────────────────────────┼─────────────────────────────────────────────┤
+│ Namespace pinning          │ No `pinning` field on NamespaceMetadata;    │
+│  (RFC §8.8, §8.2)          │ no metadata-update method                   │
+│                            │                                             │
+│ Namespace branching        │ No `branch_from` field on NamespaceWriteParams│
+│  (RFC §8.4, §8.10, §7)     │ — feature is documented but not in SDK yet  │
+│                            │                                             │
+│ Cross-region copy          │ No `source_region` / `source_api_key` fields│
+│  (RFC §8.4, §8.10)         │ in NamespaceWriteParams                     │
+│                            │                                             │
+│ Multi-vector columns       │ Columns shape: `vector?: ... | string` is   │
+│  (RFC §8.3, §5)            │ single-field; no first-class typing for two │
+│                            │ named vectors. Catch-all `[k: string]:` works│
+│                            │ but produces brittle schema-string code.    │
+└────────────────────────────┴─────────────────────────────────────────────┘
+
+Unblock condition: SDK upgrade past 0.10.x. Each item is a one-PR follow-up
+once the surface is typed — service methods + thin UI on top of patterns
+already established (Pin/Unpin mirrors warmCache; Branch mirrors Copy).
+```
+
+### 14.2 · Deferred for UX / scope discipline
+
+```
+┌────────────────────────────┬─────────────────────────────────────────────┐
+│ Item                       │ Why deferred                                │
+├────────────────────────────┼─────────────────────────────────────────────┤
+│ Conditional writes         │ Powerful but rarely-used. $ref_new requires │
+│  (upsert_condition,        │ careful UI scaffolding (lets writes refer to│
+│  patch_condition,          │ existing-row values mid-update). Better as  │
+│  delete_condition)         │ a focused PR with `return_affected_ids` and │
+│                            │ patch_by_filter in the same flow.           │
+│                            │                                             │
+│ patch_rows mode            │ Currently using patch_columns only.         │
+│                            │ Same PR as conditional writes.              │
+│                            │                                             │
+│ patch_by_filter            │ Same PR as conditional writes.              │
+│  + allow_partial           │                                             │
+│                            │                                             │
+│ return_affected_ids /      │ Today: we display rows_affected only.       │
+│  rows_upserted/patched/    │ Plumbing the full counts is a status-bar    │
+│  deleted/remaining surfacing│ refresh — small but cohesive PR.            │
+│                            │                                             │
+│ Explain query UI panel     │ API-layer plumbing landed in Slice 3b.      │
+│  (RFC §4.2 sidebar)        │ UI needs to faithfully mirror the full      │
+│                            │ query-build path (filters + rank_by +       │
+│                            │ aggregations + group_by) which today is     │
+│                            │ inlined in documentsStore.loadDocuments.    │
+│                            │ Better to refactor query-build into a       │
+│                            │ shared helper first, then add the panel.    │
+│                            │                                             │
+│ exclude_attributes UI      │ API-layer plumbing landed in Slice 3a.      │
+│                            │ Most-asked case is auto-exclude vectors     │
+│                            │ which is a behavior change worth its own PR.│
+│                            │                                             │
+│ limit.per UI               │ API-layer plumbing landed in Slice 3a.      │
+│                            │ Needs UX next to group_by — diversification │
+│                            │ only makes sense together.                  │
+│                            │                                             │
+│ last_as_prefix toggle      │ Filter-options 4-tuple support landed in    │
+│  on ContainsAllTokens /    │ Slice 3a. Needs per-operator option panels  │
+│  ContainsAnyToken / BM25   │ in FilterBuilder — wider design change.     │
+│                            │                                             │
+│ Fuzzy custom edit ladder   │ Default ladder ships in Slice 3a            │
+│                            │ ({min_query_chars: 3,6} / {distance: 0,1}). │
+│                            │ Custom multi-tier laddering needs the same  │
+│                            │ per-operator option panel design.           │
+│                            │                                             │
+│ Aggregations: Min, Max,    │ Server roadmap items per roadmap.md         │
+│  Avg, Quantile,            │ ("Aggregates: distinct, min, max — Up Next")│
+│  CountDistinct             │ — would API-error today.                    │
+│                            │                                             │
+│ Backups workflow           │ Per Open Question #5 ("not needed now").    │
+│  (RFC §8.10)               │                                             │
+└────────────────────────────┴─────────────────────────────────────────────┘
+```
+
+### 14.3 · Phase status snapshot
+
+```
+Phase 1 (P0 fixes + regions)              ████████████████ shipped v0.3.0
+Phase 2 (P1 surfaces)                     ██████████████░░ shipped v0.4.0
+                                                            (pinning deferred)
+Phase 3a (low-risk additions)             ████████████████ shipped v0.5.0a
+Phase 3b (write/query additions)          ████████████░░░░ shipped v0.5.0b
+                                                            (branching, multi-vec
+                                                             deferred; copy +
+                                                             recall + explain-API
+                                                             shipped)
+Phase 3.5 (conditional writes etc)        ░░░░░░░░░░░░░░░░ pending follow-up
+Phase 4 (hybrid + backlog)                ░░░░░░░░░░░░░░░░ pending
+SDK upgrade unblocks                      ░░░░░░░░░░░░░░░░ pending (branching,
+                                                             pinning, multi-vec,
+                                                             cross-region copy)
+```

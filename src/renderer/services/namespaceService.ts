@@ -287,6 +287,83 @@ export class NamespaceService {
   }
 
   /**
+   * Copies an existing namespace into a new one. Server-side — much faster
+   * than client-side export/import, and discounted (75% off write costs per
+   * docs/export.md). Same region only; cross-region/cross-org copies need
+   * source_region + source_api_key which aren't in SDK 0.10.18 yet.
+   *
+   * @param destinationId   Name of the new namespace to create
+   * @param sourceId        Namespace to copy from
+   * @param regionId        Region to perform the copy in (both must be in this region)
+   */
+  async copyNamespace(
+    destinationId: string,
+    sourceId: string,
+    regionId?: string
+  ): Promise<void> {
+    permissionService.checkWritePermission();
+
+    const client = regionId
+      ? turbopufferService.getClientForRegion(regionId)
+      : (this.client || turbopufferService.getClient());
+
+    if (!client) {
+      throw new Error('Turbopuffer client not initialized');
+    }
+
+    if (destinationId === sourceId) {
+      throw new Error('Destination namespace must differ from source');
+    }
+
+    const ns = client.namespace(destinationId);
+    try {
+      await ns.write({ copy_from_namespace: sourceId });
+    } catch (error) {
+      console.error('Failed to copy namespace:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Measures ANN recall by running approximate and exhaustive searches and
+   * comparing their result sets. Returns the average across `num` queries
+   * (default chosen by the server). Vector-only — meaningless without a
+   * vector index.
+   *
+   * Per docs/recall.md, the recall figure is the share of "ground truth"
+   * (exhaustive) results that the ANN index also returned. 1.0 = perfect.
+   */
+  async measureRecall(
+    namespaceId: string,
+    regionId?: string,
+    options: { num?: number; top_k?: number } = {}
+  ): Promise<{ avg_recall: number; avg_ann_count: number; avg_exhaustive_count: number }> {
+    const client = regionId
+      ? turbopufferService.getClientForRegion(regionId)
+      : (this.client || turbopufferService.getClient());
+
+    if (!client) {
+      throw new Error('Turbopuffer client not initialized');
+    }
+
+    const ns = client.namespace(namespaceId);
+    try {
+      const result = await ns.recall({
+        ...(options.num !== undefined && { num: options.num }),
+        ...(options.top_k !== undefined && { top_k: options.top_k }),
+      });
+      return {
+        avg_recall: result.avg_recall,
+        avg_ann_count: result.avg_ann_count,
+        avg_exhaustive_count: result.avg_exhaustive_count,
+      };
+    } catch (error) {
+      console.error('Failed to measure recall:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Hints the cache to warm for this namespace. The server responds ACCEPTED
    * and pre-fetches data in the background — subsequent queries are typically
    * faster. Safe to call repeatedly; no write permission required.

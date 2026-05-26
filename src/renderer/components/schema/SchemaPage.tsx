@@ -23,6 +23,7 @@ import {
   FileJson,
   FileText,
   X,
+  Activity,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -99,6 +100,8 @@ export const SchemaPage: React.FC = () => {
   const isCreateMode = namespaceId === 'new';
   const [newNamespaceName, setNewNamespaceName] = useState('');
   const [distanceMetric, setDistanceMetric] = useState<'cosine_distance' | 'euclidean_squared'>('cosine_distance');
+  const [recallResult, setRecallResult] = useState<{ avg_recall: number; avg_ann_count: number; avg_exhaustive_count: number } | null>(null);
+  const [isMeasuringRecall, setIsMeasuringRecall] = useState(false);
   const [initialDocsJson, setInitialDocsJson] = useState('');
   const [initialDocsFiles, setInitialDocsFiles] = useState<Array<{ name: string; docs: any[] }>>([]);
   const [initialDocsTab, setInitialDocsTab] = useState<'json' | 'file'>('json');
@@ -730,6 +733,80 @@ export const SchemaPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Recall measurement — only meaningful for existing namespaces with
+              a vector attribute. Runs ANN vs exhaustive comparison on sampled
+              query vectors; result is the fraction of "ground truth" results
+              recovered by the ANN index. */}
+          {!isCreateMode && namespaceId && attributes.some(a => typeof a.schema?.type === 'object') && (
+            <Card className="border-tp-border-subtle bg-tp-surface">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm uppercase tracking-wider">vector recall</CardTitle>
+                    <CardDescription className="text-[11px] text-tp-text-muted">
+                      measure how often ANN search recovers ground-truth nearest neighbors
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (!namespaceId) return;
+                      setIsMeasuringRecall(true);
+                      setRecallResult(null);
+                      try {
+                        const result = await namespaceService.measureRecall(
+                          namespaceId,
+                          regionId ?? undefined
+                        );
+                        setRecallResult(result);
+                      } catch (err) {
+                        toast({
+                          title: 'Recall measurement failed',
+                          description: err instanceof Error ? err.message : 'Unknown error',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setIsMeasuringRecall(false);
+                      }
+                    }}
+                    disabled={isMeasuringRecall || (!isCreateMode && isActiveConnectionReadOnly)}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {isMeasuringRecall ? (
+                      <>
+                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        measuring
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="h-3 w-3 mr-1" />
+                        evaluate
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              {recallResult && (
+                <CardContent>
+                  <div className="flex items-baseline gap-6">
+                    <div>
+                      <div className="text-2xl font-mono font-semibold tabular-nums">
+                        {(recallResult.avg_recall * 100).toFixed(1)}<span className="text-base text-tp-text-muted">%</span>
+                      </div>
+                      <div className="text-[10px] uppercase tracking-wider text-tp-text-muted mt-0.5">
+                        avg recall
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-tp-text-muted space-y-0.5 font-mono tabular-nums">
+                      <div>ANN matched: {recallResult.avg_ann_count.toFixed(2)}</div>
+                      <div>Exhaustive: {recallResult.avg_exhaustive_count.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
 
           {isCreateMode && (
             <Card className="border-tp-border-subtle bg-tp-surface">
