@@ -27,36 +27,24 @@ export class NamespaceService {
       throw new Error('Turbopuffer client not initialized');
     }
 
-    const namespaces: Namespace[] = [];
-    let count = 0;
-    const pageSize = params?.page_size || 100;
+    // page_size is the request batch size, not a hard cap. The SDK's PagePromise
+    // auto-paginates via `for await...of` until exhausted, so this returns all
+    // matches (respecting `prefix` and `cursor` if provided).
+    const pageSize = params?.page_size ?? 1000;
 
     try {
-      const iterator = await this.client.namespaces({
+      const iterator = this.client.namespaces({
         cursor: params?.cursor,
         prefix: params?.prefix,
-        page_size: pageSize
+        page_size: pageSize,
       });
 
+      const namespaces: Namespace[] = [];
       for await (const namespace of iterator) {
-        namespaces.push({
-          id: namespace.id,
-          // Additional stats would need to be fetched separately
-          // as the API doesn't return them in the list
-        });
-        
-        count++;
-        if (count >= pageSize) {
-          break;
-        }
+        namespaces.push({ id: namespace.id });
       }
 
-      // Note: The turbopuffer SDK doesn't expose next_cursor directly
-      // In a real implementation, we might need to handle pagination differently
-      return {
-        namespaces,
-        // next_cursor would be set here if available from the API
-      };
+      return { namespaces };
     } catch (error) {
       console.error('Failed to list namespaces:', error);
       throw error;
@@ -81,48 +69,61 @@ export class NamespaceService {
     const ns = this.client.namespace(namespaceId);
 
     try {
-      const ids: (string | number)[] = [];
-      const vectors: number[][] = [];
-      const attributeColumns: Record<string, any[]> = {};
+      const docsWithVectors = documents.filter((d) => d.vector !== undefined).length;
+      const allHaveVectors = docsWithVectors === documents.length;
+      const anyHasVector = docsWithVectors > 0;
+      const mixedVectors = anyHasVector && !allHaveVectors;
 
-      documents.forEach((doc) => {
-        const { id, vector, ...attrs } = doc;
-        ids.push(id);
-        if (vector) vectors.push(vector);
+      let writeParams: Record<string, any>;
 
-        Object.entries(attrs).forEach(([key, value]) => {
-          if (!attributeColumns[key]) attributeColumns[key] = [];
-          attributeColumns[key].push(value);
+      if (mixedVectors) {
+        // Row form supports vector-optional namespaces where some docs in a
+        // batch carry vectors and others don't. Columnar form would require
+        // null padding the vector column, which the server rejects.
+        writeParams = {
+          upsert_rows: documents.map((doc) => {
+            const { id, vector, ...attrs } = doc;
+            return {
+              id,
+              ...(vector && { vector }),
+              ...attrs,
+            };
+          }),
+          distance_metric: 'cosine_distance',
+        };
+      } else {
+        // Uniform batch: columnar form for throughput.
+        const ids: (string | number)[] = [];
+        const vectors: number[][] = [];
+        const attributeColumns: Record<string, any[]> = {};
+
+        documents.forEach((doc) => {
+          const { id, vector, ...attrs } = doc;
+          ids.push(id);
+          if (vector) vectors.push(vector);
+
+          Object.entries(attrs).forEach(([key, value]) => {
+            if (!attributeColumns[key]) attributeColumns[key] = [];
+            attributeColumns[key].push(value);
+          });
+
+          // Null-pad missing attributes to keep columns equal length.
+          Object.keys(attributeColumns).forEach((key) => {
+            if (attributeColumns[key].length < ids.length) {
+              attributeColumns[key].push(null);
+            }
+          });
         });
 
-        // Null-fill missing attributes
-        Object.keys(attributeColumns).forEach((key) => {
-          if (attributeColumns[key].length < ids.length) {
-            attributeColumns[key].push(null);
-          }
-        });
-      });
-
-      const hasVectors = vectors.length > 0;
-      const allHaveVectors = vectors.length === ids.length;
-
-      if (hasVectors && !allHaveVectors) {
-        throw new Error(
-          `Cannot mix documents with and without vectors in the same batch. ` +
-          `${vectors.length} of ${ids.length} documents have vectors.`
-        );
+        writeParams = {
+          upsert_columns: {
+            id: ids,
+            ...(allHaveVectors && { vector: vectors }),
+            ...attributeColumns,
+          },
+          ...(allHaveVectors && { distance_metric: 'cosine_distance' }),
+        };
       }
-
-      const includeVectors = hasVectors && allHaveVectors;
-
-      const writeParams: Record<string, any> = {
-        upsert_columns: {
-          id: ids,
-          ...(includeVectors && { vector: vectors }),
-          ...attributeColumns,
-        },
-        ...(includeVectors && { distance_metric: 'cosine_distance' }),
-      };
 
       if (Object.keys(schema).length > 0) {
         writeParams.schema = schema;
@@ -141,19 +142,13 @@ export class NamespaceService {
     }
 
     try {
-      // Try to get the namespace schema to verify it exists
+      // Probe schema to verify the namespace exists; discard the result.
+      // Callers should use getNamespaceMetadata() for created_at, row count, etc.
       const ns = this.client.namespace(namespaceId);
-      const schema = await ns.schema();
-      
-      // If we can get the schema, the namespace exists
-      // Create a Namespace object from the available information
-      return {
-        id: namespaceId,
-        created_at: new Date().toISOString(), // We don't have the actual creation date
-        dimensions: schema.vector?.dimensions || 0
-      };
+      await ns.schema();
+
+      return { id: namespaceId };
     } catch (error) {
-      // If we can't get the schema, the namespace doesn't exist
       console.error(`Namespace ${namespaceId} not found:`, error);
       return null;
     }
@@ -221,10 +216,12 @@ export class NamespaceService {
   }
 
   /**
-   * List namespaces from all configured regions in parallel
+   * List namespaces from all configured regions in parallel.
+   * Auto-paginates internally via the SDK's PagePromise iterator.
    */
   async listNamespacesFromAllRegions(
-    regions: TurbopufferRegion[]
+    regions: TurbopufferRegion[],
+    prefix?: string
   ): Promise<{
     namespaces: NamespaceWithRegion[];
     errors: RegionError[];
@@ -247,7 +244,10 @@ export class NamespaceService {
         }
 
         const namespaces: NamespaceWithRegion[] = [];
-        const iterator = await client.namespaces({ page_size: 1000 });
+        const iterator = client.namespaces({
+          page_size: 1000,
+          ...(prefix && { prefix }),
+        });
 
         for await (const namespace of iterator) {
           namespaces.push({

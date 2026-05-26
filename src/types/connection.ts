@@ -70,18 +70,23 @@ export interface NamespaceResponse {
 export const TURBOPUFFER_REGIONS: TurbopufferRegion[] = [
   // GCP Regions
   { id: 'gcp-us-east4', name: 'GCP N. Virginia', url: 'https://gcp-us-east4.turbopuffer.com', location: 'N. Virginia', provider: 'gcp' },
-  { id: 'gcp-northamerica-northeast2', name: 'GCP Toronto', url: 'https://gcp-northamerica-northeast2.turbopuffer.com', location: 'Toronto', provider: 'gcp' },
-  { id: 'gcp-us-west1', name: 'GCP Oregon', url: 'https://gcp-us-west1.turbopuffer.com', location: 'Oregon', provider: 'gcp' },
-  { id: 'gcp-europe-west3', name: 'GCP Frankfurt', url: 'https://gcp-europe-west3.turbopuffer.com', location: 'Frankfurt', provider: 'gcp' },
+  { id: 'gcp-us-east1', name: 'GCP South Carolina', url: 'https://gcp-us-east1.turbopuffer.com', location: 'South Carolina', provider: 'gcp' },
   { id: 'gcp-us-central1', name: 'GCP Iowa', url: 'https://gcp-us-central1.turbopuffer.com', location: 'Iowa', provider: 'gcp' },
+  { id: 'gcp-us-west1', name: 'GCP Oregon', url: 'https://gcp-us-west1.turbopuffer.com', location: 'Oregon', provider: 'gcp' },
+  { id: 'gcp-northamerica-northeast2', name: 'GCP Toronto', url: 'https://gcp-northamerica-northeast2.turbopuffer.com', location: 'Toronto', provider: 'gcp' },
+  { id: 'gcp-europe-west1', name: 'GCP Belgium', url: 'https://gcp-europe-west1.turbopuffer.com', location: 'Belgium', provider: 'gcp' },
+  { id: 'gcp-europe-west3', name: 'GCP Frankfurt', url: 'https://gcp-europe-west3.turbopuffer.com', location: 'Frankfurt', provider: 'gcp' },
   { id: 'gcp-asia-southeast1', name: 'GCP Singapore', url: 'https://gcp-asia-southeast1.turbopuffer.com', location: 'Singapore', provider: 'gcp' },
   { id: 'gcp-asia-northeast3', name: 'GCP Seoul', url: 'https://gcp-asia-northeast3.turbopuffer.com', location: 'Seoul', provider: 'gcp' },
   // AWS Regions
   { id: 'aws-us-east-1', name: 'AWS N. Virginia', url: 'https://aws-us-east-1.turbopuffer.com', location: 'N. Virginia', provider: 'aws' },
   { id: 'aws-us-east-2', name: 'AWS Ohio', url: 'https://aws-us-east-2.turbopuffer.com', location: 'Ohio', provider: 'aws' },
   { id: 'aws-us-west-2', name: 'AWS Oregon', url: 'https://aws-us-west-2.turbopuffer.com', location: 'Oregon', provider: 'aws' },
-  { id: 'aws-eu-central-1', name: 'AWS Frankfurt', url: 'https://aws-eu-central-1.turbopuffer.com', location: 'Frankfurt', provider: 'aws' },
+  { id: 'aws-ca-central-1', name: 'AWS Montreal', url: 'https://aws-ca-central-1.turbopuffer.com', location: 'Montreal', provider: 'aws' },
+  { id: 'aws-sa-east-1', name: 'AWS São Paulo', url: 'https://aws-sa-east-1.turbopuffer.com', location: 'São Paulo', provider: 'aws' },
   { id: 'aws-eu-west-1', name: 'AWS Ireland', url: 'https://aws-eu-west-1.turbopuffer.com', location: 'Ireland', provider: 'aws' },
+  { id: 'aws-eu-west-2', name: 'AWS London', url: 'https://aws-eu-west-2.turbopuffer.com', location: 'London', provider: 'aws' },
+  { id: 'aws-eu-central-1', name: 'AWS Frankfurt', url: 'https://aws-eu-central-1.turbopuffer.com', location: 'Frankfurt', provider: 'aws' },
   { id: 'aws-ap-southeast-2', name: 'AWS Sydney', url: 'https://aws-ap-southeast-2.turbopuffer.com', location: 'Sydney', provider: 'aws' },
   { id: 'aws-ap-south-1', name: 'AWS Mumbai', url: 'https://aws-ap-south-1.turbopuffer.com', location: 'Mumbai', provider: 'aws' },
 ];

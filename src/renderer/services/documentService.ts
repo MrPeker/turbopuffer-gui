@@ -74,17 +74,13 @@ async listDocuments(
           cursor?: string | number;
           filters?: Filter;
           includeAttributes?: string[] | boolean;
-          offset?: number;
         } = {}
       ): Promise<{ documents: Document[]; nextCursor?: string | number }> {
         const limit = params.limit || 100;
-        const offset = params.offset || 0;
 
-        // For offset-based pagination, we need to get documents starting from the offset
-        // We'll do this by first getting the documents at the offset position as a cursor
-        // then using that cursor for the actual query
+        // Cursor-based pagination via id Gt filter — Turbopuffer has no offset param.
         let filters = params.filters;
-        
+
         if (params.cursor !== undefined) {
           const cursorFilter: Filter = ["id", "Gt", params.cursor];
           filters = filters ? ["And", [filters, cursorFilter]] : cursorFilter;
@@ -98,7 +94,6 @@ async listDocuments(
             params.includeAttributes !== undefined
               ? params.includeAttributes
               : true,
-          offset: offset > 0 ? offset : undefined,
         });
 
         const documents = response.rows || [];
@@ -122,55 +117,64 @@ async listDocuments(
 
     const ns = this.client.namespace(namespaceId);
 
-    // Convert to column format for better performance
-    const ids: (string | number)[] = [];
-    const vectors: number[][] = [];
-    const attributeColumns: Record<string, any[]> = {};
+    const docsWithVectors = documents.filter((d) => d.vector !== undefined).length;
+    const allHaveVectors = docsWithVectors === documents.length;
+    const anyHasVector = docsWithVectors > 0;
+    const mixedVectors = anyHasVector && !allHaveVectors;
 
-    documents.forEach((doc) => {
-      ids.push(doc.id);
-      if (doc.vector) {
-        vectors.push(doc.vector);
-      }
+    let writeParams: DocumentWriteParams;
 
-      // Process attributes
-      if (doc.attributes) {
-        Object.entries(doc.attributes).forEach(([key, value]) => {
-          if (!attributeColumns[key]) {
-            attributeColumns[key] = [];
-          }
-          attributeColumns[key].push(value);
-        });
-      }
+    if (mixedVectors) {
+      // Row form: columnar upsert requires equal-length columns, which would
+      // force inserting null vectors (rejected by the server). Row form lets
+      // each document declare its own fields, so vector-optional namespaces
+      // can mix vector-bearing and vector-less rows in one batch.
+      writeParams = {
+        upsert_rows: documents.map((doc) => ({
+          id: doc.id,
+          ...(doc.vector && { vector: doc.vector }),
+          ...(doc.attributes ?? {}),
+        })),
+        distance_metric: distanceMetric,
+      };
+    } else {
+      // Uniform batch: columnar form for throughput.
+      const ids: (string | number)[] = [];
+      const vectors: number[][] = [];
+      const attributeColumns: Record<string, any[]> = {};
 
-      // Fill missing attributes with null
-      Object.keys(attributeColumns).forEach((key) => {
-        if (attributeColumns[key].length < ids.length) {
-          attributeColumns[key].push(null);
+      documents.forEach((doc) => {
+        ids.push(doc.id);
+        if (doc.vector) {
+          vectors.push(doc.vector);
         }
+
+        if (doc.attributes) {
+          Object.entries(doc.attributes).forEach(([key, value]) => {
+            if (!attributeColumns[key]) {
+              attributeColumns[key] = [];
+            }
+            attributeColumns[key].push(value);
+          });
+        }
+
+        // Null-pad missing attributes to keep columns equal length.
+        Object.keys(attributeColumns).forEach((key) => {
+          if (attributeColumns[key].length < ids.length) {
+            attributeColumns[key].push(null);
+          }
+        });
       });
-    });
 
-    const hasVectors = vectors.length > 0;
-    const allHaveVectors = vectors.length === ids.length;
-
-    if (hasVectors && !allHaveVectors) {
-      throw new Error(
-        `Cannot mix documents with and without vectors in the same batch. ` +
-        `${vectors.length} of ${ids.length} documents have vectors.`
-      );
+      writeParams = {
+        upsert_columns: {
+          id: ids,
+          ...(allHaveVectors && { vector: vectors }),
+          ...attributeColumns,
+        },
+        ...(allHaveVectors && { distance_metric: distanceMetric }),
+      };
     }
-
-    const includeVectors = hasVectors && allHaveVectors;
-
-    const writeParams: DocumentWriteParams = {
-      upsert_columns: {
-        id: ids,
-        ...(includeVectors && { vector: vectors }),
-        ...attributeColumns,
-      },
-      ...(includeVectors && { distance_metric: distanceMetric }),
-    };
 
     try {
       const result = await ns.write(writeParams);

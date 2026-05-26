@@ -16,7 +16,6 @@ export interface DocumentsQueryParams {
   consistency?: {
     level: 'strong' | 'eventual';
   };
-  offset?: number;
 }
 
 export type RankBy = 

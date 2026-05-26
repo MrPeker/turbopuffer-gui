@@ -285,9 +285,12 @@ export const useNamespacesStore = create<NamespacesState>()(
           });
 
           try {
-            // Use multi-region fetching
+            // Use multi-region fetching. Pass prefix when we're loading a
+            // specific tree branch so the server filters instead of us shipping
+            // the whole namespace list back across the network.
             const { namespaces, errors } = await namespaceService.listNamespacesFromAllRegions(
-              state.currentRegions
+              state.currentRegions,
+              prefix
             );
 
             set((state) => {

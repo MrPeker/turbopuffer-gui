@@ -1204,23 +1204,16 @@ loadDocuments: async (
                 finalFilter = combinedFilter;
               }
               
-              // Helper function to convert ranking expression to Turbopuffer format
-              const convertRankingExprToTurbopuffer = (node: any): any => {
-                if (!node) return null;
-                if (node.type === 'attribute') return node.attribute;
-                if (node.type === 'constant') return node.constant;
-                if (node.type === 'operator' && node.operator && node.operands) {
-                  return [node.operator, ...node.operands.map(convertRankingExprToTurbopuffer)];
-                }
-                return null;
-              };
-
-              // Determine rank_by based on ranking mode and search mode
+              // Determine rank_by based on ranking mode and search mode.
+              //
+              // Expression-mode ranking is intentionally NOT wired up here: the
+              // old converter emitted invalid rank_by trees (math operators
+              // and bare attribute strings) that the Turbopuffer API rejects.
+              // The builder UI now shows a holding-state notice, and queries
+              // fall through to BM25 / vector / sort below until the rework
+              // lands. See RankingExpressionBuilder.tsx + RFC 0001 §8.5.
               let rankBy: any;
-              if (state.rankingMode === 'expression' && state.rankingExpression) {
-                // Custom ranking expression mode
-                rankBy = convertRankingExprToTurbopuffer(state.rankingExpression);
-              } else if (state.queryMode === 'bm25' && state.searchText.trim()) {
+              if (state.queryMode === 'bm25' && state.searchText.trim()) {
                 // BM25 full-text search mode
                 if (state.bm25Fields.length > 1) {
                   // Multi-field BM25 with operator
