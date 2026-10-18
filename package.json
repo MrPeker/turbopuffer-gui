@@ -70,7 +70,7 @@
     "happy-dom": "^20.8.9",
     "jsdom": "^27.3.0",
     "postcss": "^8.5.23",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.3.3",
     "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
     "typescript": "~4.5.4",
